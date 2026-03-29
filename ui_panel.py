@@ -1,6 +1,9 @@
 import bpy
 import os
 import json
+from datetime import datetime
+
+LOAD_TIME = datetime.now().strftime("%m/%d %H:%M:%S")
 
 class OBJECT_OT_load_preset(bpy.types.Operator):
     bl_idname = "object.load_preset"
@@ -192,6 +195,8 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
                 "bones",
                 text=""  # 右側选择框（Search Box）
             )
+        layout.label(text=f"Updated: {LOAD_TIME}", icon='TIME')
+
         # 添加选项卡按钮 - 移动到条件判断外部，使其始终可见
         row = layout.row()
         row.prop(scene, "my_enum", expand=True)
@@ -215,7 +220,9 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             upper_body_box = main_col.box()
             col = upper_body_box.column()
             add_bone_row_with_button(col, "上半身", "upper_body_bone")
+            add_bone_row_with_button(col, "上半身1", "upper_body1_bone")
             add_bone_row_with_button(col, "上半身2", "upper_body2_bone")
+            add_bone_row_with_button(col, "上半身3", "upper_body3_bone")
             add_bone_row_with_button(col, "首", "neck_bone")
             add_bone_row_with_button(col, "頭", "head_bone")
             add_symmetric_bones_with_buttons(col, "目:", "left_eye_bone", "right_eye_bone")

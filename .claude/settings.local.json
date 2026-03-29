@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(robocopy \"E:\\\\mywork\\\\add_on\\\\Convert-to-MMD-claude\" \"C:\\\\Users\\\\haoni\\\\AppData\\\\Roaming\\\\Blender Foundation\\\\Blender\\\\3.6\\\\scripts\\\\addons\\\\Convert-to-MMD-claude\" /E /IS /IT /NFL /NDL /NJH /NJS)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(xcopy \"E:\\\\mywork\\\\add_on\\\\Convert-to-MMD-claude\" \"C:\\\\Users\\\\haoni\\\\AppData\\\\Roaming\\\\Blender Foundation\\\\Blender\\\\3.6\\\\scripts\\\\addons\\\\Convert-to-MMD-claude\"\" /E /I /Y /Q 2>&1; echo \"退出码:$? \")",
+      "Bash(rsync -a --exclude='.git' \"E:/mywork/add_on/Convert-to-MMD-claude/\" \"C:/Users/haoni/AppData/Roaming/Blender Foundation/Blender/3.6/scripts/addons/Convert-to-MMD-claude/\")",
+      "Bash(cp -r \"E:/mywork/add_on/Convert-to-MMD-claude/operators\" \"C:/Users/haoni/AppData/Roaming/Blender Foundation/Blender/3.6/scripts/addons/Convert-to-MMD-claude/\")",
+      "Bash(cp \"E:/mywork/add_on/Convert-to-MMD-claude/bone_map_and_group.py\" \"E:/mywork/add_on/Convert-to-MMD-claude/bone_utils.py\" \"E:/mywork/add_on/Convert-to-MMD-claude/ui_panel.py\" \"E:/mywork/add_on/Convert-to-MMD-claude/__init__.py\" \"C:/Users/haoni/AppData/Roaming/Blender Foundation/Blender/3.6/scripts/addons/Convert-to-MMD-claude/\")",
+      "Bash(cp -r \"E:/mywork/add_on/Convert-to-MMD-claude/operators\" \"E:/mywork/add_on/Convert-to-MMD-claude/presets\" \"E:/mywork/add_on/Convert-to-MMD-claude/doc\" \"C:/Users/haoni/AppData/Roaming/Blender Foundation/Blender/3.6/scripts/addons/Convert-to-MMD-claude/\")",
+      "Bash(cp \"E:/mywork/add_on/Convert-to-MMD-claude/\"*.py \"C:/Users/haoni/AppData/Roaming/Blender Foundation/Blender/3.6/scripts/addons/Convert-to-MMD-claude/\")"
+    ]
+  }
+}
