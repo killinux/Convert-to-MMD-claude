@@ -190,8 +190,12 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
             ("右肩",  ["右肩", "右腕"],  lambda: {"head": edit_bones["右肩"].head, "tail": edit_bones["右腕"].head, "parent": edit_bones["右肩"].parent.name if edit_bones["右肩"].parent else "上半身3", "use_connect": False}),
             ("右腕",  ["右腕", "右ひじ"], lambda: {"head": edit_bones["右腕"].head, "tail": edit_bones["右ひじ"].head, "parent": "右肩", "use_connect": True}),
             ("右ひじ", ["右ひじ"],         lambda: {"head": edit_bones["右ひじ"].head, "tail": edit_bones.get("右手首").head if edit_bones.get("右手首") else edit_bones["右ひじ"].tail, "parent": "右腕", "use_connect": True}),
-            ("左足",  ["左足", "左ひざ"],  lambda: {"head": edit_bones["左足"].head, "tail": edit_bones["左ひざ"].head, "parent": "下半身", "use_connect": False}),
-            ("右足",  ["右足", "右ひざ"],  lambda: {"head": edit_bones["右足"].head, "tail": edit_bones["右ひざ"].head, "parent": "下半身", "use_connect": False}),
+            # 腰キャンセル骨：抵消下半身旋转，腿部骨骼挂在这下面
+            ("腰キャンセル.L", ["左足"], lambda: {"head": edit_bones["左足"].head, "tail": Vector((edit_bones["左足"].head.x, edit_bones["左足"].head.y, edit_bones["左足"].head.z + 0.05)), "parent": "下半身", "use_connect": False, "use_deform": False}),
+            ("腰キャンセル.R", ["右足"], lambda: {"head": edit_bones["右足"].head, "tail": Vector((edit_bones["右足"].head.x, edit_bones["右足"].head.y, edit_bones["右足"].head.z + 0.05)), "parent": "下半身", "use_connect": False, "use_deform": False}),
+            # 腿部骨骼：parent 挂到腰キャンセル
+            ("左足",  ["左足", "左ひざ"],  lambda: {"head": edit_bones["左足"].head, "tail": edit_bones["左ひざ"].head, "parent": "腰キャンセル.L", "use_connect": False}),
+            ("右足",  ["右足", "右ひざ"],  lambda: {"head": edit_bones["右足"].head, "tail": edit_bones["右ひざ"].head, "parent": "腰キャンセル.R", "use_connect": False}),
             ("左ひざ", ["左ひざ", "左足首"], lambda: {"head": edit_bones["左ひざ"].head, "tail": edit_bones["左足首"].head, "parent": "左足", "use_connect": False}),
             ("右ひざ", ["右ひざ", "右足首"], lambda: {"head": edit_bones["右ひざ"].head, "tail": edit_bones["右足首"].head, "parent": "右足", "use_connect": False}),
             ("左足首", ["左足首"],           lambda: {"head": edit_bones["左足首"].head, "tail": Vector((edit_bones["左足首"].head.x, edit_bones["左足首"].head.y - 0.1, 0)), "parent": "左ひざ", "use_connect": False}),

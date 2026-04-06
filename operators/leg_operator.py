@@ -174,6 +174,8 @@ class OBJECT_OT_complete_d_bones(bpy.types.Operator):
 
                 main_eb = edit_bones[main_name]
                 cancel_name = "腰キャンセル" + side_suffix
+                if not edit_bones.get(cancel_name):
+                    print(f"[CTMMD 3]   WARNING: {cancel_name} not found, D-bone parent will use 下半身. Run Step 2 first.")
                 parent_name = cancel_name if edit_bones.get(cancel_name) else "下半身"
 
                 parent_d = None
