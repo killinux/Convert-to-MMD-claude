@@ -115,8 +115,110 @@ class OBJECT_OT_add_ik(bpy.types.Operator):
         add_ik_constraint(right_kutu, obj, "右つま先ＩＫ", 1, 200)
         add_damped_track_constraint(right_kutu, obj, "右ひざ")
 
-        # D骨约束不在此步骤添加。
-        # PMX 标准使用 shadow/dummy 三层约束机制（由 mmd_tools 自动创建）。
-        # 用户应在最后一步调用 mmd_tools.convert_to_mmd_model() 完成约束设置。
+        # ─── Shadow/Dummy 三层约束机制 ───
+        # PMX 标准: dummy(挂主骨) → shadow(COPY_TRANSFORMS) → D骨(TRANSFORM)
+        bpy.ops.object.mode_set(mode='EDIT')
+        edit_bones = obj.data.edit_bones
+        from math import pi
 
+        SHADOW_DUMMY_DEFS = [
+            # (D骨名, 主骨名)
+            ("足D.L",  "左足"),
+            ("足D.R",  "右足"),
+            ("ひざD.L", "左ひざ"),
+            ("ひざD.R", "右ひざ"),
+            ("足首D.L", "左足首"),
+            ("足首D.R", "右足首"),
+        ]
+
+        CANCEL_DEFS = [
+            # (cancel名, dummy_parent, shadow_parent)
+            ("腰キャンセル.L", "腰", "グルーブ"),
+            ("腰キャンセル.R", "腰", "グルーブ"),
+        ]
+
+        # 腰キャンセル的 dummy/shadow 骨骼
+        for cancel_name, dummy_par, shadow_par in CANCEL_DEFS:
+            cancel_eb = edit_bones.get(cancel_name)
+            if not cancel_eb:
+                continue
+            for prefix, par in [("_dummy_", dummy_par), ("_shadow_", shadow_par)]:
+                name = prefix + cancel_name
+                if not edit_bones.get(name):
+                    bone_utils.create_or_update_bone(edit_bones, name,
+                        cancel_eb.head.copy(), cancel_eb.tail.copy(),
+                        use_connect=False, parent_name=par, use_deform=False)
+
+        # D骨的 dummy/shadow 骨骼
+        for d_name, main_name in SHADOW_DUMMY_DEFS:
+            d_eb = edit_bones.get(d_name)
+            main_eb = edit_bones.get(main_name)
+            if not d_eb or not main_eb:
+                continue
+            # dummy 挂在主骨下
+            dummy_name = "_dummy_" + d_name
+            if not edit_bones.get(dummy_name):
+                bone_utils.create_or_update_bone(edit_bones, dummy_name,
+                    d_eb.head.copy(), d_eb.tail.copy(),
+                    use_connect=False, parent_name=main_name, use_deform=False)
+            # shadow 挂在主骨的父骨骼下（和 D 骨的父骨骼一致）
+            shadow_name = "_shadow_" + d_name
+            shadow_par = main_eb.parent.name if main_eb.parent else None
+            if not edit_bones.get(shadow_name):
+                bone_utils.create_or_update_bone(edit_bones, shadow_name,
+                    d_eb.head.copy(), d_eb.tail.copy(),
+                    use_connect=False, parent_name=shadow_par, use_deform=False)
+
+        bpy.ops.object.mode_set(mode='POSE')
+
+        # shadow ← COPY_TRANSFORMS ← dummy
+        all_defs = [(d, m) for d, m in SHADOW_DUMMY_DEFS]
+        all_defs += [(c, None) for c, _, _ in CANCEL_DEFS]
+        for d_name, _ in all_defs:
+            shadow_pb = obj.pose.bones.get("_shadow_" + d_name)
+            if shadow_pb and not any(c.type == 'COPY_TRANSFORMS' for c in shadow_pb.constraints):
+                ct = shadow_pb.constraints.new(type='COPY_TRANSFORMS')
+                ct.name = "mmd_shadow_copy"
+                ct.target = obj
+                ct.subtarget = "_dummy_" + d_name
+
+        # D骨/腰キャンセル ← TRANSFORM ← shadow (rotation 1:1)
+        for d_name, _ in SHADOW_DUMMY_DEFS:
+            d_pb = obj.pose.bones.get(d_name)
+            if d_pb and not any(c.type == 'TRANSFORM' for c in d_pb.constraints):
+                tf = d_pb.constraints.new(type='TRANSFORM')
+                tf.name = "mmd_additional_rotation"
+                tf.target = obj
+                tf.subtarget = "_shadow_" + d_name
+                tf.target_space = 'LOCAL'
+                tf.owner_space = 'LOCAL'
+                tf.map_from = 'ROTATION'
+                tf.map_to = 'ROTATION'
+                tf.from_min_x_rot = -pi; tf.from_max_x_rot = pi
+                tf.from_min_y_rot = -pi; tf.from_max_y_rot = pi
+                tf.from_min_z_rot = -pi; tf.from_max_z_rot = pi
+                tf.to_min_x_rot = -pi; tf.to_max_x_rot = pi
+                tf.to_min_y_rot = -pi; tf.to_max_y_rot = pi
+                tf.to_min_z_rot = -pi; tf.to_max_z_rot = pi
+
+        # 腰キャンセル ← TRANSFORM ← shadow (反转旋转：抵消下半身)
+        for cancel_name, _, _ in CANCEL_DEFS:
+            cancel_pb = obj.pose.bones.get(cancel_name)
+            if cancel_pb and not any(c.type == 'TRANSFORM' for c in cancel_pb.constraints):
+                tf = cancel_pb.constraints.new(type='TRANSFORM')
+                tf.name = "mmd_additional_rotation"
+                tf.target = obj
+                tf.subtarget = "_shadow_" + cancel_name
+                tf.target_space = 'LOCAL'
+                tf.owner_space = 'LOCAL'
+                tf.map_from = 'ROTATION'
+                tf.map_to = 'ROTATION'
+                tf.from_min_x_rot = -pi; tf.from_max_x_rot = pi
+                tf.from_min_y_rot = -pi; tf.from_max_y_rot = pi
+                tf.from_min_z_rot = -pi; tf.from_max_z_rot = pi
+                tf.to_min_x_rot = pi; tf.to_max_x_rot = -pi
+                tf.to_min_y_rot = pi; tf.to_max_y_rot = -pi
+                tf.to_min_z_rot = pi; tf.to_max_z_rot = -pi
+
+        print("[CTMMD 6] Shadow/dummy mechanism created")
         return {'FINISHED'}
