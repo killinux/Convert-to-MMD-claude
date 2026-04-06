@@ -177,83 +177,32 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
                 "tail": edit_bones["首"].tail.copy() if edit_bones.get("首") else Vector((0, upper_body_head.y, upper_body_head.z + 0.60)),
                 "parent": "上半身3", "use_connect": False, "use_deform": True
             },
-            # 上肢骨骼链
-            "左肩": {
-                "head": edit_bones["左肩"].head,
-                "tail": edit_bones["左腕"].head,
-                "parent": edit_bones["左肩"].parent.name if edit_bones["左肩"].parent else None,
-                "use_connect": False
-            },
-            "左腕": {
-                "head": edit_bones["左腕"].head,
-                "tail": edit_bones["左ひじ"].head,
-                "parent": "左肩",
-                "use_connect": True
-            },
-            "左ひじ": {
-                "head": edit_bones["左ひじ"].head,
-                "tail": edit_bones["左手首"].head if edit_bones["左手首"]else edit_bones["左ひじ"].tail,
-                "parent": "左腕",
-                "use_connect": True
-            },
-       
-            "右肩": {
-                "head": edit_bones["右肩"].head,
-                "tail": edit_bones["右腕"].head,
-                "parent": edit_bones["右肩"].parent.name if edit_bones["右肩"].parent else None,
-                "use_connect": False
-            },
-            "右腕": {
-                "head": edit_bones["右腕"].head,
-                "tail": edit_bones["右ひじ"].head,
-                "parent": "右肩",
-                "use_connect": True
-            },
-            "右ひじ": {
-                "head": edit_bones["右ひじ"].head,
-                "tail": edit_bones["右手首"].head if edit_bones["右手首"]else edit_bones["右ひじ"].tail,
-                "parent": "右腕",
-                "use_connect": True
-            }, 
-            
-            "下半身": {"head": Vector((0, upper_body_head.y, upper_body_head.z)), "tail": Vector((0, upper_body_head.y, upper_body_head.z - 0.15)), "parent": "腰", "use_connect": False},
-            "左足": {
-                "head": edit_bones["左足"].head,
-                "tail": edit_bones["左ひざ"].head,
-                "parent": "下半身",
-                "use_connect": False
-            },
-            "右足": {
-                "head": edit_bones["右足"].head,
-                "tail": edit_bones["右ひざ"].head,
-                "parent": "下半身",
-                "use_connect": False
-            },
-            "左ひざ": {
-                "head": edit_bones["左ひざ"].head,
-                "tail": edit_bones["左足首"].head,
-                "parent": "左足",
-                "use_connect": False
-            },
-            "右ひざ": {
-                "head": edit_bones["右ひざ"].head,
-                "tail": edit_bones["右足首"].head,
-                "parent": "右足",
-                "use_connect": False
-            },
-            "左足首": {
-                "head": edit_bones["左足首"].head,
-                "tail": Vector((edit_bones["左足首"].head.x, edit_bones["左足首"].head.y - 0.1, 0)),
-                "parent": "左ひざ",
-                "use_connect": False
-            },
-            "右足首": {
-                "head": edit_bones["右足首"].head,
-                "tail": Vector((edit_bones["右足首"].head.x, edit_bones["右足首"].head.y - 0.1, 0)),
-                "parent": "右ひざ",
-                "use_connect": False
-            }
+            # 上肢骨骼链（安全访问，缺失时跳过）
+            "下半身": {"head": Vector((0, upper_body_head.y, upper_body_head.z)), "tail": Vector((0, upper_body_head.y, upper_body_head.z - 0.15)), "parent": "腰", "use_connect": False}
         }
+
+        # 动态添加上肢骨骼（安全访问，缺失时跳过）
+        limb_defs = [
+            # (骨骼名, 所需骨骼列表, 属性生成函数)
+            ("左肩",  ["左肩", "左腕"],  lambda: {"head": edit_bones["左肩"].head, "tail": edit_bones["左腕"].head, "parent": edit_bones["左肩"].parent.name if edit_bones["左肩"].parent else "上半身3", "use_connect": False}),
+            ("左腕",  ["左腕", "左ひじ"], lambda: {"head": edit_bones["左腕"].head, "tail": edit_bones["左ひじ"].head, "parent": "左肩", "use_connect": True}),
+            ("左ひじ", ["左ひじ"],         lambda: {"head": edit_bones["左ひじ"].head, "tail": edit_bones.get("左手首").head if edit_bones.get("左手首") else edit_bones["左ひじ"].tail, "parent": "左腕", "use_connect": True}),
+            ("右肩",  ["右肩", "右腕"],  lambda: {"head": edit_bones["右肩"].head, "tail": edit_bones["右腕"].head, "parent": edit_bones["右肩"].parent.name if edit_bones["右肩"].parent else "上半身3", "use_connect": False}),
+            ("右腕",  ["右腕", "右ひじ"], lambda: {"head": edit_bones["右腕"].head, "tail": edit_bones["右ひじ"].head, "parent": "右肩", "use_connect": True}),
+            ("右ひじ", ["右ひじ"],         lambda: {"head": edit_bones["右ひじ"].head, "tail": edit_bones.get("右手首").head if edit_bones.get("右手首") else edit_bones["右ひじ"].tail, "parent": "右腕", "use_connect": True}),
+            ("左足",  ["左足", "左ひざ"],  lambda: {"head": edit_bones["左足"].head, "tail": edit_bones["左ひざ"].head, "parent": "下半身", "use_connect": False}),
+            ("右足",  ["右足", "右ひざ"],  lambda: {"head": edit_bones["右足"].head, "tail": edit_bones["右ひざ"].head, "parent": "下半身", "use_connect": False}),
+            ("左ひざ", ["左ひざ", "左足首"], lambda: {"head": edit_bones["左ひざ"].head, "tail": edit_bones["左足首"].head, "parent": "左足", "use_connect": False}),
+            ("右ひざ", ["右ひざ", "右足首"], lambda: {"head": edit_bones["右ひざ"].head, "tail": edit_bones["右足首"].head, "parent": "右足", "use_connect": False}),
+            ("左足首", ["左足首"],           lambda: {"head": edit_bones["左足首"].head, "tail": Vector((edit_bones["左足首"].head.x, edit_bones["左足首"].head.y - 0.1, 0)), "parent": "左ひざ", "use_connect": False}),
+            ("右足首", ["右足首"],           lambda: {"head": edit_bones["右足首"].head, "tail": Vector((edit_bones["右足首"].head.x, edit_bones["右足首"].head.y - 0.1, 0)), "parent": "右ひざ", "use_connect": False}),
+        ]
+        for bone_name, required, prop_fn in limb_defs:
+            if all(edit_bones.get(r) for r in required):
+                bone_properties[bone_name] = prop_fn()
+            else:
+                missing = [r for r in required if not edit_bones.get(r)]
+                print(f"[CTMMD 2]   Skipped {bone_name}: missing {missing}")
 
         # 按顺序检查并创建或更新骨骼
         print("[CTMMD 2] ===== Step 2: Complete Missing Bones =====")

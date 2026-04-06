@@ -141,4 +141,3 @@ class OBJECT_OT_use_mmd_tools_convert(bpy.types.Operator):
             text="Open Documentation",
             icon='HELP'
         ).url = "https://mmd-blender.fandom.com/wiki/MMD_Tools_Documentation"
-        obj.select_set(True)

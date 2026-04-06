@@ -123,6 +123,11 @@ class OBJECT_OT_convert_to_apose(bpy.types.Operator):
                         bpy.ops.object.modifier_apply(modifier=modifier.name)
                         break
         except RuntimeError as e:
+            # 清理残留的 _copy 修改器
+            for mesh_obj in meshes_with_armature:
+                for modifier in list(mesh_obj.modifiers):
+                    if "_copy" in modifier.name:
+                        mesh_obj.modifiers.remove(modifier)
             self.report({'ERROR'}, f"Error while applying modifier: {str(e)}")
             return {'CANCELLED'}
 
