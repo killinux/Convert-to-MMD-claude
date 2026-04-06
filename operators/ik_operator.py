@@ -61,7 +61,7 @@ class OBJECT_OT_add_ik(bpy.types.Operator):
     def execute(self, context):
         obj = context.active_object
         if not obj or obj.type != 'ARMATURE':
-            self.report({'ERROR'}, "没有选择骨架对象")
+            self.report({'ERROR'}, "No armature object selected")
             return {'CANCELLED'}
 
         if context.mode != 'EDIT_ARMATURE':
@@ -71,7 +71,7 @@ class OBJECT_OT_add_ik(bpy.types.Operator):
         required_bones = ['左ひざ', '右ひざ', '左足首', '右足首', '全ての親']
         missing_bones = [name for name in required_bones if name not in edit_bones]
         if missing_bones:
-            self.report({'ERROR'}, f"缺失基础骨骼: {', '.join(missing_bones)}，请先补全骨骼")
+            self.report({'ERROR'}, f"Missing required bones: {', '.join(missing_bones)}. Run Step 2 first.")
             return {'CANCELLED'}
 
         # IK骨骼属性定义

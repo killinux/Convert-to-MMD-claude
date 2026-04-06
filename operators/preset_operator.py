@@ -11,7 +11,7 @@ class OBJECT_OT_fill_from_selection_specific(bpy.types.Operator):
     def execute(self, context):
         obj = context.active_object
         if not obj or obj.type != 'ARMATURE':
-            self.report({'ERROR'}, "未选择骨架对象")
+            self.report({'ERROR'}, "No armature object selected")
             return {'CANCELLED'}
 
         scene = context.scene
@@ -22,11 +22,11 @@ class OBJECT_OT_fill_from_selection_specific(bpy.types.Operator):
         elif mode == 'EDIT_ARMATURE':
             selected_bones = [bone.name for bone in obj.data.edit_bones if bone.select]
         else:
-            self.report({'ERROR'}, "请在姿态模式或编辑模式下选择骨骼")
+            self.report({'ERROR'}, "Select bones in Pose Mode or Edit Mode")
             return {'CANCELLED'}
 
         if not selected_bones:
-            self.report({'ERROR'}, "未选择骨骼")
+            self.report({'ERROR'}, "No bones selected")
             return {'CANCELLED'}
 
         # 将第一个选定的骨骼填充到指定属性中
@@ -49,7 +49,7 @@ class OBJECT_OT_export_preset(bpy.types.Operator):
         with open(self.filepath, 'w') as file:
             json.dump(preset, file, indent=4)
 
-        self.report({'INFO'}, f"预设已导出到 {self.filepath}")
+        self.report({'INFO'}, f"Preset exported to {self.filepath}")
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -70,14 +70,14 @@ class OBJECT_OT_import_preset(bpy.types.Operator):
             with open(self.filepath, 'r') as file:
                 preset = json.load(file)
         except Exception as e:
-            self.report({'ERROR'}, f"加载预设失败：{str(e)}")
+            self.report({'ERROR'}, f"Failed to load preset: {str(e)}")
             return {'CANCELLED'}
 
         for prop_name, value in preset.items():
             if prop_name in get_bones_list():
                 setattr(scene, prop_name, value)
 
-        self.report({'INFO'}, f"已从 {self.filepath} 导入预设")
+        self.report({'INFO'}, f"Preset imported from {self.filepath}")
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -101,7 +101,7 @@ class OBJECT_OT_use_mmd_tools_convert(bpy.types.Operator):
     def execute(self, context):
         obj = context.active_object
         if not obj or obj.type != 'ARMATURE':
-            self.report({'ERROR'}, "未选择骨架对象")
+            self.report({'ERROR'}, "No armature object selected")
             return {'CANCELLED'}
 
         # 保存当前模式并切换到OBJECT模式
@@ -114,10 +114,10 @@ class OBJECT_OT_use_mmd_tools_convert(bpy.types.Operator):
             bpy.ops.mmd_tools.convert_to_mmd_model()
         except AttributeError as e:
             # 弹出错误提示窗口
-            self.report({'ERROR'}, "mmd_tools插件未安装")
+            self.report({'ERROR'}, "mmd_tools is not installed")
             bpy.context.window_manager.popup_menu(
                 self.draw_error_menu,
-                title="MMD Tools未安装",
+                title="MMD Tools Not Installed",
                 icon='ERROR'
             )
             return {'CANCELLED'}
@@ -129,16 +129,16 @@ class OBJECT_OT_use_mmd_tools_convert(bpy.types.Operator):
 
     def draw_error_menu(self, menu, context):
         layout = menu.layout
-        layout.label(text="mmd_tools 插件未安装", icon='ERROR')
+        layout.label(text="mmd_tools is not installed", icon='ERROR')
         layout.separator()
         layout.operator(
             "wm.url_open",
-            text="前往下载页面",
+            text="Open Download Page",
             icon='URL'
         ).url = "https://extensions.blender.org/add-ons/mmd-tools/"
         layout.operator(
             "wm.url_open",
-            text="查看使用文档",
+            text="Open Documentation",
             icon='HELP'
         ).url = "https://mmd-blender.fandom.com/wiki/MMD_Tools_Documentation"
         obj.select_set(True)

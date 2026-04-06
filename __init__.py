@@ -19,6 +19,7 @@ from .operators import collection_operator
 from .operators import ik_operator
 from .operators import pose_operator
 from .operators import clear_unweighted_bones_operator
+from .operators import leg_operator
 from . import ui_panel
 from . import bone_map_and_group
 from . import bone_utils
@@ -34,21 +35,38 @@ def unregister_properties(properties_list):
         if hasattr(bpy.types.Scene, prop_name):
             delattr(bpy.types.Scene, prop_name)
 
+def _safe_register(cls):
+    try:
+        bpy.utils.unregister_class(cls)
+    except RuntimeError:
+        pass
+    bpy.utils.register_class(cls)
+
 def register():
     # 注册所有类
-    bpy.utils.register_class(ui_panel.OBJECT_PT_skeleton_hierarchy)
-    bpy.utils.register_class(ui_panel.OBJECT_OT_load_preset)
-    bpy.utils.register_class(bone_operator.OBJECT_OT_rename_to_mmd)
-    bpy.utils.register_class(bone_operator.OBJECT_OT_complete_missing_bones)
-    bpy.utils.register_class(preset_operator.OBJECT_OT_fill_from_selection_specific)
-    bpy.utils.register_class(preset_operator.OBJECT_OT_export_preset)
-    bpy.utils.register_class(preset_operator.OBJECT_OT_import_preset)
-    bpy.utils.register_class(preset_operator.OBJECT_OT_use_mmd_tools_convert)
-    bpy.utils.register_class(pose_operator.OBJECT_OT_convert_to_apose)
-    bpy.utils.register_class(ik_operator.OBJECT_OT_add_ik)
-    bpy.utils.register_class(collection_operator.OBJECT_OT_create_bone_group)
-    bpy.utils.register_class(clear_unweighted_bones_operator.OBJECT_OT_clear_unweighted_bones)
-    bpy.utils.register_class(clear_unweighted_bones_operator.OBJECT_OT_merge_single_child_bones)
+    _safe_register(ui_panel.OBJECT_PT_skeleton_hierarchy)
+    _safe_register(ui_panel.OBJECT_OT_load_preset)
+    _safe_register(bone_operator.OBJECT_OT_rename_to_mmd)
+    _safe_register(bone_operator.OBJECT_OT_complete_missing_bones)
+    _safe_register(preset_operator.OBJECT_OT_fill_from_selection_specific)
+    _safe_register(preset_operator.OBJECT_OT_export_preset)
+    _safe_register(preset_operator.OBJECT_OT_import_preset)
+    _safe_register(preset_operator.OBJECT_OT_use_mmd_tools_convert)
+    _safe_register(pose_operator.OBJECT_OT_convert_to_apose)
+    _safe_register(ik_operator.OBJECT_OT_add_ik)
+    _safe_register(collection_operator.OBJECT_OT_create_bone_group)
+    _safe_register(clear_unweighted_bones_operator.OBJECT_OT_clear_unweighted_bones)
+    _safe_register(clear_unweighted_bones_operator.OBJECT_OT_merge_single_child_bones)
+    _safe_register(leg_operator.OBJECT_OT_complete_twist_bones)
+    _safe_register(leg_operator.OBJECT_OT_complete_d_bones)
+    _safe_register(leg_operator.OBJECT_OT_complete_hip_cancel_bones)
+    _safe_register(leg_operator.OBJECT_OT_assign_weights)
+    _safe_register(leg_operator.OBJECT_OT_assign_weights_phase1)
+    _safe_register(leg_operator.OBJECT_OT_assign_weights_phase2)
+    _safe_register(leg_operator.OBJECT_OT_assign_weights_phase3)
+    _safe_register(leg_operator.OBJECT_OT_assign_weights_phase4)
+    _safe_register(leg_operator.OBJECT_OT_assign_weights_phase5)
+    _safe_register(leg_operator.OBJECT_OT_assign_upper3_weights)
     # 注册动态属性
     bones = preset_operator.get_bones_list()
     register_properties(bones)
@@ -69,21 +87,37 @@ def register():
         ],
         default='option1'
     )    
+def _safe_unregister(cls):
+    try:
+        bpy.utils.unregister_class(cls)
+    except RuntimeError:
+        pass
+
 def unregister():
     # 注销所有类
-    bpy.utils.unregister_class(ui_panel.OBJECT_PT_skeleton_hierarchy)
-    bpy.utils.unregister_class(ui_panel.OBJECT_OT_load_preset)
-    bpy.utils.unregister_class(bone_operator.OBJECT_OT_rename_to_mmd)
-    bpy.utils.unregister_class(bone_operator.OBJECT_OT_complete_missing_bones)
-    bpy.utils.unregister_class(preset_operator.OBJECT_OT_fill_from_selection_specific)
-    bpy.utils.unregister_class(preset_operator.OBJECT_OT_export_preset)
-    bpy.utils.unregister_class(preset_operator.OBJECT_OT_import_preset)
-    bpy.utils.unregister_class(preset_operator.OBJECT_OT_use_mmd_tools_convert)
-    bpy.utils.unregister_class(pose_operator.OBJECT_OT_convert_to_apose)
-    bpy.utils.unregister_class(ik_operator.OBJECT_OT_add_ik)
-    bpy.utils.unregister_class(collection_operator.OBJECT_OT_create_bone_group)
-    bpy.utils.unregister_class(clear_unweighted_bones_operator.OBJECT_OT_clear_unweighted_bones)
-    bpy.utils.unregister_class(clear_unweighted_bones_operator.OBJECT_OT_merge_single_child_bones)
+    _safe_unregister(ui_panel.OBJECT_PT_skeleton_hierarchy)
+    _safe_unregister(ui_panel.OBJECT_OT_load_preset)
+    _safe_unregister(bone_operator.OBJECT_OT_rename_to_mmd)
+    _safe_unregister(bone_operator.OBJECT_OT_complete_missing_bones)
+    _safe_unregister(preset_operator.OBJECT_OT_fill_from_selection_specific)
+    _safe_unregister(preset_operator.OBJECT_OT_export_preset)
+    _safe_unregister(preset_operator.OBJECT_OT_import_preset)
+    _safe_unregister(preset_operator.OBJECT_OT_use_mmd_tools_convert)
+    _safe_unregister(pose_operator.OBJECT_OT_convert_to_apose)
+    _safe_unregister(ik_operator.OBJECT_OT_add_ik)
+    _safe_unregister(collection_operator.OBJECT_OT_create_bone_group)
+    _safe_unregister(clear_unweighted_bones_operator.OBJECT_OT_clear_unweighted_bones)
+    _safe_unregister(clear_unweighted_bones_operator.OBJECT_OT_merge_single_child_bones)
+    _safe_unregister(leg_operator.OBJECT_OT_complete_d_bones)
+    _safe_unregister(leg_operator.OBJECT_OT_complete_hip_cancel_bones)
+    _safe_unregister(leg_operator.OBJECT_OT_assign_weights)
+    _safe_unregister(leg_operator.OBJECT_OT_assign_weights_phase1)
+    _safe_unregister(leg_operator.OBJECT_OT_assign_weights_phase2)
+    _safe_unregister(leg_operator.OBJECT_OT_assign_weights_phase3)
+    _safe_unregister(leg_operator.OBJECT_OT_assign_weights_phase4)
+    _safe_unregister(leg_operator.OBJECT_OT_assign_weights_phase5)
+    _safe_unregister(leg_operator.OBJECT_OT_assign_upper3_weights)
+    _safe_unregister(leg_operator.OBJECT_OT_complete_twist_bones)
     del bpy.types.Scene.my_enum
     # 注销动态属性
     bones = preset_operator.get_bones_list()

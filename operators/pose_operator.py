@@ -11,10 +11,10 @@ class OBJECT_OT_convert_to_apose(bpy.types.Operator):
     def execute(self, context):
         obj = context.active_object
         if not obj or obj.type != 'ARMATURE':
-            self.report({'ERROR'}, "未选择骨架对象")
+            self.report({'ERROR'}, "No armature object selected")
             return {'CANCELLED'}
         if not apply_armature_transforms(context):
-            self.report({'ERROR'}, "应用骨架变换失败")
+            self.report({'ERROR'}, "Failed to apply armature transforms")
             return {'CANCELLED'}
         scene = context.scene
         
@@ -26,7 +26,7 @@ class OBJECT_OT_convert_to_apose(bpy.types.Operator):
 
         # 检查是否有设置骨骼
         if not any(arm_bones.values()):
-            self.report({'ERROR'}, "请先在UI中设置要转换的骨骼")
+            self.report({'ERROR'}, "Configure the target bones in the UI first")
             return {'CANCELLED'}
 
         # 1. 确保在对象模式
@@ -62,7 +62,7 @@ class OBJECT_OT_convert_to_apose(bpy.types.Operator):
                 temp_mesh["is_temp_mesh"] = True
                 
             except Exception as e:
-                self.report({'ERROR'}, f"创建临时网格失败：{str(e)}")
+                self.report({'ERROR'}, f"Failed to create temporary mesh: {str(e)}")
                 return {'CANCELLED'}
 
         # 3. 为每个网格复制骨骼修改器，但保留原始修改器
@@ -108,7 +108,7 @@ class OBJECT_OT_convert_to_apose(bpy.types.Operator):
                 converted_bones.append(bone_name)
 
         if not converted_bones:
-            self.report({'WARNING'}, "没有找到匹配的骨骼可以转换")
+            self.report({'WARNING'}, "No matching bones found for conversion")
             return {'CANCELLED'}
 
         # 7. 更新视图以确保姿态已应用
@@ -123,7 +123,7 @@ class OBJECT_OT_convert_to_apose(bpy.types.Operator):
                         bpy.ops.object.modifier_apply(modifier=modifier.name)
                         break
         except RuntimeError as e:
-            self.report({'ERROR'}, f"应用修改器时出错：{str(e)}")
+            self.report({'ERROR'}, f"Error while applying modifier: {str(e)}")
             return {'CANCELLED'}
 
         # 9. 切换回骨骼对象
@@ -138,5 +138,5 @@ class OBJECT_OT_convert_to_apose(bpy.types.Operator):
             if mesh_obj.get("is_temp_mesh"):
                 bpy.data.objects.remove(mesh_obj, do_unlink=True)
 
-        self.report({'INFO'}, f"已完成A-Pose转换并应用为新的静置姿态")
+        self.report({'INFO'}, "A-pose conversion finished and was applied as the new rest pose")
         return {'FINISHED'}

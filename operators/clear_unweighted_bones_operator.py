@@ -27,13 +27,13 @@ class OBJECT_OT_clear_unweighted_bones(bpy.types.Operator):
     def execute(self, context):
         armature = context.active_object
         if not armature or armature.type != 'ARMATURE':
-            self.report({'ERROR'}, "请选择一个骨架")
+            self.report({'ERROR'}, "Please select an armature")
             return {'CANCELLED'}
             
         # 获取场景中的所有网格对象
         mesh_objects = [obj for obj in bpy.data.objects if obj.type == 'MESH']
         if not mesh_objects:
-            self.report({'ERROR'}, "场景中没有网格对象")
+            self.report({'ERROR'}, "No mesh objects found in the scene")
             return {'CANCELLED'}
             
         # 切换到编辑模式
@@ -68,7 +68,7 @@ class OBJECT_OT_clear_unweighted_bones(bpy.types.Operator):
         
         # 返回物体模式
         bpy.ops.object.mode_set(mode='OBJECT')
-        self.report({'INFO'}, f"已删除 {len(self.bones_to_remove)} 个无权重骨骼")
+        self.report({'INFO'}, f"Removed {len(self.bones_to_remove)} unweighted bones")
     
     def remove_bone(self, bone_name):
         """删除单个骨骼"""
@@ -93,7 +93,7 @@ class OBJECT_OT_merge_single_child_bones(bpy.types.Operator):
     def execute(self, context):
         armature = context.active_object
         if not armature or armature.type != 'ARMATURE':
-            self.report({'ERROR'}, "请选择一个骨架")
+            self.report({'ERROR'}, "Please select an armature")
             return {'CANCELLED'}
         
         # 切换到编辑模式
@@ -119,7 +119,7 @@ class OBJECT_OT_merge_single_child_bones(bpy.types.Operator):
         # 返回物体模式
         bpy.ops.object.mode_set(mode='OBJECT')
         
-        self.report({'INFO'}, f"已合并 {bones_merged} 个单子级骨骼")
+        self.report({'INFO'}, f"Merged {bones_merged} single-child bones")
         return {'FINISHED'}
 
 # 注册操作类

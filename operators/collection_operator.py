@@ -28,7 +28,7 @@ def load_bone_presets():
         all_bones.update(*(p['bones'] for p in valid_groups))
         return preset_dict, all_bones
     except Exception as e:
-        print(f"加载骨骼分组配置失败: {str(e)}")
+        print(f"Failed to load bone group configuration: {str(e)}")
     return {}, set()
 
 BONE_GROUP_PRESETS, PRESET_BONES = load_bone_presets()
@@ -47,11 +47,11 @@ class OBJECT_OT_create_bone_group(bpy.types.Operator):
     def execute(self, context):
         obj = context.active_object
         if not obj or obj.type != 'ARMATURE':
-            self.report({'ERROR'}, "未选择骨架对象")
+            self.report({'ERROR'}, "No armature object selected")
             return {'CANCELLED'}
 
         if self.use_presets and not BONE_GROUP_PRESETS:
-            self.report({'ERROR'}, "未找到有效的骨骼分组配置，请检查bone_map_and_group.py文件")
+            self.report({'ERROR'}, "No valid bone group configuration found. Check bone_map_and_group.py.")
             return {'CANCELLED'}
 
         # 根据API特性自动适配版本
@@ -77,7 +77,7 @@ class OBJECT_OT_create_bone_group(bpy.types.Operator):
         
         # 使用集合差集优化剩余骨骼计算
         remaining_bones = set(bone_dict.keys()) - PRESET_BONES
-        print(f'预设应包含骨骼数量: {len(PRESET_BONES)} 实际骨骼数量: {len(bone_dict)} 初始剩余骨骼数量: {len(remaining_bones)}')
+        print(f'Preset bones: {len(PRESET_BONES)} | Actual bones: {len(bone_dict)} | Initial unassigned: {len(remaining_bones)}')
         
         # 批量创建集合并分配骨骼
         for group_name, bones in BONE_GROUP_PRESETS.items():
@@ -86,7 +86,7 @@ class OBJECT_OT_create_bone_group(bpy.types.Operator):
                 for b in valid_bones:
                     coll.assign(bone_dict[b])
                 remaining_bones -= set(valid_bones)
-            print(f'处理分组【{group_name}】后剩余骨骼数量: {len(remaining_bones)}')
+            print(f'After group [{group_name}], remaining unassigned bones: {len(remaining_bones)}')
 
         # 优化other分组处理
         if remaining_bones:
@@ -126,7 +126,7 @@ class OBJECT_OT_create_bone_group(bpy.types.Operator):
         
         # 计算未分配骨骼
         remaining_bones = set(bone_dict.keys()) - assigned_bones
-        print(f'总骨骼数: {len(bone_dict)} 已分配: {len(assigned_bones)} 未分配: {len(remaining_bones)}')
+        print(f'Total bones: {len(bone_dict)} | Assigned: {len(assigned_bones)} | Unassigned: {len(remaining_bones)}')
         
         if remaining_bones:
             other_group = group_dict.get('other') or obj.pose.bone_groups.new(name='other')

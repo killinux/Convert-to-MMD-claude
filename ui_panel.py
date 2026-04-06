@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 
 LOAD_TIME = datetime.now().strftime("%m/%d %H:%M:%S")
+CODE_VERSION = "04/06 fallback-warnings"  # 每次代码更新后由Claude 修改此行
 
 class OBJECT_OT_load_preset(bpy.types.Operator):
     bl_idname = "object.load_preset"
@@ -195,7 +196,7 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
                 "bones",
                 text=""  # 右側选择框（Search Box）
             )
-        layout.label(text=f"Updated: {LOAD_TIME}", icon='TIME')
+        layout.label(text=f"v{CODE_VERSION}  loaded {LOAD_TIME}", icon='TIME')
 
         # 添加选项卡按钮 - 移动到条件判断外部，使其始终可见
         row = layout.row()
@@ -262,18 +263,48 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             # 添加T-Pose到A-Pose转换按钮
             layout.operator("object.convert_to_apose", text="转换为A-Pose")
 
-            # 添加重命名按钮和补全缺失骨骼按钮到同一行
+            # 操作步骤按钮（按执行顺序排列）
             row = layout.row()
-            row.operator("object.rename_to_mmd", text="1.重命名为MMD")
-            row.operator("object.complete_missing_bones", text="2.补全缺失骨骼")
-
-            # 添加IK按钮和创建骨骼集合按钮到同一行
+            row.operator("object.rename_to_mmd", text="1. 重命名为MMD")
             row = layout.row()
-            row.operator("object.add_mmd_ik", text="3.添加MMD IK")
-            row.operator("object.create_bone_group", text="4.创建骨骼集合")
+            row.operator("object.complete_missing_bones", text="2. 补全缺失骨骼")
+            row = layout.row()
+            row.operator("object.complete_twist_bones", text="2.1 补全扭转骨")
+            row = layout.row()
+            row.operator("object.complete_d_bones", text="3. 补全D骨")
+            row = layout.row()
+            row.operator("object.complete_hip_cancel_bones", text="4. 补全腰キャンセル")
 
-            # 添加“使用mmdtools转换格式”按钮到最下方
+            # 权重分配：可一键全执行或逐步调试
+            row = layout.row()
+            row.operator("object.assign_weights", text="5. 分配权重（一键全执行）")
+            layout.label(text="或逐步执行：", icon='INFO')
+            row = layout.row()
+            row.operator("object.assign_weights_phase1", text="5.1 D骨赋值")
+            row = layout.row()
+            row.operator("object.assign_weights_phase2", text="5.2 Unused合并")
+            row = layout.row()
+            row.operator("object.assign_weights_phase3", text="5.3 腰キャンセル清空")
+            row = layout.row()
+            row.operator("object.assign_weights_phase4", text="5.4 迷路权重修复")
+            row = layout.row()
+            row.operator("object.assign_weights_phase5", text="5.5 下半身清理")
+
+            row = layout.row()
+            row.operator("object.add_mmd_ik", text="6. 添加MMD IK")
+            row = layout.row()
+            row.operator("object.create_bone_group", text="7. 创建骨骼集合")
+
+            # 添加"使用mmdtools转换格式"按钮到最下方
             layout.operator("object.use_mmd_tools_convert", text="使用mmdtools转换格式")
+
+            # PMXEditor 后续操作提示
+            box = layout.box()
+            col = box.column(align=True)
+            col.label(text="转换后在 PMXEditor 里完成：", icon='INFO')
+            col.label(text="• 腕捩/手捩 → 捩ボーン設定")
+            col.label(text="• 腰キャンセル → 付与親 -下半身 (−1.0)")
+            col.label(text="• 物理演算 → 刚体/Joint（头发/裙摆）")
         # 骨骼清理选项卡
         elif scene.my_enum == 'option2':
             row = layout.row()
