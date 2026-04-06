@@ -1599,12 +1599,15 @@ class OBJECT_OT_assign_weights_phase4(bpy.types.Operator):
                     vw = mesh.matrix_world @ v.co
                     dist = _point_to_segment_dist(vw, bone_h_ws, bone_t_ws)
                     if dist > self.STRAY_THRESHOLD:
-                        stray_verts.append((v, src_w, vw))
+                        stray_verts.append((v, src_w, vw, dist))
 
                 if not stray_verts:
                     continue
 
-                for v, src_w, vw in stray_verts:
+                # 统计迁移目标分布（用于 log 汇总）
+                dst_counts = {}   # {dst_bone_name: count}
+                dst_z_ranges = {} # {dst_bone_name: [min_z, max_z]}
+                for v, src_w, vw, stray_dist in stray_verts:
                     best_name, best_dist = None, float('inf')
                     for tname, th, tt in target_bones_ws:
                         d = _point_to_segment_dist(vw, th, tt)
@@ -1618,12 +1621,29 @@ class OBJECT_OT_assign_weights_phase4(bpy.types.Operator):
                     dst_vg.add([v.index], min(cur_dst + src_w, 1.0), 'REPLACE')
                     vg.add([v.index], 0.0, 'REPLACE')
                     fixed_count += 1
+                    dst_counts[best_name] = dst_counts.get(best_name, 0) + 1
+                    zr = dst_z_ranges.setdefault(best_name, [vw.z, vw.z])
+                    zr[0] = min(zr[0], vw.z)
+                    zr[1] = max(zr[1], vw.z)
 
-                if stray_verts:
-                    print(f"[CTMMD 5.4]   {vg.name:<30} -> moved {len(stray_verts):>4} stray verts to nearest target")
+                # 详细 log：来源骨骼、迁移去向、顶点Z范围、迷路距离范围
+                src_dists = [d for _, _, _, d in stray_verts]
+                dist_min, dist_max = min(src_dists), max(src_dists)
+                src_z_vals = [vw.z for _, _, vw, _ in stray_verts]
+                src_z_min, src_z_max = min(src_z_vals), max(src_z_vals)
+                dst_str = "  ".join(
+                    f"{n}({c}v Z={dst_z_ranges[n][0]:.2f}~{dst_z_ranges[n][1]:.2f})"
+                    for n, c in sorted(dst_counts.items(), key=lambda x: -x[1])
+                )
+                print(f"[CTMMD 5.4]   ✗ {vg.name:<25} {len(stray_verts):>4}v "
+                      f"dist={dist_min:.2f}~{dist_max:.2f}m  "
+                      f"Z={src_z_min:.2f}~{src_z_max:.2f}  "
+                      f"→ {dst_str}")
 
             stray_fixed_total += fixed_count
 
+        if stray_fixed_total == 0:
+            print(f"[CTMMD 5.4] ✓ 无迷路权重（所有顶点距所属骨骼均在 {self.STRAY_THRESHOLD}m 以内）")
         print(f"[CTMMD 5.4] ===== Phase 4 Complete: fixed {stray_fixed_total} stray verts =====")
         self.report({'INFO'}, f"Phase 4 complete: fixed {stray_fixed_total} stray verts")
         return {'FINISHED'}
@@ -1720,11 +1740,11 @@ class OBJECT_OT_assign_weights_phase6(bpy.types.Operator):
                 remaining.append((b, vcount))
 
         if not remaining:
-            print("[CTMMD 5.6] ✓ 所有 unused 骨骼均已处理，无残留权重")
-            self.report({'INFO'}, "5.6: 无残留 unused 骨骼")
+            print("[CTMMD 5.6] OK: all unused bones processed, no remaining weights")
+            self.report({'INFO'}, "5.6: no remaining unused bones")
             return {'FINISHED'}
 
-        # 构建候选列表（与 5.1 相同逻辑）
+        # build candidate list (same logic as 5.1)
         target_candidates = []
         for candidate in obj.data.bones:
             if candidate.name in all_unused_names or not candidate.use_deform:
@@ -1735,14 +1755,13 @@ class OBJECT_OT_assign_weights_phase6(bpy.types.Operator):
             ct = obj.matrix_world @ candidate.tail_local
             target_candidates.append((candidate.name, ch, ct))
 
-        print(f"[CTMMD 5.6] 发现 {len(remaining)} 根 unused 骨骼仍有残留权重：")
+        print(f"[CTMMD 5.6] found {len(remaining)} unused bones with remaining weights:")
 
         forced_list = []
         would_skip = []
         would_process = []
 
         for bone, vcount in remaining:
-            # 判断是否命中 FORCED_TARGETS
             forced_target = None
             for kw, tgt in FORCED_TARGETS.items():
                 if kw in bone.name.lower() and obj.data.bones.get(tgt):
@@ -1750,10 +1769,9 @@ class OBJECT_OT_assign_weights_phase6(bpy.types.Operator):
                     break
             if forced_target:
                 forced_list.append((bone.name, vcount, forced_target))
-                print(f"[CTMMD 5.6]   FORCED  {bone.name:<35} {vcount:>5}v  → {forced_target}")
+                print(f"[CTMMD 5.6]   FORCED  {bone.name:<35} {vcount:>5}v  -> {forced_target}")
                 continue
 
-            # 计算质心
             src_pos = _vertex_centroid(bone.name, mesh_objects) or (obj.matrix_world @ bone.head_local)
             best_name, best_dist = None, float('inf')
             for cname, ch, ct in target_candidates:
@@ -1763,7 +1781,7 @@ class OBJECT_OT_assign_weights_phase6(bpy.types.Operator):
                     best_name = cname
 
             if not best_name:
-                print(f"[CTMMD 5.6]   WARN    {bone.name:<35} {vcount:>5}v  → 无候选骨骼")
+                print(f"[CTMMD 5.6]   WARN    {bone.name:<35} {vcount:>5}v  -> no candidate found")
                 continue
 
             needs_split = any(kw in bone.name.lower() for kw in SPLIT_BONES)
@@ -1771,21 +1789,21 @@ class OBJECT_OT_assign_weights_phase6(bpy.types.Operator):
 
             if best_dist >= self.DISTANCE_THRESHOLD:
                 would_skip.append((bone.name, vcount, best_name, best_dist, src_pos.z))
-                print(f"[CTMMD 5.6]   SKIP    {bone.name:<35} {vcount:>5}v  dist={best_dist:.3f}m  Z={src_pos.z:.3f}  最近={best_name}")
+                print(f"[CTMMD 5.6]   SKIP    {bone.name:<35} {vcount:>5}v  dist={best_dist:.3f}m  Z={src_pos.z:.3f}  nearest={best_name}")
             else:
                 would_process.append((bone.name, vcount, best_name, best_dist, mode))
-                print(f"[CTMMD 5.6]   {mode:<6}  {bone.name:<35} {vcount:>5}v  dist={best_dist:.3f}m  → {best_name}")
+                print(f"[CTMMD 5.6]   {mode:<6}  {bone.name:<35} {vcount:>5}v  dist={best_dist:.3f}m  -> {best_name}")
 
-        print(f"[CTMMD 5.6] ─────────────────────────────────────────────────────────")
-        print(f"[CTMMD 5.6] 汇总：FORCED={len(forced_list)}  可自动={len(would_process)}  需人工={len(would_skip)}")
+        print(f"[CTMMD 5.6] ---------------------------------------------------------")
+        print(f"[CTMMD 5.6] summary: FORCED={len(forced_list)}  auto={len(would_process)}  manual={len(would_skip)}")
         if would_skip:
-            print(f"[CTMMD 5.6] ⚠️  以下骨骼超距离阈值，需人工处理（可加入 FORCED_TARGETS 或手动权重绘制）：")
+            print(f"[CTMMD 5.6] WARNING: {len(would_skip)} bones exceed distance threshold, need manual fix:")
             for bname, vc, nearest, dist, bz in would_skip:
-                print(f"[CTMMD 5.6]   ✗ {bname:<35} {vc:>4}v  dist={dist:.3f}m  Z={bz:.3f}  建议目标={nearest}")
+                print(f"[CTMMD 5.6]   SKIP  {bname:<35} {vc:>4}v  dist={dist:.3f}m  Z={bz:.3f}  suggested={nearest}")
         if would_process:
-            print(f"[CTMMD 5.6] 💡 以下骨骼仍可被 5.1 自动处理：")
+            print(f"[CTMMD 5.6] INFO: {len(would_process)} bones can still be processed by step 5.1:")
             for bname, vc, nearest, dist, mode in would_process:
-                print(f"[CTMMD 5.6]   ○ {bname:<35} {vc:>4}v  dist={dist:.3f}m  → {nearest}  [{mode}]")
+                print(f"[CTMMD 5.6]   {mode:<6}  {bname:<35} {vc:>4}v  dist={dist:.3f}m  -> {nearest}")
 
-        self.report({'INFO'}, f"5.6: {len(remaining)} 残留 ({len(would_skip)} 需人工, {len(would_process)} 可自动, {len(forced_list)} FORCED)")
+        self.report({'INFO'}, f"5.6: {len(remaining)} remaining ({len(would_skip)} manual, {len(would_process)} auto, {len(forced_list)} forced)")
         return {'FINISHED'}
