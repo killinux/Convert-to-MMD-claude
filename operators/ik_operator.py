@@ -115,29 +115,8 @@ class OBJECT_OT_add_ik(bpy.types.Operator):
         add_ik_constraint(right_kutu, obj, "右つま先ＩＫ", 1, 200)
         add_damped_track_constraint(right_kutu, obj, "右ひざ")
 
-        # D骨跟随约束：复制主骨的旋转（POSE空间），位移通过父子链自然传递
-        # COPY_ROTATION + POSE 空间：D骨跟随主骨旋转，位置由共同父骨骼(腰キャンセル)驱动
-        D_BONE_FOLLOW = [
-            ("足D.L",  "左足"),
-            ("足D.R",  "右足"),
-            ("ひざD.L", "左ひざ"),
-            ("ひざD.R", "右ひざ"),
-            ("足首D.L", "左足首"),
-            ("足首D.R", "右足首"),
-        ]
-        for d_name, main_name in D_BONE_FOLLOW:
-            d_pb = obj.pose.bones.get(d_name)
-            main_pb = obj.pose.bones.get(main_name)
-            if not d_pb or not main_pb:
-                continue
-            # 避免重复添加
-            if any(c.type == 'COPY_ROTATION' for c in d_pb.constraints):
-                continue
-            cr = d_pb.constraints.new(type='COPY_ROTATION')
-            cr.name = "mmd_d_bone_follow"
-            cr.target = obj
-            cr.subtarget = main_name
-            cr.target_space = 'LOCAL'
-            cr.owner_space = 'LOCAL'
+        # D骨约束不在此步骤添加。
+        # PMX 标准使用 shadow/dummy 三层约束机制（由 mmd_tools 自动创建）。
+        # 用户应在最后一步调用 mmd_tools.convert_to_mmd_model() 完成约束设置。
 
         return {'FINISHED'}
