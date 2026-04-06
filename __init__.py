@@ -1,3 +1,5 @@
+print("[Convert-to-MMD] ====== Module loading ======")
+
 bl_info = {
     "name": "Convert to MMD",
     "author": "haha(hehe)",
@@ -43,6 +45,7 @@ def _safe_register(cls):
     bpy.utils.register_class(cls)
 
 def register():
+    print("[Convert-to-MMD] ====== Plugin register() called ======")
     # 注册所有类
     _safe_register(ui_panel.OBJECT_PT_skeleton_hierarchy)
     _safe_register(ui_panel.OBJECT_OT_load_preset)
