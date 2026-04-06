@@ -66,6 +66,7 @@ def register():
     _safe_register(leg_operator.OBJECT_OT_assign_weights_phase3)
     _safe_register(leg_operator.OBJECT_OT_assign_weights_phase4)
     _safe_register(leg_operator.OBJECT_OT_assign_weights_phase5)
+    _safe_register(leg_operator.OBJECT_OT_assign_weights_phase6)
     _safe_register(leg_operator.OBJECT_OT_assign_upper3_weights)
     # 注册动态属性
     bones = preset_operator.get_bones_list()
@@ -116,6 +117,7 @@ def unregister():
     _safe_unregister(leg_operator.OBJECT_OT_assign_weights_phase3)
     _safe_unregister(leg_operator.OBJECT_OT_assign_weights_phase4)
     _safe_unregister(leg_operator.OBJECT_OT_assign_weights_phase5)
+    _safe_unregister(leg_operator.OBJECT_OT_assign_weights_phase6)
     _safe_unregister(leg_operator.OBJECT_OT_assign_upper3_weights)
     _safe_unregister(leg_operator.OBJECT_OT_complete_twist_bones)
     del bpy.types.Scene.my_enum

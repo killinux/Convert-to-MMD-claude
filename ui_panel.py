@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 
 LOAD_TIME = datetime.now().strftime("%m/%d %H:%M:%S")
-CODE_VERSION = "04/06 fallback-warnings"  # 每次代码更新后由Claude 修改此行
+CODE_VERSION = "04/06 phase6-diag"  # 每次代码更新后由Claude 修改此行
 
 class OBJECT_OT_load_preset(bpy.types.Operator):
     bl_idname = "object.load_preset"
@@ -279,16 +279,13 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             row = layout.row()
             row.operator("object.assign_weights", text="5. 分配权重（一键全执行）")
             layout.label(text="或逐步执行：", icon='INFO')
-            row = layout.row()
-            row.operator("object.assign_weights_phase1", text="5.1 D骨赋值")
-            row = layout.row()
-            row.operator("object.assign_weights_phase2", text="5.2 Unused合并")
-            row = layout.row()
-            row.operator("object.assign_weights_phase3", text="5.3 腰キャンセル清空")
-            row = layout.row()
-            row.operator("object.assign_weights_phase4", text="5.4 迷路权重修复")
-            row = layout.row()
-            row.operator("object.assign_weights_phase5", text="5.5 下半身清理")
+            grid = layout.grid_flow(row_major=True, columns=3, even_columns=True)
+            grid.operator("object.assign_weights_phase2", text="5.1 Unused→主骨")
+            grid.operator("object.assign_weights_phase1", text="5.2 主骨→D骨")
+            grid.operator("object.assign_weights_phase3", text="5.3 腰キャン清空")
+            grid.operator("object.assign_weights_phase4", text="5.4 迷路修复")
+            grid.operator("object.assign_weights_phase5", text="5.5 下半身清理")
+            grid.operator("object.assign_weights_phase6", text="5.6 未处理诊断")
 
             row = layout.row()
             row.operator("object.add_mmd_ik", text="6. 添加MMD IK")
