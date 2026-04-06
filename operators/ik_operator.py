@@ -115,8 +115,8 @@ class OBJECT_OT_add_ik(bpy.types.Operator):
         add_ik_constraint(right_kutu, obj, "右つま先ＩＫ", 1, 200)
         add_damped_track_constraint(right_kutu, obj, "右ひざ")
 
-        # D骨跟随约束：让 D 骨完整复制对应主骨的变换（位置+旋转+缩放）
-        # 主骨受 IK 驱动但权重=0，D 骨有权重但无约束 → 需要 COPY_TRANSFORMS 桥接
+        # D骨跟随约束：复制主骨的旋转（POSE空间），位移通过父子链自然传递
+        # COPY_ROTATION + POSE 空间：D骨跟随主骨旋转，位置由共同父骨骼(腰キャンセル)驱动
         D_BONE_FOLLOW = [
             ("足D.L",  "左足"),
             ("足D.R",  "右足"),
@@ -131,13 +131,13 @@ class OBJECT_OT_add_ik(bpy.types.Operator):
             if not d_pb or not main_pb:
                 continue
             # 避免重复添加
-            if any(c.type == 'COPY_TRANSFORMS' for c in d_pb.constraints):
+            if any(c.type == 'COPY_ROTATION' for c in d_pb.constraints):
                 continue
-            ct = d_pb.constraints.new(type='COPY_TRANSFORMS')
-            ct.name = "mmd_d_bone_follow"
-            ct.target = obj
-            ct.subtarget = main_name
-            ct.target_space = 'POSE'
-            ct.owner_space = 'POSE'
+            cr = d_pb.constraints.new(type='COPY_ROTATION')
+            cr.name = "mmd_d_bone_follow"
+            cr.target = obj
+            cr.subtarget = main_name
+            cr.target_space = 'POSE'
+            cr.owner_space = 'POSE'
 
         return {'FINISHED'}
