@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 
 LOAD_TIME = datetime.now().strftime("%m/%d %H:%M:%S")
-CODE_VERSION = "04/06 phase6-diag"  # 每次代码更新后由Claude 修改此行
+CODE_VERSION = "04/06 split-targets"  # 每次代码更新后由Claude 修改此行
 
 class OBJECT_OT_load_preset(bpy.types.Operator):
     bl_idname = "object.load_preset"

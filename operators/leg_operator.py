@@ -47,18 +47,27 @@ LOWER_BODY_TARGETS = {
 # Phase 2 专用候选集：使用主骨（足/ひざ/足首）而非 D 骨。
 # 5.2 在 5.1 之前执行：unused 权重先合并到主骨，5.1 再把主骨复制到 D 骨。
 # 不用 D 骨的原因：足D 线段靠近臀部，会把臀部顶点误吸入 D 骨。
+# 包含手臂/肩部骨骼：foretwist/muscle_elbow/xtra07 系列骨骼紧邻肘部/肩部，需要这些候选。
 PHASE2_TARGETS = {
     "上半身", "上半身1", "上半身2", "上半身3", "下半身",
-    # 后缀格式 (.L/.R)
+    # 腿部（后缀格式 .L/.R）
     "足.L", "足.R",
     "ひざ.L", "ひざ.R",
     "足首.L", "足首.R",
     "足先EX.L", "足先EX.R",
-    # 前缀格式 (左/右)
+    # 腿部（前缀格式 左/右）
     "左足", "右足",
     "左ひざ", "右ひざ",
     "左足首", "右足首",
     "左足先EX", "右足先EX",
+    # 手臂/肩部（前缀格式）：foretwist/muscle_elbow/xtra07 系列
+    "左肩", "右肩",
+    "左腕", "右腕",
+    "左ひじ", "右ひじ",
+    # 手臂/肩部（后缀格式）
+    "肩.L", "肩.R",
+    "腕.L", "腕.R",
+    "ひじ.L", "ひじ.R",
 }
 
 # 强制目标映射：骨骼名称包含 key 时，直接整骨转移到指定骨骼，不做逐顶点距离判断。
@@ -73,6 +82,14 @@ FORCED_TARGETS = {
 SPLIT_BONES = {
     "xtra08",     # 左侧：包含臀部(Z>1.05) + 大腿，需拆分给 下半身 + 左足
     "xtra08opp",  # 右侧：同上
+}
+
+# per-vertex 拆分时的候选集限制（不在此集合中的骨骼不参与竞争）。
+# 不配置时退回到全部 PHASE2_TARGETS。
+# xtra08 系列是臀部+大腿辅助骨，顶点只应分给下半身或腿骨，绝不进上半身。
+SPLIT_BONE_TARGETS = {
+    "xtra08":    {"下半身", "左足", "右足", "足.L", "足.R", "左ひざ", "右ひざ", "ひざ.L", "ひざ.R"},
+    "xtra08opp": {"下半身", "左足", "右足", "足.L", "足.R", "左ひざ", "右ひざ", "ひざ.L", "ひざ.R"},
 }
 
 def _point_to_segment_dist(point, seg_head, seg_tail):
@@ -627,6 +644,7 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
             and any(_vg_has_weight(m, b.name) for m in mesh_objects)
         ]
 
+        cleared_bones = set()  # Phase 5.2 完成后填充，此处初始化供 Phase 5.1 候选过滤使用
         target_candidates = []
         for candidate in obj.data.bones:
             if candidate.name in all_unused_names or not candidate.use_deform:
@@ -709,18 +727,44 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
                         if src_w <= 0.001: continue
                         vw = mesh.matrix_world @ v.co
 
-                        filtered = target_candidates
-                        if src_side:
-                            same_side = [(n, h, t) for n, h, t in target_candidates
+                        # SPLIT_BONE_TARGETS 限制：该骨骼有专用候选集时，先过滤掉非目标
+                        bone_split_targets = None
+                        for kw, tgts in SPLIT_BONE_TARGETS.items():
+                            if kw in bone.name.lower():
+                                bone_split_targets = tgts
+                                break
+                        if bone_split_targets:
+                            restricted = [(n, h, t) for n, h, t in target_candidates if n in bone_split_targets]
+                            filtered = restricted if restricted else target_candidates
+                        else:
+                            filtered = target_candidates
+
+                        if src_side and not bone_split_targets:
+                            same_side = [(n, h, t) for n, h, t in filtered
                                          if _side_of_mmd_bone(n) == src_side or _side_of_mmd_bone(n) is None]
                             if same_side:
                                 filtered = same_side
 
+                        # Z上限过滤：臀部顶点(Z超过腿骨顶端+0.05)不进腿骨
                         HIP_TOLERANCE = 0.05
                         z_filtered = [(n, h, t) for n, h, t in filtered
                                       if not (_is_leg_bone(n) and vw.z > max(h.z, t.z) + HIP_TOLERANCE)]
                         if z_filtered:
                             filtered = z_filtered
+
+                        # Z下限过滤（通用保底）：顶点Z低于上半身头部+0.07时不进上半身系列
+                        # 主要防止其他模型的臀部顶点因X偏移被上半身吸走
+                        UPPER_BODY_FLOOR = 0.07
+                        UPPER_BODY_KEYWORDS = {"上半身", "上半身1", "上半身2", "上半身3"}
+                        ub_floor_filtered = []
+                        for n, h, t in filtered:
+                            if n in UPPER_BODY_KEYWORDS:
+                                ub_head_z = min(h.z, t.z)
+                                if vw.z < ub_head_z + UPPER_BODY_FLOOR:
+                                    continue
+                            ub_floor_filtered.append((n, h, t))
+                        if ub_floor_filtered:
+                            filtered = ub_floor_filtered
 
                         v_best_name, v_best_dist = None, float('inf')
                         for cname, ch, ct in filtered:
@@ -1362,19 +1406,43 @@ class OBJECT_OT_assign_weights_phase2(bpy.types.Operator):
                         if src_w <= 0.001: continue
                         vw = mesh.matrix_world @ v.co
 
-                        filtered = target_candidates
-                        if src_side:
-                            same_side = [(n, h, t) for n, h, t in target_candidates
+                        # SPLIT_BONE_TARGETS 限制：该骨骼有专用候选集时，先过滤掉非目标
+                        bone_split_targets = None
+                        for kw, tgts in SPLIT_BONE_TARGETS.items():
+                            if kw in bone.name.lower():
+                                bone_split_targets = tgts
+                                break
+                        if bone_split_targets:
+                            restricted = [(n, h, t) for n, h, t in target_candidates if n in bone_split_targets]
+                            filtered = restricted if restricted else target_candidates
+                        else:
+                            filtered = target_candidates
+
+                        if src_side and not bone_split_targets:
+                            same_side = [(n, h, t) for n, h, t in filtered
                                          if _side_of_mmd_bone(n) == src_side or _side_of_mmd_bone(n) is None]
                             if same_side:
                                 filtered = same_side
 
-                        # Z上限过滤：臀部顶点不进腿骨
+                        # Z上限过滤：臀部顶点(Z超过腿骨顶端+0.05)不进腿骨
                         HIP_TOLERANCE = 0.05
                         z_filtered = [(n, h, t) for n, h, t in filtered
                                       if not (_is_leg_bone(n) and vw.z > max(h.z, t.z) + HIP_TOLERANCE)]
                         if z_filtered:
                             filtered = z_filtered
+
+                        # Z下限过滤（通用保底）：顶点Z低于上半身头部+0.07时不进上半身系列
+                        UPPER_BODY_FLOOR = 0.07
+                        UPPER_BODY_KEYWORDS = {"上半身", "上半身1", "上半身2", "上半身3"}
+                        ub_floor_filtered = []
+                        for n, h, t in filtered:
+                            if n in UPPER_BODY_KEYWORDS:
+                                ub_head_z = min(h.z, t.z)
+                                if vw.z < ub_head_z + UPPER_BODY_FLOOR:
+                                    continue
+                            ub_floor_filtered.append((n, h, t))
+                        if ub_floor_filtered:
+                            filtered = ub_floor_filtered
 
                         v_best_name, v_best_dist = None, float('inf')
                         for cname, ch, ct in filtered:
