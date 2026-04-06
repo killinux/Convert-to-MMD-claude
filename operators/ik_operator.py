@@ -137,7 +137,7 @@ class OBJECT_OT_add_ik(bpy.types.Operator):
             cr.name = "mmd_d_bone_follow"
             cr.target = obj
             cr.subtarget = main_name
-            cr.target_space = 'POSE'
-            cr.owner_space = 'POSE'
+            cr.target_space = 'LOCAL'
+            cr.owner_space = 'LOCAL'
 
         return {'FINISHED'}

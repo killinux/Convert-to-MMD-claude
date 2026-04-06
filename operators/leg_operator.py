@@ -189,8 +189,9 @@ class OBJECT_OT_complete_d_bones(bpy.types.Operator):
                 actual_parent = parent_d.name if parent_d else parent_name
                 main_length = (main_eb.tail - main_eb.head).length
                 ratio = D_BONE_LENGTH_RATIO.get(d_base, 0.2)
-                d_tail = main_eb.head.copy()
-                d_tail.z += main_length * ratio
+                # D骨朝向和主骨一致（沿主骨方向）
+                main_dir = (main_eb.tail - main_eb.head).normalized()
+                d_tail = main_eb.head + main_dir * main_length * ratio
                 bone_utils.create_or_update_bone(
                     edit_bones,
                     d_name,
