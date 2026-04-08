@@ -177,8 +177,8 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
         bone_properties = {
             "操作中心": {"head": Vector((0, 0, 0)), "tail": Vector((0, 0, 0.15)), "parent": None, "use_deform": False, "use_connect": False},
             "全ての親": {"head": Vector((0, 0, 0)), "tail": Vector((0, 0, 0.3)), "parent": None, "use_deform": False, "use_connect": False},
-            "センター": {"head": Vector((0, 0, 0.3)), "tail": Vector((0, 0, 0.6)), "parent": "全ての親", "use_deform": False, "use_connect": False},
-            "グルーブ": {"head": Vector((0, 0, 0.8)), "tail": Vector((0, 0, 0.7)), "parent": "センター", "use_deform": False, "use_connect": False},
+            "センター": {"head": Vector((0, 0, 0.8)), "tail": Vector((0, 0, 0.6)), "parent": "全ての親", "use_deform": False, "use_connect": False},
+            "グルーブ": {"head": Vector((0, 0, 0.8)), "tail": Vector((0, 0, 0.9)), "parent": "センター", "use_deform": False, "use_connect": False},
             "腰": {"head": Vector((0, upper_body_head.y + 0.1, upper_body_head.z - 0.12)), "tail": Vector((0, upper_body_head.y, upper_body_head.z)),
                 "parent": "グルーブ", "use_deform": False, "use_connect": False},
             "上半身": {"head": Vector((0, upper_body_head.y, upper_body_head.z)),
