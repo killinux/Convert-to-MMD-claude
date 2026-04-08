@@ -61,3 +61,20 @@
 - **文件**：`operators/bone_operator.py`，第 5 行
 - **问题**：`from .. import preset_operator` 依赖根 `__init__.py` 提前将 `preset_operator` 导入其命名空间才能成立，是隐式依赖。
 - **修复方向**：改为 `from . import preset_operator`，直接从同级目录导入。
+
+---
+
+## 外部插件修复记录
+
+### FIX-EXT-01 mmd_tools VMD导入报错 `frame_start expected int, not float`
+- **日期**：2026-04-08
+- **文件**：Mac 上 `~/Library/Application Support/Blender/3.6/scripts/addons/mmd_tools/auto_scene_setup.py`
+- **问题**：`action.frame_range` 返回 float，直接赋值给 `frame_start`/`frame_end` 会报 TypeError。
+- **修复**：4 处赋值加 `int()` 包装：
+  ```python
+  bpy.context.scene.frame_start = int(s)
+  bpy.context.scene.frame_end = int(e)
+  bpy.context.scene.rigidbody_world.point_cache.frame_start = int(s)
+  bpy.context.scene.rigidbody_world.point_cache.frame_end = int(e)
+  ```
+- **注意**：此修改在 Mac 本地，不在本仓库管理。
