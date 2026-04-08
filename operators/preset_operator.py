@@ -109,6 +109,28 @@ class OBJECT_OT_use_mmd_tools_convert(bpy.types.Operator):
         if current_mode != 'OBJECT':
             bpy.ops.object.mode_set(mode='OBJECT')
 
+        # 设置 mmd_bone.name_j: .L/.R → 左/右 前缀格式（VMD 匹配用）
+        if hasattr(bpy.types.PoseBone, 'mmd_bone'):
+            for pb in obj.pose.bones:
+                name = pb.name
+                name_j = name
+                if name.endswith('.L'):
+                    base = name[:-2]
+                    if base == '腰キャンセル':
+                        name_j = base + '左'
+                    else:
+                        name_j = '左' + base
+                elif name.endswith('.R'):
+                    base = name[:-2]
+                    if base == '腰キャンセル':
+                        name_j = base + '右'
+                    else:
+                        name_j = '右' + base
+                elif name.startswith('_dummy_') or name.startswith('_shadow_'):
+                    name_j = ''
+                pb.mmd_bone.name_j = name_j
+            print("[CTMMD] Set mmd_bone.name_j for all bones (.L/.R → 左/右)")
+
         try:
             # 调用mmd_tools的转换功能
             bpy.ops.mmd_tools.convert_to_mmd_model()
