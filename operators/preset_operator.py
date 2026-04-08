@@ -131,6 +131,36 @@ class OBJECT_OT_use_mmd_tools_convert(bpy.types.Operator):
                 pb.mmd_bone.name_j = name_j
             print("[CTMMD] Set mmd_bone.name_j for all bones (.L/.R → 左/右)")
 
+            # 设置 D骨/腰キャンセル 的付与親（additional transform）
+            # D骨跟随对应主骨旋转，腰キャンセル跟随腰（反转）
+            ADDITIONAL_TRANSFORM_MAP = {
+                "足D": ("足", 1.0),
+                "ひざD": ("ひざ", 1.0),
+                "足首D": ("足首", 1.0),
+            }
+            for d_base, (main_base, influence) in ADDITIONAL_TRANSFORM_MAP.items():
+                for suffix in [".L", ".R"]:
+                    d_name = d_base + suffix
+                    main_name = main_base + suffix
+                    d_pb = obj.pose.bones.get(d_name)
+                    if d_pb and obj.pose.bones.get(main_name):
+                        d_pb.mmd_bone.additional_transform_bone = main_name
+                        d_pb.mmd_bone.has_additional_rotation = True
+                        d_pb.mmd_bone.has_additional_location = False
+                        d_pb.mmd_bone.additional_transform_influence = influence
+
+            # 腰キャンセル: 付与親=下半身, 反転(-1.0)
+            for suffix in [".L", ".R"]:
+                cancel_name = "腰キャンセル" + suffix
+                cancel_pb = obj.pose.bones.get(cancel_name)
+                if cancel_pb and obj.pose.bones.get("下半身"):
+                    cancel_pb.mmd_bone.additional_transform_bone = "下半身"
+                    cancel_pb.mmd_bone.has_additional_rotation = True
+                    cancel_pb.mmd_bone.has_additional_location = False
+                    cancel_pb.mmd_bone.additional_transform_influence = -1.0
+
+            print("[CTMMD] Set additional_transform for D-bones and 腰キャンセル")
+
         try:
             # 调用mmd_tools的转换功能
             bpy.ops.mmd_tools.convert_to_mmd_model()
