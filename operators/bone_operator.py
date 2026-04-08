@@ -225,8 +225,8 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
             ("足.R",  ["足.R", "ひざ.R"],  lambda: {"head": edit_bones["足.R"].head, "tail": edit_bones["ひざ.R"].head, "parent": "腰キャンセル.R", "use_connect": False}),
             ("ひざ.L", ["ひざ.L", "足首.L"], lambda: {"head": edit_bones["ひざ.L"].head, "tail": edit_bones["足首.L"].head, "parent": "足.L", "use_connect": False}),
             ("ひざ.R", ["ひざ.R", "足首.R"], lambda: {"head": edit_bones["ひざ.R"].head, "tail": edit_bones["足首.R"].head, "parent": "足.R", "use_connect": False}),
-            ("足首.L", ["足首.L"],           lambda: {"head": edit_bones["足首.L"].head, "tail": Vector((edit_bones["足首.L"].head.x, edit_bones["足首.L"].head.y - 0.1, 0)), "parent": "ひざ.L", "use_connect": False}),
-            ("足首.R", ["足首.R"],           lambda: {"head": edit_bones["足首.R"].head, "tail": Vector((edit_bones["足首.R"].head.x, edit_bones["足首.R"].head.y - 0.1, 0)), "parent": "ひざ.R", "use_connect": False}),
+            ("足首.L", ["足首.L"],           lambda: {"head": edit_bones["足首.L"].head, "tail": edit_bones["つま先.L"].head.copy() if edit_bones.get("つま先.L") else Vector((edit_bones["足首.L"].head.x, edit_bones["足首.L"].head.y - 0.1, 0)), "parent": "ひざ.L", "use_connect": False}),
+            ("足首.R", ["足首.R"],           lambda: {"head": edit_bones["足首.R"].head, "tail": edit_bones["つま先.R"].head.copy() if edit_bones.get("つま先.R") else Vector((edit_bones["足首.R"].head.x, edit_bones["足首.R"].head.y - 0.1, 0)), "parent": "ひざ.R", "use_connect": False}),
             # つま先: parent=足首
             ("つま先.L", ["つま先.L"], lambda: {"head": edit_bones["つま先.L"].head, "tail": edit_bones["つま先.L"].tail, "parent": "足首.L", "use_connect": False}),
             ("つま先.R", ["つま先.R"], lambda: {"head": edit_bones["つま先.R"].head, "tail": edit_bones["つま先.R"].tail, "parent": "足首.R", "use_connect": False}),
