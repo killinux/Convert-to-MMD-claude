@@ -187,6 +187,31 @@ class OBJECT_OT_complete_d_bones(bpy.types.Operator):
                 print(f"[CTMMD 3]   Created: {d_name:<12} head={head_str}  parent={actual_parent}  source={main_name}")
                 created.append(d_name)
 
+        # 足先EX: D骨系つま先延伸，parent=足首D
+        for side_suffix, side_prefix in SIDES:
+            ex_name = "足先EX" + side_suffix
+            ankle_d_name = "足首D" + side_suffix
+            tsumasaki_name = _get_main_bone_name(obj, "つま先", side_suffix, side_prefix)
+            ankle_d_eb = edit_bones.get(ankle_d_name)
+            tsumasaki_eb = edit_bones.get(tsumasaki_name) if tsumasaki_name else None
+            if edit_bones.get(ex_name):
+                skipped.append(ex_name + " 已存在")
+                continue
+            if not ankle_d_eb:
+                skipped.append(ex_name + " 足首D不存在")
+                continue
+            if tsumasaki_eb:
+                ex_head = tsumasaki_eb.head.copy()
+                ex_tail = tsumasaki_eb.tail.copy()
+            else:
+                # fallback: 足首D tail + forward offset
+                ex_head = ankle_d_eb.tail.copy()
+                ex_tail = ex_head + Vector((0, -0.05, 0))
+            bone_utils.create_or_update_bone(edit_bones, ex_name, ex_head, ex_tail,
+                use_connect=False, parent_name=ankle_d_name, use_deform=True)
+            print(f"[CTMMD 3]   Created: {ex_name:<12} parent={ankle_d_name}")
+            created.append(ex_name)
+
         bpy.ops.object.mode_set(mode='OBJECT')
 
         print(f"[CTMMD 3] D-bone creation complete: created {len(created)}, skipped {len(skipped)}")

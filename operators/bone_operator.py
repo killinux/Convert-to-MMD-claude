@@ -227,6 +227,26 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
             ("ひざ.R", ["ひざ.R", "足首.R"], lambda: {"head": edit_bones["ひざ.R"].head, "tail": edit_bones["足首.R"].head, "parent": "足.R", "use_connect": False}),
             ("足首.L", ["足首.L"],           lambda: {"head": edit_bones["足首.L"].head, "tail": Vector((edit_bones["足首.L"].head.x, edit_bones["足首.L"].head.y - 0.1, 0)), "parent": "ひざ.L", "use_connect": False}),
             ("足首.R", ["足首.R"],           lambda: {"head": edit_bones["足首.R"].head, "tail": Vector((edit_bones["足首.R"].head.x, edit_bones["足首.R"].head.y - 0.1, 0)), "parent": "ひざ.R", "use_connect": False}),
+            # つま先: parent=足首
+            ("つま先.L", ["つま先.L"], lambda: {"head": edit_bones["つま先.L"].head, "tail": edit_bones["つま先.L"].tail, "parent": "足首.L", "use_connect": False}),
+            ("つま先.R", ["つま先.R"], lambda: {"head": edit_bones["つま先.R"].head, "tail": edit_bones["つま先.R"].tail, "parent": "足首.R", "use_connect": False}),
+            # 手指0骨 (指根): 手首と指1の中間に作成，指1をre-parent
+            ("人指０.L", ["手首.L", "人指１.L"], lambda: {"head": (edit_bones["手首.L"].head + edit_bones["人指１.L"].head) / 2, "tail": edit_bones["人指１.L"].head, "parent": "手首.L", "use_connect": False}),
+            ("人指０.R", ["手首.R", "人指１.R"], lambda: {"head": (edit_bones["手首.R"].head + edit_bones["人指１.R"].head) / 2, "tail": edit_bones["人指１.R"].head, "parent": "手首.R", "use_connect": False}),
+            ("人指１.L", ["人指１.L"], lambda: {"head": edit_bones["人指１.L"].head, "tail": edit_bones["人指１.L"].tail, "parent": "人指０.L", "use_connect": False}),
+            ("人指１.R", ["人指１.R"], lambda: {"head": edit_bones["人指１.R"].head, "tail": edit_bones["人指１.R"].tail, "parent": "人指０.R", "use_connect": False}),
+            ("中指０.L", ["手首.L", "中指１.L"], lambda: {"head": (edit_bones["手首.L"].head + edit_bones["中指１.L"].head) / 2, "tail": edit_bones["中指１.L"].head, "parent": "手首.L", "use_connect": False}),
+            ("中指０.R", ["手首.R", "中指１.R"], lambda: {"head": (edit_bones["手首.R"].head + edit_bones["中指１.R"].head) / 2, "tail": edit_bones["中指１.R"].head, "parent": "手首.R", "use_connect": False}),
+            ("中指１.L", ["中指１.L"], lambda: {"head": edit_bones["中指１.L"].head, "tail": edit_bones["中指１.L"].tail, "parent": "中指０.L", "use_connect": False}),
+            ("中指１.R", ["中指１.R"], lambda: {"head": edit_bones["中指１.R"].head, "tail": edit_bones["中指１.R"].tail, "parent": "中指０.R", "use_connect": False}),
+            ("薬指０.L", ["手首.L", "薬指１.L"], lambda: {"head": (edit_bones["手首.L"].head + edit_bones["薬指１.L"].head) / 2, "tail": edit_bones["薬指１.L"].head, "parent": "手首.L", "use_connect": False}),
+            ("薬指０.R", ["手首.R", "薬指１.R"], lambda: {"head": (edit_bones["手首.R"].head + edit_bones["薬指１.R"].head) / 2, "tail": edit_bones["薬指１.R"].head, "parent": "手首.R", "use_connect": False}),
+            ("薬指１.L", ["薬指１.L"], lambda: {"head": edit_bones["薬指１.L"].head, "tail": edit_bones["薬指１.L"].tail, "parent": "薬指０.L", "use_connect": False}),
+            ("薬指１.R", ["薬指１.R"], lambda: {"head": edit_bones["薬指１.R"].head, "tail": edit_bones["薬指１.R"].tail, "parent": "薬指０.R", "use_connect": False}),
+            ("小指０.L", ["手首.L", "小指１.L"], lambda: {"head": (edit_bones["手首.L"].head + edit_bones["小指１.L"].head) / 2, "tail": edit_bones["小指１.L"].head, "parent": "手首.L", "use_connect": False}),
+            ("小指０.R", ["手首.R", "小指１.R"], lambda: {"head": (edit_bones["手首.R"].head + edit_bones["小指１.R"].head) / 2, "tail": edit_bones["小指１.R"].head, "parent": "手首.R", "use_connect": False}),
+            ("小指１.L", ["小指１.L"], lambda: {"head": edit_bones["小指１.L"].head, "tail": edit_bones["小指１.L"].tail, "parent": "小指０.L", "use_connect": False}),
+            ("小指１.R", ["小指１.R"], lambda: {"head": edit_bones["小指１.R"].head, "tail": edit_bones["小指１.R"].tail, "parent": "小指０.R", "use_connect": False}),
         ]
         for bone_name, required, prop_fn in limb_defs:
             if all(edit_bones.get(r) for r in required):
