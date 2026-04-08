@@ -252,27 +252,29 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
                 print(f"[CTMMD 2]   Created: {bone_name:<12} head={head_str}  {parent_str}  [{deform_str}]")
 
         # 首1 / 頭 re-parent: 首→首1→頭
-        # 在主循环后处理，确保首已存在
         neck_eb = edit_bones.get("首")
         head_eb = edit_bones.get("頭")
         if neck_eb:
             neck1_existed = edit_bones.get("首1") is not None
-            neck1_eb = bone_utils.create_or_update_bone(
-                edit_bones, "首1", neck1_head, neck1_tail,
-                use_connect=False, parent_name=None, use_deform=True
-            )
-            # 显式设置 parent（避免名称查找问题）
-            neck1_eb.parent = neck_eb
-            if neck1_existed:
-                updated_bones.append("首1")
-                print(f"[CTMMD 2]   Updated: {'首1':<12} head=({neck1_head.x:.3f},{neck1_head.y:.3f},{neck1_head.z:.3f})  parent=首  [deform]")
+            # 创建首1，直接不设 parent
+            if not neck1_existed:
+                neck1_eb = edit_bones.new("首1")
             else:
-                created_bones.append("首1")
-                print(f"[CTMMD 2]   Created: {'首1':<12} head=({neck1_head.x:.3f},{neck1_head.y:.3f},{neck1_head.z:.3f})  parent=首  [deform]")
+                neck1_eb = edit_bones["首1"]
+            neck1_eb.head = neck1_head
+            neck1_eb.tail = neck1_tail
+            neck1_eb.use_deform = True
+            neck1_eb.use_connect = False
+            neck1_eb.parent = neck_eb
+            actual_parent = neck1_eb.parent.name if neck1_eb.parent else "None"
+            tag = "Updated" if neck1_existed else "Created"
+            (updated_bones if neck1_existed else created_bones).append("首1")
+            print(f"[CTMMD 2]   {tag}: {'首1':<12} head=({neck1_head.x:.3f},{neck1_head.y:.3f},{neck1_head.z:.3f})  parent={actual_parent}  [deform]")
             if head_eb:
-                head_eb.parent = neck1_eb
                 head_eb.use_connect = False
-                print(f"[CTMMD 2]   Reparent: 頭 -> 首1")
+                head_eb.parent = neck1_eb
+                actual_parent2 = head_eb.parent.name if head_eb.parent else "None"
+                print(f"[CTMMD 2]   Reparent: 頭 -> {actual_parent2}")
 
         # 调用函数设置 roll 値
         bone_utils.set_roll_values(edit_bones, bone_utils.DEFAULT_ROLL_VALUES)
