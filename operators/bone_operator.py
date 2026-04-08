@@ -189,18 +189,12 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
                 "tail": neck1_head,
                 "parent": "上半身3", "use_connect": False, "use_deform": True
             },
-            "首1": {
-                "head": neck1_head, "tail": neck1_tail,
-                "parent": "首", "use_connect": False, "use_deform": True
-            },
             # 上肢骨骼链（安全访问，缺失时跳过）
             "下半身": {"head": Vector((0, upper_body_head.y, upper_body_head.z)), "tail": Vector((0, upper_body_head.y, upper_body_head.z - 0.15)), "parent": "腰", "use_connect": False}
         }
 
         # 动态添加上肢骨骼（安全访问，缺失时跳过）
         limb_defs = [
-            # 頭 re-parent → 首1
-            ("頭", ["頭"], lambda: {"head": edit_bones["頭"].head, "tail": edit_bones["頭"].tail, "parent": "首1", "use_connect": False}),
             # 肩P.L/R: 肩的父骨骼，位置与肩相同，parent=上半身3
             ("肩P.L", ["肩.L"], lambda: {"head": edit_bones["肩.L"].head, "tail": edit_bones["肩.L"].head + Vector((0.03, 0, 0)), "parent": "上半身3", "use_deform": False, "use_connect": False}),
             ("肩P.R", ["肩.R"], lambda: {"head": edit_bones["肩.R"].head, "tail": edit_bones["肩.R"].head + Vector((-0.03, 0, 0)), "parent": "上半身3", "use_deform": False, "use_connect": False}),
@@ -256,6 +250,29 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
             else:
                 created_bones.append(bone_name)
                 print(f"[CTMMD 2]   Created: {bone_name:<12} head={head_str}  {parent_str}  [{deform_str}]")
+
+        # 首1 / 頭 re-parent: 首→首1→頭
+        # 在主循环后处理，确保首已存在
+        neck_eb = edit_bones.get("首")
+        head_eb = edit_bones.get("頭")
+        if neck_eb:
+            neck1_existed = edit_bones.get("首1") is not None
+            neck1_eb = bone_utils.create_or_update_bone(
+                edit_bones, "首1", neck1_head, neck1_tail,
+                use_connect=False, parent_name=None, use_deform=True
+            )
+            # 显式设置 parent（避免名称查找问题）
+            neck1_eb.parent = neck_eb
+            if neck1_existed:
+                updated_bones.append("首1")
+                print(f"[CTMMD 2]   Updated: {'首1':<12} head=({neck1_head.x:.3f},{neck1_head.y:.3f},{neck1_head.z:.3f})  parent=首  [deform]")
+            else:
+                created_bones.append("首1")
+                print(f"[CTMMD 2]   Created: {'首1':<12} head=({neck1_head.x:.3f},{neck1_head.y:.3f},{neck1_head.z:.3f})  parent=首  [deform]")
+            if head_eb:
+                head_eb.parent = neck1_eb
+                head_eb.use_connect = False
+                print(f"[CTMMD 2]   Reparent: 頭 -> 首1")
 
         # 调用函数设置 roll 値
         bone_utils.set_roll_values(edit_bones, bone_utils.DEFAULT_ROLL_VALUES)
