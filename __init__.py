@@ -56,6 +56,7 @@ def register():
     _safe_register(preset_operator.OBJECT_OT_fill_from_selection_specific)
     _safe_register(preset_operator.OBJECT_OT_export_preset)
     _safe_register(preset_operator.OBJECT_OT_import_preset)
+    _safe_register(preset_operator.OBJECT_OT_setup_pmx_attributes)
     _safe_register(preset_operator.OBJECT_OT_use_mmd_tools_convert)
     _safe_register(pose_operator.OBJECT_OT_convert_to_apose)
     _safe_register(ik_operator.OBJECT_OT_add_ik)

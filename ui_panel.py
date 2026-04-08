@@ -292,6 +292,9 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             row = layout.row()
             row.operator("object.create_bone_group", text="7. 创建骨骼集合")
 
+            row = layout.row()
+            row.operator("object.setup_pmx_attributes", text="8. 设置PMX属性(name_j/付与親)")
+
             # 骨骼命名互转
             row = layout.row(align=True)
             row.operator("object.convert_names_to_jp", text=".L/.R → 左/右", icon='ARROW_LEFTRIGHT')
