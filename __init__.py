@@ -51,6 +51,8 @@ def register():
     _safe_register(ui_panel.OBJECT_OT_load_preset)
     _safe_register(bone_operator.OBJECT_OT_rename_to_mmd)
     _safe_register(bone_operator.OBJECT_OT_complete_missing_bones)
+    _safe_register(bone_operator.OBJECT_OT_convert_names_to_lr)
+    _safe_register(bone_operator.OBJECT_OT_convert_names_to_jp)
     _safe_register(preset_operator.OBJECT_OT_fill_from_selection_specific)
     _safe_register(preset_operator.OBJECT_OT_export_preset)
     _safe_register(preset_operator.OBJECT_OT_import_preset)

@@ -292,6 +292,11 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             row = layout.row()
             row.operator("object.create_bone_group", text="7. 创建骨骼集合")
 
+            # 骨骼命名互转
+            row = layout.row(align=True)
+            row.operator("object.convert_names_to_jp", text=".L/.R → 左/右", icon='ARROW_LEFTRIGHT')
+            row.operator("object.convert_names_to_lr", text="左/右 → .L/.R", icon='ARROW_LEFTRIGHT')
+
             # 添加"使用mmdtools转换格式"按钮到最下方
             layout.operator("object.use_mmd_tools_convert", text="使用mmdtools转换格式")
 

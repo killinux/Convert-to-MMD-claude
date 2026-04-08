@@ -314,3 +314,77 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
         self.report({'INFO'}, f"Bone completion finished: created {len(created_bones)}, updated {len(updated_bones)}")
 
         return {'FINISHED'}
+
+
+def _convert_name_lr_to_jp(name):
+    """将 .L/.R 后缀转为 左/右 前缀。非对称骨骼原样返回。"""
+    if name.endswith('.L'):
+        base = name[:-2]
+        return (base + '左') if base == '腰キャンセル' else ('左' + base)
+    elif name.endswith('.R'):
+        base = name[:-2]
+        return (base + '右') if base == '腰キャンセル' else ('右' + base)
+    return name
+
+
+def _convert_name_jp_to_lr(name):
+    """将 左/右 前缀转为 .L/.R 后缀。非对称骨骼原样返回。"""
+    if name.endswith('左') and name.startswith('腰キャンセル'):
+        return name[:-1] + '.L'
+    if name.endswith('右') and name.startswith('腰キャンセル'):
+        return name[:-1] + '.R'
+    if name.startswith('左'):
+        return name[1:] + '.L'
+    if name.startswith('右'):
+        return name[1:] + '.R'
+    return name
+
+
+class OBJECT_OT_convert_names_to_lr(bpy.types.Operator):
+    """骨骼名 左/右 → .L/.R（Blender 镜像友好格式）"""
+    bl_idname = "object.convert_names_to_lr"
+    bl_label = "Names: 左右 → .L/.R"
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'ARMATURE':
+            self.report({'ERROR'}, "No armature selected")
+            return {'CANCELLED'}
+
+        if context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+        count = 0
+        for bone in obj.pose.bones:
+            new_name = _convert_name_jp_to_lr(bone.name)
+            if new_name != bone.name:
+                bone.name = new_name
+                count += 1
+
+        self.report({'INFO'}, f"Converted {count} bones to .L/.R format")
+        return {'FINISHED'}
+
+
+class OBJECT_OT_convert_names_to_jp(bpy.types.Operator):
+    """骨骼名 .L/.R → 左/右（PMX/VMD 日文格式）"""
+    bl_idname = "object.convert_names_to_jp"
+    bl_label = "Names: .L/.R → 左右"
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'ARMATURE':
+            self.report({'ERROR'}, "No armature selected")
+            return {'CANCELLED'}
+
+        if context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+        count = 0
+        for bone in obj.pose.bones:
+            new_name = _convert_name_lr_to_jp(bone.name)
+            if new_name != bone.name:
+                bone.name = new_name
+                count += 1
+
+        self.report({'INFO'}, f"Converted {count} bones to 左/右 format")
+        return {'FINISHED'}
