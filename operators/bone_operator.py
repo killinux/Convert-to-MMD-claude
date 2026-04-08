@@ -154,10 +154,18 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
             upper3_head = Vector((0, upper_body_head.y, upper_body_head.z + 0.30))
             upper3_tail = Vector((0, upper_body_head.y, upper_body_head.z + 0.45))
 
-        # 首1 位置：首.tail → 頭.head 之间
+        # 首1 位置：插入首和頭之间，确保非零长度
         if neck_bone and head_bone:
-            neck1_head = neck_bone.tail.copy()
-            neck1_tail = head_bone.head.copy()
+            neck_head_pos = neck_bone.head.copy()
+            head_head_pos = head_bone.head.copy()
+            # 首1: head=首と頭の中間, tail=頭.head
+            # 首: tail 缩短到中间点
+            neck1_head = (neck_head_pos + head_head_pos) / 2
+            neck1_tail = head_head_pos.copy()
+            # 如果中间点和頭.head太近（<0.01），手动偏移
+            if (neck1_tail - neck1_head).length < 0.01:
+                neck1_head = Vector((0, head_head_pos.y, head_head_pos.z - 0.05))
+                neck1_tail = head_head_pos.copy()
         elif neck_bone:
             neck1_head = neck_bone.tail.copy()
             neck1_tail = Vector((0, neck_bone.tail.y, neck_bone.tail.z + 0.08))
