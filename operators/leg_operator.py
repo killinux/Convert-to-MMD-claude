@@ -27,21 +27,13 @@ SIDES = [
 # 注意：腰キャンセル不在此列，它只在阶段4里从足D位置派生，不接收 unused 骨归并。
 LOWER_BODY_TARGETS = {
     "上半身", "上半身1", "上半身2", "上半身3", "下半身",
-    # 主骨（后缀格式 .L/.R）
     "足.L", "足.R",
     "ひざ.L", "ひざ.R",
     "足首.L", "足首.R",
-    # 主骨（前缀格式 左/右）
-    "左足", "右足",
-    "左ひざ", "右ひざ",
-    "左足首", "右足首",
-    # D骨（后缀格式）
     "足D.L", "足D.R",
     "ひざD.L", "ひざD.R",
     "足首D.L", "足首D.R",
-    # 足先EX（两种格式）
     "足先EX.L", "足先EX.R",
-    "左足先EX", "右足先EX",
 }
 
 # Phase 2 专用候选集：使用主骨（足/ひざ/足首）而非 D 骨。
@@ -50,21 +42,10 @@ LOWER_BODY_TARGETS = {
 # 包含手臂/肩部骨骼：foretwist/muscle_elbow/xtra07 系列骨骼紧邻肘部/肩部，需要这些候选。
 PHASE2_TARGETS = {
     "上半身", "上半身1", "上半身2", "上半身3", "下半身",
-    # 腿部（后缀格式 .L/.R）
     "足.L", "足.R",
     "ひざ.L", "ひざ.R",
     "足首.L", "足首.R",
     "足先EX.L", "足先EX.R",
-    # 腿部（前缀格式 左/右）
-    "左足", "右足",
-    "左ひざ", "右ひざ",
-    "左足首", "右足首",
-    "左足先EX", "右足先EX",
-    # 手臂/肩部（前缀格式）：foretwist/muscle_elbow/xtra07 系列
-    "左肩", "右肩",
-    "左腕", "右腕",
-    "左ひじ", "右ひじ",
-    # 手臂/肩部（后缀格式）
     "肩.L", "肩.R",
     "腕.L", "腕.R",
     "ひじ.L", "ひじ.R",
@@ -88,8 +69,8 @@ SPLIT_BONES = {
 # 不配置时退回到全部 PHASE2_TARGETS。
 # xtra08 系列是臀部+大腿辅助骨，顶点只应分给下半身或腿骨，绝不进上半身。
 SPLIT_BONE_TARGETS = {
-    "xtra08":    {"下半身", "左足", "右足", "足.L", "足.R", "左ひざ", "右ひざ", "ひざ.L", "ひざ.R"},
-    "xtra08opp": {"下半身", "左足", "右足", "足.L", "足.R", "左ひざ", "右ひざ", "ひざ.L", "ひざ.R"},
+    "xtra08":    {"下半身", "足.L", "足.R", "ひざ.L", "ひざ.R"},
+    "xtra08opp": {"下半身", "足.L", "足.R", "ひざ.L", "ひざ.R"},
 }
 
 def _point_to_segment_dist(point, seg_head, seg_tail):
@@ -1053,6 +1034,24 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
                 )
                 print(f"[CTMMD 2.1]   Created: {twist_name:<10} head=({head.x:.3f},{head.y:.3f},{head.z:.3f})  parent={parent_name}")
                 created.append(twist_name)
+
+        # P0-2: 串联式扭转骨链 — 将捩骨插入主链
+        # 目标: 腕→腕捩→ひじ→手捩→手首 (而非并联分支)
+        REPARENT_CHAIN = [
+            # (子骨基名, 新parent捩骨基名)
+            ("ひじ", "腕捩"),   # ひじ.L parent: 腕.L → 腕捩.L
+            ("手首", "手捩"),   # 手首.L parent: ひじ.L → 手捩.L
+        ]
+        for child_base, twist_parent_base in REPARENT_CHAIN:
+            for side in ["L", "R"]:
+                child_name = _arm_bone_name(child_base, side_fmt, side)
+                twist_parent_name = _twist_bone_name(twist_parent_base, side_fmt, side)
+                child_eb = edit_bones.get(child_name)
+                twist_eb = edit_bones.get(twist_parent_name)
+                if child_eb and twist_eb:
+                    child_eb.parent = twist_eb
+                    child_eb.use_connect = False
+                    print(f"[CTMMD 2.1]   Reparent: {child_name} -> {twist_parent_name} (serial chain)")
 
         bpy.ops.object.mode_set(mode='OBJECT')
 

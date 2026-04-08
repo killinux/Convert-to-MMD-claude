@@ -68,7 +68,7 @@ class OBJECT_OT_add_ik(bpy.types.Operator):
             bpy.ops.object.mode_set(mode='EDIT')
 
         edit_bones = obj.data.edit_bones
-        required_bones = ['左ひざ', '右ひざ', '左足首', '右足首', '全ての親']
+        required_bones = ['ひざ.L', 'ひざ.R', '足首.L', '足首.R', '全ての親']
         missing_bones = [name for name in required_bones if name not in edit_bones]
         if missing_bones:
             self.report({'ERROR'}, f"Missing required bones: {', '.join(missing_bones)}. Run Step 2 first.")
@@ -76,18 +76,18 @@ class OBJECT_OT_add_ik(bpy.types.Operator):
 
         # IK骨骼属性定义
         IKbone_properties = {
-            "左足IK親": {"head": Vector((edit_bones["左ひざ"].tail.x, edit_bones["左ひざ"].tail.y, 0)),
-                       "tail": edit_bones["左ひざ"].tail, "parent": None, "use_connect": False},
-            "左足ＩＫ": {"head": edit_bones["左ひざ"].tail,
-                      "tail": edit_bones["左ひざ"].tail + Vector((0, 0.1, 0)), "parent": "左足IK親", "use_connect": False},
-            "左つま先ＩＫ": {"head": edit_bones["左足首"].tail,
-                         "tail": edit_bones["左足首"].tail + Vector((0, 0, -0.05)), "parent": "左足ＩＫ", "use_connect": False},
-            "右足IK親": {"head": Vector((edit_bones["右ひざ"].tail.x, edit_bones["右ひざ"].tail.y, 0)),
-                       "tail": edit_bones["右ひざ"].tail, "parent": None, "use_connect": False},
-            "右足ＩＫ": {"head": edit_bones["右ひざ"].tail,
-                      "tail": edit_bones["右ひざ"].tail + Vector((0, 0.1, 0)), "parent": "右足IK親", "use_connect": False},
-            "右つま先ＩＫ": {"head": edit_bones["右足首"].tail,
-                         "tail": edit_bones["右足首"].tail + Vector((0, 0, -0.05)), "parent": "右足ＩＫ", "use_connect": False}
+            "足IK親.L": {"head": Vector((edit_bones["ひざ.L"].tail.x, edit_bones["ひざ.L"].tail.y, 0)),
+                       "tail": edit_bones["ひざ.L"].tail, "parent": None, "use_connect": False},
+            "足ＩＫ.L": {"head": edit_bones["ひざ.L"].tail,
+                      "tail": edit_bones["ひざ.L"].tail + Vector((0, 0.1, 0)), "parent": "足IK親.L", "use_connect": False},
+            "つま先ＩＫ.L": {"head": edit_bones["足首.L"].tail,
+                         "tail": edit_bones["足首.L"].tail + Vector((0, 0, -0.05)), "parent": "足ＩＫ.L", "use_connect": False},
+            "足IK親.R": {"head": Vector((edit_bones["ひざ.R"].tail.x, edit_bones["ひざ.R"].tail.y, 0)),
+                       "tail": edit_bones["ひざ.R"].tail, "parent": None, "use_connect": False},
+            "足ＩＫ.R": {"head": edit_bones["ひざ.R"].tail,
+                      "tail": edit_bones["ひざ.R"].tail + Vector((0, 0.1, 0)), "parent": "足IK親.R", "use_connect": False},
+            "つま先ＩＫ.R": {"head": edit_bones["足首.R"].tail,
+                         "tail": edit_bones["足首.R"].tail + Vector((0, 0, -0.05)), "parent": "足ＩＫ.R", "use_connect": False}
         }
 
         # 创建IK骨骼
@@ -97,23 +97,23 @@ class OBJECT_OT_add_ik(bpy.types.Operator):
         bpy.ops.object.mode_set(mode='POSE')
 
         # 获取骨骼对象并添加约束
-        left_hiza = obj.pose.bones["左ひざ"]
-        left_kutu = obj.pose.bones["左足首"]
-        right_hiza = obj.pose.bones["右ひざ"]
-        right_kutu = obj.pose.bones["右足首"]
+        left_hiza = obj.pose.bones["ひざ.L"]
+        left_kutu = obj.pose.bones["足首.L"]
+        right_hiza = obj.pose.bones["ひざ.R"]
+        right_kutu = obj.pose.bones["足首.R"]
 
-        # 为左ひざ添加 IK 和旋转限制约束
-        add_ik_constraint(left_hiza, obj, "左足ＩＫ", 2, 200, ik_min_x=radians(0), ik_max_x=radians(180), use_ik_limit_x=True,use_ik_limit_y=True,use_ik_limit_z=True)
+        # 为ひざ添加 IK 和旋转限制约束
+        add_ik_constraint(left_hiza, obj, "足ＩＫ.L", 2, 200, ik_min_x=radians(0), ik_max_x=radians(180), use_ik_limit_x=True,use_ik_limit_y=True,use_ik_limit_z=True)
         add_limit_rotation_constraint(left_hiza, use_limit_x=True, min_x=radians(0.5), max_x=radians(180))
-        
-        add_ik_constraint(right_hiza, obj, "右足ＩＫ", 2, 200, ik_min_x=radians(0), ik_max_x=radians(180), use_ik_limit_x=True,use_ik_limit_y=True,use_ik_limit_z=True)
+
+        add_ik_constraint(right_hiza, obj, "足ＩＫ.R", 2, 200, ik_min_x=radians(0), ik_max_x=radians(180), use_ik_limit_x=True,use_ik_limit_y=True,use_ik_limit_z=True)
         add_limit_rotation_constraint(right_hiza, use_limit_x=True, min_x=radians(0.5), max_x=radians(180))
-        
-        add_ik_constraint(left_kutu, obj, "左つま先ＩＫ", 1, 200)
-        add_damped_track_constraint(left_kutu, obj, "左ひざ")
-        
-        add_ik_constraint(right_kutu, obj, "右つま先ＩＫ", 1, 200)
-        add_damped_track_constraint(right_kutu, obj, "右ひざ")
+
+        add_ik_constraint(left_kutu, obj, "つま先ＩＫ.L", 1, 200)
+        add_damped_track_constraint(left_kutu, obj, "ひざ.L")
+
+        add_ik_constraint(right_kutu, obj, "つま先ＩＫ.R", 1, 200)
+        add_damped_track_constraint(right_kutu, obj, "ひざ.R")
 
         # ─── Shadow/Dummy 三层约束机制 ───
         # PMX 标准: dummy(挂主骨) → shadow(COPY_TRANSFORMS) → D骨(TRANSFORM)
@@ -123,12 +123,12 @@ class OBJECT_OT_add_ik(bpy.types.Operator):
 
         SHADOW_DUMMY_DEFS = [
             # (D骨名, 主骨名)
-            ("足D.L",  "左足"),
-            ("足D.R",  "右足"),
-            ("ひざD.L", "左ひざ"),
-            ("ひざD.R", "右ひざ"),
-            ("足首D.L", "左足首"),
-            ("足首D.R", "右足首"),
+            ("足D.L",  "足.L"),
+            ("足D.R",  "足.R"),
+            ("ひざD.L", "ひざ.L"),
+            ("ひざD.R", "ひざ.R"),
+            ("足首D.L", "足首.L"),
+            ("足首D.R", "足首.R"),
         ]
 
         CANCEL_DEFS = [
