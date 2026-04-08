@@ -62,6 +62,24 @@ The intended user workflow matches the UI button numbering:
 ### Mode switching
 Many operators switch Blender modes internally. `complete_missing_bones` and `add_ik` switch to EDIT mode. `add_ik` then switches to POSE mode to add constraints. Be careful when editing these operators that mode transitions happen in the correct order.
 
+## Remote Development (AWS + Mac Blender)
+
+本插件可通过 Blender Remote Bridge 进行远程开发和测试：
+
+- **代码位置（AWS）**：`/opt/mywork/mytest/Convert-to-MMD-claude/`
+- **Blender 运行在**：公司内网 Mac 上，插件已安装
+- **开发流程**：
+  1. 在 AWS 上修改插件代码
+  2. 用户在 Mac 上 pull 最新代码
+  3. Blender 中重新加载插件即可生效
+- **远程测试**：通过 Blender Remote Bridge 执行 Python 代码和截图
+  ```bash
+  cd /opt/mywork/mytest/bl/cli
+  BLENDER_RELAY_API_KEY=mysecretkey python cli.py exec "import bpy; ..."
+  BLENDER_RELAY_API_KEY=mysecretkey python cli.py screenshot
+  ```
+- **不需要**从 AWS 推送文件到 Mac，用户自行 pull
+
 ## File sync (Windows 注意事项)
 
 `operators/` 下的文件含有中文字符串（日文骨骼名、中文注释）。在 Windows 上同步到 Blender AppData 时：
