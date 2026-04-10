@@ -926,6 +926,10 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
         print(f"[CTMMD 5] Phase 4 complete: fixed {stray_fixed_total} stray verts")
 
         print("[CTMMD 5] ===== Phase 5: Lower Body Cleanup =====")
+        # 只在 D 骨权重占主导时才删 下半身 权重。
+        # 旧逻辑 "D 权重 > 0" 会误伤胯部：一个 下半身=0.95 + 足D.L=0.005 (stray) 的顶点
+        # 会被整个删掉 下半身, 只剩 0.01 总权重, 表现为权重不协调、顶点几乎不动。
+        D_DOMINANT_MIN = 0.1  # D 骨权重 >= 0.1 才认为这个顶点"真正属于腿部"
         d_bone_names = [d_base + s for _, d_base in D_BONE_PAIRS for s, _ in SIDES]
         total_removed = 0
         for mesh in mesh_objects:
@@ -933,17 +937,62 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
             if not lower_vg:
                 continue
             d_vg_indices = {mesh.vertex_groups[n].index for n in d_bone_names if mesh.vertex_groups.get(n)}
-            verts_to_remove = [
-                v.index for v in mesh.data.vertices
-                if any(g.group in d_vg_indices and g.weight > 0 for g in v.groups)
-            ]
+            verts_to_remove = []
+            for v in mesh.data.vertices:
+                lower_w = next((g.weight for g in v.groups if g.group == lower_vg.index), 0.0)
+                if lower_w <= 0:
+                    continue
+                max_d_w = max((g.weight for g in v.groups if g.group in d_vg_indices), default=0.0)
+                # D 骨明显主导 (>= 0.1) 或 D 骨权重大于 下半身 权重 → 删 下半身
+                if max_d_w >= D_DOMINANT_MIN or max_d_w > lower_w:
+                    verts_to_remove.append(v.index)
             if verts_to_remove:
                 lower_vg.remove(verts_to_remove)
                 total_removed += len(verts_to_remove)
-                print(f"[CTMMD 5]   {mesh.name}: removed {len(verts_to_remove)} D-bone-covered lower-body verts")
+                print(f"[CTMMD 5]   {mesh.name}: removed {len(verts_to_remove)} D-bone-dominant lower-body verts")
+
+        # ===== Phase 6: 处理残留在 全ての親 上的权重 =====
+        # XPS 源模型可能把部分顶点（通常是头发末梢/装饰）挂在 root ground 上,
+        # 步骤1 把它重命名为 全ての親。但 全ての親 是控制骨, 不 deform 也不跟随任何骨骼,
+        # 导致这些顶点完全静止。把它们迁移到最近的 deform 骨骼上。
+        print("[CTMMD 5] ===== Phase 6: Redistribute 全ての親 Weights =====")
+        all_parent_migrated = 0
+        deform_bones_ws = []
+        for b in obj.data.bones:
+            if b.use_deform and b.name != "全ての親":
+                h = obj.matrix_world @ b.head_local
+                t = obj.matrix_world @ b.tail_local
+                deform_bones_ws.append((b.name, h, t))
+        for mesh in mesh_objects:
+            root_vg = mesh.vertex_groups.get("全ての親")
+            if not root_vg:
+                continue
+            affected = 0
+            verts_to_clear = []
+            for v in mesh.data.vertices:
+                src_w = next((g.weight for g in v.groups if g.group == root_vg.index), 0.0)
+                if src_w <= 0.001:
+                    continue
+                vw = mesh.matrix_world @ v.co
+                best_name, best_dist = None, float('inf')
+                for bname, bh, bt in deform_bones_ws:
+                    d = _point_to_segment_dist(vw, bh, bt)
+                    if d < best_dist:
+                        best_dist, best_name = d, bname
+                if not best_name:
+                    continue
+                dst_vg = mesh.vertex_groups.get(best_name) or mesh.vertex_groups.new(name=best_name)
+                cur_dst = next((g.weight for g in v.groups if g.group == dst_vg.index), 0.0)
+                dst_vg.add([v.index], min(cur_dst + src_w, 1.0), 'REPLACE')
+                verts_to_clear.append(v.index)
+                affected += 1
+            if verts_to_clear:
+                root_vg.remove(verts_to_clear)
+                all_parent_migrated += affected
+                print(f"[CTMMD 5]   {mesh.name}: migrated {affected} verts from 全ての親 to nearest deform bone")
 
         print("[CTMMD 5] ===== Weight Assignment Complete =====")
-        self.report({'INFO'}, f"Weight assignment complete: merged {merged_count} unused bones, fixed {stray_fixed_total} stray verts, removed {total_removed} lower-body verts")
+        self.report({'INFO'}, f"Weight assignment complete: merged {merged_count} unused bones, fixed {stray_fixed_total} stray verts, removed {total_removed} lower-body verts, migrated {all_parent_migrated} 全ての親 verts")
         return {'FINISHED'}
 
 
