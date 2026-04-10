@@ -65,6 +65,21 @@ SPLIT_BONES = {
     "xtra08opp",  # 右侧：同上
 }
 
+# 保留清单: 这些 unused 辅助骨不做 merge, 权重原地保留。
+# XPS 源模型常给关节处加辅助变形骨 (crotch helper/muscle_elbow 等), 这些骨骼
+# 有自己的独特轴方向 — 比如 xtra04 是"向上"指的, 专门做胯部变形, merge 到
+# 轴向下的 足.L 会让胯部权重旋转方向错反, 动画时出现剪切变形。
+# 这些骨骼的 XPS parent 已经是对应的主骨 (thigh/elbow 等), merge 反而丢信息。
+# 保留它们, 会作为额外的 deform bone 进入 PMX, 通过父链继承旋转, 得到与 XPS
+# 一致的变形效果。
+PRESERVE_HELPER_KEYWORDS = (
+    "xtra04", "xtra02",       # 胯部/大腿内侧辅助 (parent=thigh)
+    "xtra07", "xtra07pp",     # 肩部辅助 (parent=upper arm)
+    "xtra08", "xtra08opp",    # 臀部/大腿外侧辅助 (parent=thigh or pelvis)
+    "muscle_elbow",           # 肘部辅助 (parent=elbow)
+    "foretwist",              # 手臂扭转 (已经由 step 2.1 的捩骨处理, 此处再兜底)
+)
+
 # per-vertex 拆分时的候选集限制（不在此集合中的骨骼不参与竞争）。
 # 不配置时退回到全部 PHASE2_TARGETS。
 # xtra08 系列是臀部+大腿辅助骨，顶点只应分给下半身或腿骨，绝不进上半身。
@@ -647,9 +662,23 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
 
         print("[CTMMD 5] ===== 5.1: unused bones -> target bones (per-vertex) =====")
         all_unused_names = {b.name for b in obj.data.bones if b.name.startswith("unused ")}
+
+        # 保留辅助骨: 匹配 PRESERVE_HELPER_KEYWORDS 的 unused 骨骼不做 merge,
+        # 权重原地保留, 作为额外 deform bone 进入 PMX。
+        preserved_bones = [
+            b.name for b in obj.data.bones
+            if b.name.startswith("unused ")
+            and any(kw in b.name.lower() for kw in PRESERVE_HELPER_KEYWORDS)
+        ]
+        if preserved_bones:
+            print(f"[CTMMD 5] Preserved {len(preserved_bones)} helper bones (no merge):")
+            for n in preserved_bones:
+                print(f"[CTMMD 5]   [KEEP] {n}")
+
         unused_bones = [
             b for b in obj.data.bones
             if b.name.startswith("unused ") and b.use_deform
+            and b.name not in preserved_bones
             and any(_vg_has_weight(m, b.name) for m in mesh_objects)
         ]
 
@@ -991,52 +1020,13 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
                 all_parent_migrated += affected
                 print(f"[CTMMD 5]   {mesh.name}: migrated {affected} verts from 全ての親 to nearest deform bone")
 
-        # ===== Phase 7: 胯部/腿部权重平滑 =====
-        # XPS 源的胯部权重通常是硬边界（某些顶点 100% pelvis 或 100% thigh）,
-        # 经 step 5 的 unused-merge 和 D 骨转移后保持硬边界。MMD 的 腰キャンセル
-        # 机制让 下半身 和 足D 运动解耦, 硬边界会导致胯/腿交界处在动画时出现剪切。
-        # 用 Blender 内置 vertex_group_smooth (基于 mesh 拓扑的邻居平均) 平滑边界。
-        print("[CTMMD 5] ===== Phase 7: Smooth Hip/Leg Weights =====")
-        smoothed_groups = 0
-        orig_active = bpy.context.view_layer.objects.active
-        orig_mode = bpy.context.mode
-        try:
-            for mesh in mesh_objects:
-                if mesh.type != 'MESH':
-                    continue
-                target_groups = ['下半身', '足D.L', '足D.R']
-                existing = [g for g in target_groups if mesh.vertex_groups.get(g)]
-                if not existing:
-                    continue
-                for o in bpy.data.objects:
-                    o.select_set(False)
-                mesh.select_set(True)
-                bpy.context.view_layer.objects.active = mesh
-                try:
-                    bpy.ops.object.mode_set(mode='WEIGHT_PAINT')
-                except Exception:
-                    continue
-                for gname in existing:
-                    vg = mesh.vertex_groups[gname]
-                    mesh.vertex_groups.active_index = vg.index
-                    try:
-                        bpy.ops.object.vertex_group_smooth(group_select_mode='ACTIVE', factor=1.0, repeat=5, expand=0.0)
-                        smoothed_groups += 1
-                    except Exception as e:
-                        print(f"[CTMMD 5]   smooth {gname} on {mesh.name} failed: {e}")
-                bpy.ops.object.mode_set(mode='OBJECT')
-                print(f"[CTMMD 5]   {mesh.name}: smoothed {len(existing)} hip/leg groups")
-        finally:
-            try:
-                if bpy.context.mode != 'OBJECT':
-                    bpy.ops.object.mode_set(mode='OBJECT')
-            except Exception:
-                pass
-            if orig_active and orig_active.name in bpy.data.objects:
-                bpy.context.view_layer.objects.active = orig_active
+        # 注: 之前有 Phase 7 vertex_group_smooth 胯部/腿部权重平滑, 是
+        # "unused xtra04 被 merge 到 足.L 后轴向错反导致剪切" 的 workaround。
+        # 现在 step 5.1 通过 PRESERVE_HELPER_KEYWORDS 保留这些辅助骨不做 merge,
+        # 权重原地保留, 从根本解决问题, Phase 7 已移除。
 
         print("[CTMMD 5] ===== Weight Assignment Complete =====")
-        self.report({'INFO'}, f"Weight assignment complete: merged {merged_count} unused bones, fixed {stray_fixed_total} stray verts, removed {total_removed} lower-body verts, migrated {all_parent_migrated} 全ての親 verts, smoothed {smoothed_groups} groups")
+        self.report({'INFO'}, f"Weight assignment complete: merged {merged_count} unused bones, fixed {stray_fixed_total} stray verts, removed {total_removed} lower-body verts, migrated {all_parent_migrated} 全ての親 verts")
         return {'FINISHED'}
 
 

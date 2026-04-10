@@ -47,6 +47,16 @@ class OBJECT_OT_rename_to_mmd(bpy.types.Operator):
             else:
                 missing.append(f"{bone_name} -> {new_name}")
 
+        # XPS 通用兜底：如果 preset 没指定 lower_body_bone 而模型里存在
+        # `unused bip001 pelvis`, 自动把它 rename 成 下半身。
+        # 这样胯部权重保留在原骨骼上 (只是名字变了), 避免 step 5 把它 merge 到
+        # 新建的 下半身 时因轴向差异产生变形错误。
+        if not getattr(scene, "lower_body_bone", None):
+            pelvis_bone = obj.pose.bones.get("unused bip001 pelvis")
+            if pelvis_bone and not obj.pose.bones.get("下半身"):
+                pelvis_bone.name = "下半身"
+                renamed.append("unused bip001 pelvis -> 下半身 (auto XPS pelvis)")
+
         for r in renamed:
             print(f"[CTMMD 1]   Renamed: {r}")
         for a in already:
