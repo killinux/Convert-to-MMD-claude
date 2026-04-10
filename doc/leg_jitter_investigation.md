@@ -1,7 +1,75 @@
 # 腿部抖动/反转问题调查记录
 
-**日期**: 2026-04-08
-**状态**: 未解决，需继续调查
+**日期**: 2026-04-08（更新 2026-04-10）
+**状态**: 部分解决 — 下半身动作能对应上目标了，但仍有抖动需继续调查
+
+---
+
+## 2026-04-10 更新
+
+### 关键发现 1: VMD scale 必须匹配模型 scale
+
+导出 PMX 时必须 `scale=12`（用户确认这是 MMD 标准尺度）。导出后再导入测试时：
+
+- `import_model(scale=12)` — 把 PMX 还原到 12 倍尺寸（与目标 PMX 同尺度）
+- `import_vmd(scale=1)` — **必须用 1，不能跟 export 的 12**
+
+如果 VMD 用 scale=12 加载，IK 位移（足ＩＫ.location）会被乘 12，目标位置跑到几百米外，IK 解算彻底乱掉，看起来"下半身动作没对应上"。这是上次调查时被忽略的关键。
+
+验证方法：在同一帧上对比 c2 / c3 的 `pose.bones['足ＩＫ.L'].location`，如果倍数关系明显（12x）就是 scale 问题。
+
+### 关键发现 2: 足首 tail 修复生效
+
+上次的 tail 指向 つま先 修复让 足首 朝向差从 **11.7° → 2.07°**。
+
+### 关键发现 3: 腰骨骼朝向偏 20°
+
+`operators/bone_operator.py:182` 中 腰 的定义：
+
+```python
+"腰": {"head": Vector((0, upper_body_head.y + 0.1, upper_body_head.z - 0.12)),
+       "tail": Vector((0, upper_body_head.y, upper_body_head.z))}
+```
+
+方向 (0, -0.1, 0.12) 给出与 +Z 夹角 **39.8°**，目标 PMX 是 **19.4°**，差 20.4°。这个差异会通过 下半身→腰キャンセル→足 链传到腿部 rest pose，影响 IK 解。
+
+### 关键发现 5: PMX 导出/导入破坏 dummy/shadow parent
+
+**症状**: c3 腿部 IK 在 ~176 帧上剧烈抖动（单帧 50-160° 跳变），c2（同样的 VMD）只有 0 帧抖动。
+
+**根因**: PMX 导出 → 重新导入后，`_dummy_腰キャンセル.L` 和 `_shadow_腰キャンセル.L` 的 parent 被改坏：
+
+| | 原版 Armature（步骤6 创建后） | c2 (target PMX) | c3 (重导入的 PMX) |
+|---|---|---|---|
+| `_dummy_腰キャンセル.L` parent | 腰 ✓ | 腰 ✓ | **下半身 ✗** |
+| `_shadow_腰キャンセル.L` parent | グルーブ ✓ | グルーブ ✓ | **腰 ✗** |
+
+错误的 dummy parent 使 dummy 继承了 下半身 的旋转，shadow 复制后 TRANSFORM 约束把这个旋转作用到 腰キャンセル.L，导致整条腿在下半身大旋转的帧上完全乱套。
+
+**测试**: 在原版 Armature（pre-export）上加载同一段 VMD，单帧 >30° 抖动只有 **4 帧**（c2 是 0 帧），重导入的 c3 是 **176 帧**。所以 PMX roundtrip 把抖动放大了 ~40 倍。
+
+**问题源头**: mmd_tools 导入 PMX 时根据 PMX 的 付与親 元数据重建 dummy/shadow 骨骼，但选择的 parent 与原版不同。c2 的源 PMX 在导入时给出了正确的 parent，我们导出的 PMX 不行 — 可能是 步骤8 `setup_pmx_attributes` 中 `additional_transform_bone` 设置不对，或缺了某些 PMX 属性。
+
+**下次继续方向**:
+1. 比较 c2 PMX 文件和我们导出的 PMX 文件中 腰キャンセル 的 付与親/parent_bone 字段
+2. 或者在 步骤6 之后强制再校正 dummy/shadow parent
+3. 剩余的 4 帧抖动是真实的几何/IK 问题，需要单独查（可能是腿长比例 1.127 vs 1.034）
+
+### 关键发现 4: 腿部骨骼位置在 armature space 偏移 0.3-0.6m
+
+| 骨骼 | rot_diff | pos_diff |
+|---|---|---|
+| 腰 | 20.38° | 1.20m |
+| 下半身 | 0° | 0.34m |
+| 腰キャンセル.L | 0° | 0.47m |
+| 足.L | 1.4° | 0.47m |
+| ひざ.L | 1.1° | 0.52m |
+| 足首.L | 2.8° | 0.59m |
+
+c3 整条腿在 armature space 中比 c2 偏后 0.4m、偏上 0.26m。下次重点查 步骤2 中 上半身/下半身 head 的来源（`upper_body_head`）。
+
+---
+
 
 ---
 

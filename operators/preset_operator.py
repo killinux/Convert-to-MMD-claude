@@ -137,12 +137,16 @@ class OBJECT_OT_setup_pmx_attributes(bpy.types.Operator):
                     d_pb.mmd_bone.additional_transform_influence = influence
                     at_count += 1
 
-        # 腰キャンセル: 付与親=下半身, 反転(-1.0)
+        # 腰キャンセル: 付与親=腰, 反転(-1.0)
+        # 注意: 付与親目标必须是"腰"(祖父)而不是"下半身"(父)。因为 腰キャンセル 的 parent 已经是
+        # 下半身, 如果付与親再指 下半身, mmd_tools 导入 PMX 时会把 dummy bone parent 错误地设为
+        # 下半身, 导致 下半身 的大旋转被叠加到 腰キャンセル 上, 腿部 IK 剧烈抖动。
+        # 目标 c2 PMX 的做法: 腰キャンセル parent=下半身, 付与親=腰(-1.0)。
         for suffix in [".L", ".R"]:
             cancel_name = "腰キャンセル" + suffix
             cancel_pb = obj.pose.bones.get(cancel_name)
-            if cancel_pb and obj.pose.bones.get("下半身"):
-                cancel_pb.mmd_bone.additional_transform_bone = "下半身"
+            if cancel_pb and obj.pose.bones.get("腰"):
+                cancel_pb.mmd_bone.additional_transform_bone = "腰"
                 cancel_pb.mmd_bone.has_additional_rotation = True
                 cancel_pb.mmd_bone.has_additional_location = False
                 cancel_pb.mmd_bone.additional_transform_influence = -1.0
