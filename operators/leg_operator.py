@@ -77,7 +77,8 @@ PRESERVE_HELPER_KEYWORDS = (
     "xtra07", "xtra07pp",     # 肩部辅助 (parent=upper arm)
     "xtra08", "xtra08opp",    # 臀部/大腿外侧辅助 (parent=thigh or pelvis)
     "muscle_elbow",           # 肘部辅助 (parent=elbow)
-    "foretwist",              # 手臂扭转 (已经由 step 2.1 的捩骨处理, 此处再兜底)
+    # foretwist 系列已经由 step 1 的 UNUSED_RENAME_MAP 重命名为 腕捩/手捩,
+    # 不在此处保留 (此时已经不是 unused 前缀)。
 )
 
 # per-vertex 拆分时的候选集限制（不在此集合中的骨骼不参与竞争）。
@@ -980,45 +981,49 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
                 total_removed += len(verts_to_remove)
                 print(f"[CTMMD 5]   {mesh.name}: removed {len(verts_to_remove)} D-bone-dominant lower-body verts")
 
-        # ===== Phase 6: 处理残留在 全ての親 上的权重 =====
-        # XPS 源模型可能把部分顶点（通常是头发末梢/装饰）挂在 root ground 上,
-        # 步骤1 把它重命名为 全ての親。但 全ての親 是控制骨, 不 deform 也不跟随任何骨骼,
-        # 导致这些顶点完全静止。把它们迁移到最近的 deform 骨骼上。
-        print("[CTMMD 5] ===== Phase 6: Redistribute 全ての親 Weights =====")
+        # ===== Phase 6: 把 全ての親 上的权重 RENAME 到 頭 =====
+        # XPS 源模型常把部分顶点（通常是头发末梢/发饰）挂在 root ground 上,
+        # 步骤1 把它重命名为 全ての親。但 全ての親 是控制骨, 不 deform 也不跟随
+        # 任何骨骼, 导致这些顶点完全静止。
+        #
+        # 之前用"空间最近 deform 骨"迁移, 但容易把头发顶点错误地分配给跨身体的
+        # 辅助骨 (比如 unused bip001 xtra07pp 是肩部辅助骨但 tail 延伸到脖子,
+        # 头发顶点被错误地跟着手臂转)。
+        #
+        # 改用 RENAME 策略: 直接把每个 mesh 的 全ての親 顶点组重命名为 頭。
+        # XPS 的 root weights 几乎总是头发/发饰这种"应该跟着头动"的部件,
+        # rename 一步到位, 不需要任何空间计算。
+        print("[CTMMD 5] ===== Phase 6: Rename 全ての親 -> 頭 =====")
         all_parent_migrated = 0
-        deform_bones_ws = []
-        for b in obj.data.bones:
-            if b.use_deform and b.name != "全ての親":
-                h = obj.matrix_world @ b.head_local
-                t = obj.matrix_world @ b.tail_local
-                deform_bones_ws.append((b.name, h, t))
-        for mesh in mesh_objects:
-            root_vg = mesh.vertex_groups.get("全ての親")
-            if not root_vg:
-                continue
-            affected = 0
-            verts_to_clear = []
-            for v in mesh.data.vertices:
-                src_w = next((g.weight for g in v.groups if g.group == root_vg.index), 0.0)
-                if src_w <= 0.001:
+        if obj.data.bones.get("頭"):
+            for mesh in mesh_objects:
+                root_vg = mesh.vertex_groups.get("全ての親")
+                if not root_vg:
                     continue
-                vw = mesh.matrix_world @ v.co
-                best_name, best_dist = None, float('inf')
-                for bname, bh, bt in deform_bones_ws:
-                    d = _point_to_segment_dist(vw, bh, bt)
-                    if d < best_dist:
-                        best_dist, best_name = d, bname
-                if not best_name:
+                # 计算受影响顶点数 (用于报告)
+                affected = sum(
+                    1 for v in mesh.data.vertices
+                    if any(g.group == root_vg.index and g.weight > 0.001 for g in v.groups)
+                )
+                if affected == 0:
                     continue
-                dst_vg = mesh.vertex_groups.get(best_name) or mesh.vertex_groups.new(name=best_name)
-                cur_dst = next((g.weight for g in v.groups if g.group == dst_vg.index), 0.0)
-                dst_vg.add([v.index], min(cur_dst + src_w, 1.0), 'REPLACE')
-                verts_to_clear.append(v.index)
-                affected += 1
-            if verts_to_clear:
-                root_vg.remove(verts_to_clear)
+                # 如果 mesh 已有 頭 顶点组, 把 全ての親 的权重 add 进去
+                head_vg = mesh.vertex_groups.get("頭")
+                if head_vg:
+                    for v in mesh.data.vertices:
+                        src_w = next((g.weight for g in v.groups if g.group == root_vg.index), 0.0)
+                        if src_w <= 0.001:
+                            continue
+                        cur_dst = next((g.weight for g in v.groups if g.group == head_vg.index), 0.0)
+                        head_vg.add([v.index], min(cur_dst + src_w, 1.0), 'REPLACE')
+                    mesh.vertex_groups.remove(root_vg)
+                else:
+                    # 没有 頭 顶点组, 直接 rename
+                    root_vg.name = "頭"
                 all_parent_migrated += affected
-                print(f"[CTMMD 5]   {mesh.name}: migrated {affected} verts from 全ての親 to nearest deform bone")
+                print(f"[CTMMD 5]   {mesh.name}: renamed/merged 全ての親 -> 頭 ({affected} verts)")
+        else:
+            print("[CTMMD 5]   skipped (頭 bone not found)")
 
         # 注: 之前有 Phase 7 vertex_group_smooth 胯部/腿部权重平滑, 是
         # "unused xtra04 被 merge 到 足.L 后轴向错反导致剪切" 的 workaround。
@@ -1125,8 +1130,17 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
                     skipped.append(f"{twist_name}(主骨 {from_name}/{to_name} 不存在)")
                     continue
 
+                # 如果 twist bone 已经存在 (通常是 step 1 已经把 XPS 的 foretwist
+                # rename 进来了), 不要新建, 也不动它的位置/权重 — XPS 原版的
+                # head/tail 和 weight 才是对的。只确保 parent 设置正确即可。
                 if edit_bones.get(twist_name):
-                    skipped.append(f"{twist_name} 已存在")
+                    existing_eb = edit_bones[twist_name]
+                    parent_eb = edit_bones.get(parent_name)
+                    if parent_eb and existing_eb.parent != parent_eb:
+                        existing_eb.parent = parent_eb
+                        existing_eb.use_connect = False
+                        print(f"[CTMMD 2.1]   Reparent: {twist_name} -> {parent_name} (xps preserved)")
+                    skipped.append(f"{twist_name} 已存在 (xps 原骨保留)")
                     continue
 
                 direction = (to_bone.head - from_bone.head).normalized()
