@@ -1137,8 +1137,15 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
                     existing_eb = edit_bones[twist_name]
                     parent_eb = edit_bones.get(parent_name)
                     if parent_eb and existing_eb.parent != parent_eb:
-                        existing_eb.parent = parent_eb
+                        # 重要: 必须先 disconnect 再 reparent, 否则 use_connect=True
+                        # 时 reparent 会把 head 自动 snap 到新 parent 的 tail。
+                        # 同时显式保存/恢复 head/tail, 防止任何 side-effect。
+                        saved_head = existing_eb.head.copy()
+                        saved_tail = existing_eb.tail.copy()
                         existing_eb.use_connect = False
+                        existing_eb.parent = parent_eb
+                        existing_eb.head = saved_head
+                        existing_eb.tail = saved_tail
                         print(f"[CTMMD 2.1]   Reparent: {twist_name} -> {parent_name} (xps preserved)")
                     skipped.append(f"{twist_name} 已存在 (xps 原骨保留)")
                     continue
@@ -1171,8 +1178,13 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
                 child_eb = edit_bones.get(child_name)
                 twist_eb = edit_bones.get(twist_parent_name)
                 if child_eb and twist_eb:
-                    child_eb.parent = twist_eb
+                    # disconnect 再 reparent, 保存/恢复 head/tail, 防止 snap
+                    saved_head = child_eb.head.copy()
+                    saved_tail = child_eb.tail.copy()
                     child_eb.use_connect = False
+                    child_eb.parent = twist_eb
+                    child_eb.head = saved_head
+                    child_eb.tail = saved_tail
                     print(f"[CTMMD 2.1]   Reparent: {child_name} -> {twist_parent_name} (serial chain)")
 
         bpy.ops.object.mode_set(mode='OBJECT')

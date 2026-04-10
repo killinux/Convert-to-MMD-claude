@@ -63,6 +63,29 @@ class OBJECT_OT_rename_to_mmd(bpy.types.Operator):
                 src_bone.name = dst
                 renamed.append(f"{src} -> {dst} (auto XPS helper)")
 
+        # XPS 的 foretwist1 等辅助骨经常是零长度 (head == tail)。Blender 在
+        # mode switch (Object↔Edit) 时会丢掉零长度骨, 后续 step 2.1 等操作做
+        # mode switch 时这些骨会消失, 导致依赖它们的 vertex group 变成孤儿。
+        # 在这里给重命名后的零长度骨补一个最小 tail offset。
+        renamed_dst_names = set(UNUSED_RENAME_MAP.values())
+        bpy.ops.object.mode_set(mode='EDIT')
+        try:
+            edit_bones = obj.data.edit_bones
+            for name in renamed_dst_names:
+                eb = edit_bones.get(name)
+                if not eb:
+                    continue
+                if (eb.tail - eb.head).length < 1e-5:
+                    # 零长度: 沿 parent 骨的方向延伸 5cm, 没 parent 就竖直延伸
+                    if eb.parent:
+                        pdir = (eb.parent.tail - eb.parent.head).normalized()
+                        eb.tail = eb.head + pdir * 0.05
+                    else:
+                        eb.tail = eb.head + Vector((0, 0, 0.05))
+                    print(f"[CTMMD 1]   Extended zero-length bone: {name}")
+        finally:
+            bpy.ops.object.mode_set(mode='OBJECT')
+
         for r in renamed:
             print(f"[CTMMD 1]   Renamed: {r}")
         for a in already:
