@@ -991,8 +991,52 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
                 all_parent_migrated += affected
                 print(f"[CTMMD 5]   {mesh.name}: migrated {affected} verts from 全ての親 to nearest deform bone")
 
+        # ===== Phase 7: 胯部/腿部权重平滑 =====
+        # XPS 源的胯部权重通常是硬边界（某些顶点 100% pelvis 或 100% thigh）,
+        # 经 step 5 的 unused-merge 和 D 骨转移后保持硬边界。MMD 的 腰キャンセル
+        # 机制让 下半身 和 足D 运动解耦, 硬边界会导致胯/腿交界处在动画时出现剪切。
+        # 用 Blender 内置 vertex_group_smooth (基于 mesh 拓扑的邻居平均) 平滑边界。
+        print("[CTMMD 5] ===== Phase 7: Smooth Hip/Leg Weights =====")
+        smoothed_groups = 0
+        orig_active = bpy.context.view_layer.objects.active
+        orig_mode = bpy.context.mode
+        try:
+            for mesh in mesh_objects:
+                if mesh.type != 'MESH':
+                    continue
+                target_groups = ['下半身', '足D.L', '足D.R']
+                existing = [g for g in target_groups if mesh.vertex_groups.get(g)]
+                if not existing:
+                    continue
+                for o in bpy.data.objects:
+                    o.select_set(False)
+                mesh.select_set(True)
+                bpy.context.view_layer.objects.active = mesh
+                try:
+                    bpy.ops.object.mode_set(mode='WEIGHT_PAINT')
+                except Exception:
+                    continue
+                for gname in existing:
+                    vg = mesh.vertex_groups[gname]
+                    mesh.vertex_groups.active_index = vg.index
+                    try:
+                        bpy.ops.object.vertex_group_smooth(group_select_mode='ACTIVE', factor=1.0, repeat=5, expand=0.0)
+                        smoothed_groups += 1
+                    except Exception as e:
+                        print(f"[CTMMD 5]   smooth {gname} on {mesh.name} failed: {e}")
+                bpy.ops.object.mode_set(mode='OBJECT')
+                print(f"[CTMMD 5]   {mesh.name}: smoothed {len(existing)} hip/leg groups")
+        finally:
+            try:
+                if bpy.context.mode != 'OBJECT':
+                    bpy.ops.object.mode_set(mode='OBJECT')
+            except Exception:
+                pass
+            if orig_active and orig_active.name in bpy.data.objects:
+                bpy.context.view_layer.objects.active = orig_active
+
         print("[CTMMD 5] ===== Weight Assignment Complete =====")
-        self.report({'INFO'}, f"Weight assignment complete: merged {merged_count} unused bones, fixed {stray_fixed_total} stray verts, removed {total_removed} lower-body verts, migrated {all_parent_migrated} 全ての親 verts")
+        self.report({'INFO'}, f"Weight assignment complete: merged {merged_count} unused bones, fixed {stray_fixed_total} stray verts, removed {total_removed} lower-body verts, migrated {all_parent_migrated} 全ての親 verts, smoothed {smoothed_groups} groups")
         return {'FINISHED'}
 
 
