@@ -47,44 +47,22 @@ class OBJECT_OT_rename_to_mmd(bpy.types.Operator):
             else:
                 missing.append(f"{bone_name} -> {new_name}")
 
-        # XPS 通用兜底 rename 表: 把 XPS 已经存在的辅助骨直接重命名成 MMD 标准名,
-        # 而不是新建 MMD 骨 + 迁移权重 (后者会丢失 XPS 原本正确的位置和权重信息)。
-        # 原则: 只 rename, 不动权重, 不算位置。
+        # XPS 通用兜底 rename 表: 把 XPS 已经存在的"位置和角色与 MMD 标准骨完全
+        # 对应"的辅助骨直接重命名, 不新建/不迁移。
+        #
+        # 注意: 不能简单 rename 的情况:
+        #   - foretwist/foretwist1 看起来像扭转骨, 但 XPS 把它们都放在前臂区域,
+        #     而 MMD 的 腕捩(上臂扭转) 在上臂、手捩(前臂扭转) 在前臂。位置不匹配,
+        #     直接 rename 会让 腕捩 出现在前臂位置, 整条手臂链条形态错乱。
+        #     这类骨骼仍由 step 2.1 处理 (新建 + gradient 权重转移)。
         UNUSED_RENAME_MAP = {
-            "unused bip001 pelvis": "下半身",      # 胯部 -> MMD 下半身
-            "unused bip001 l foretwist": "腕捩.L",  # 左上臂扭转
-            "unused bip001 r foretwist": "腕捩.R",  # 右上臂扭转
-            "unused bip001 l foretwist1": "手捩.L", # 左前臂扭转
-            "unused bip001 r foretwist1": "手捩.R", # 右前臂扭转
+            "unused bip001 pelvis": "下半身",  # 胯部 -> MMD 下半身, 位置一致, 干净 rename
         }
         for src, dst in UNUSED_RENAME_MAP.items():
             src_bone = obj.pose.bones.get(src)
             if src_bone and not obj.pose.bones.get(dst):
                 src_bone.name = dst
                 renamed.append(f"{src} -> {dst} (auto XPS helper)")
-
-        # XPS 的 foretwist1 等辅助骨经常是零长度 (head == tail)。Blender 在
-        # mode switch (Object↔Edit) 时会丢掉零长度骨, 后续 step 2.1 等操作做
-        # mode switch 时这些骨会消失, 导致依赖它们的 vertex group 变成孤儿。
-        # 在这里给重命名后的零长度骨补一个最小 tail offset。
-        renamed_dst_names = set(UNUSED_RENAME_MAP.values())
-        bpy.ops.object.mode_set(mode='EDIT')
-        try:
-            edit_bones = obj.data.edit_bones
-            for name in renamed_dst_names:
-                eb = edit_bones.get(name)
-                if not eb:
-                    continue
-                if (eb.tail - eb.head).length < 1e-5:
-                    # 零长度: 沿 parent 骨的方向延伸 5cm, 没 parent 就竖直延伸
-                    if eb.parent:
-                        pdir = (eb.parent.tail - eb.parent.head).normalized()
-                        eb.tail = eb.head + pdir * 0.05
-                    else:
-                        eb.tail = eb.head + Vector((0, 0, 0.05))
-                    print(f"[CTMMD 1]   Extended zero-length bone: {name}")
-        finally:
-            bpy.ops.object.mode_set(mode='OBJECT')
 
         for r in renamed:
             print(f"[CTMMD 1]   Renamed: {r}")
