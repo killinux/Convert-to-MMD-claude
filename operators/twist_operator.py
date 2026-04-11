@@ -19,9 +19,10 @@ TWIST_SEGMENTS = [
     ("ひじ", "手首", "手捩", 3, 0.60, (0.25, 0.50, 0.75)),
 ]
 
-TWIST_BONE_LENGTH = 0.082  # 参考 target PMX 的统一长度, 仅用于新建的空骨
+TWIST_BONE_LENGTH = 0.082   # 参考 target PMX: 1.0 PMX unit in XPS scale (export ×12)
 PERP_THRESHOLD_RATIO = 0.3  # 候选骨 head 到段的垂直距离 < 段长 * 比率 才算命中段
 T_RANGE = (-0.1, 1.2)       # 允许 head 投影稍微超出 [0,1]
+Z_UP = Vector((0, 0, 1))    # MMD twist/控制骨显示方向惯例: 沿 +Z 长度 1
 
 
 def _detect_side_format(armature):
@@ -290,26 +291,34 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
             seg_len = seg_dir.length
             if seg_len < 1e-6:
                 continue
-            unit = seg_dir.normalized()
 
+            # 所有 twist 骨 (rename 或 create) 都用标准 MMD 显示几何:
+            #   head = 段上 t 位置 (沿 parent 段从 seg_from 到 seg_to)
+            #   tail = head + (0,0,0.082) — MMD 惯例, +Z 长度 1 PMX 单位
+            # 重置 rename 候选的 rest head 安全性说明:
+            #   twist 骨通过 fixed_axis 做扭转, 旋转沿段方向发生, pivot 沿段移动
+            #   不改变扭转几何 (点绕轴旋转与轴上 pivot 无关)。候选原 XPS 位置
+            #   与标准 t 位置的差异主要沿段方向, 垂直分量很小, 扭转时不会有明显
+            #   顶点漂移。这样能保证:
+            #     (a) 所有 twist 骨位置与 target PMX 一致
+            #     (b) setup_pmx_attributes 的 fixed_axis (从段方向算) 语义正确
+            #     (c) L/R 严格对称
             for slot_idx, (slot_name, t) in enumerate(zip(slot_names, all_ts)):
+                head = seg_from_eb.head + t * seg_dir
+                tail = head + Z_UP * TWIST_BONE_LENGTH
                 cand_name = plan["assignment"].get(slot_idx)
                 cand_eb = edit_bones.get(cand_name) if cand_name else None
                 if cand_eb:
-                    # rename + reparent, preserve head/tail
-                    saved_head = cand_eb.head.copy()
-                    saved_tail = cand_eb.tail.copy()
+                    # rename 候选: 重置几何到标准位置, 权重跟名字走
                     cand_eb.use_connect = False
                     cand_eb.parent = seg_from_eb
-                    cand_eb.head = saved_head
-                    cand_eb.tail = saved_tail
+                    cand_eb.head = head
+                    cand_eb.tail = tail
                     cand_eb.use_deform = True
                     cand_eb.name = slot_name
                     renamed.append(f"{cand_name} -> {slot_name}")
                 else:
-                    # create empty bone at standard t (覆盖: 无候选, 或候选骨在别处已被消费)
-                    head = seg_from_eb.head + t * seg_dir
-                    tail = head + unit * TWIST_BONE_LENGTH
+                    # 无候选 (或候选在别处已被消费): 创建空骨
                     bone_utils.create_or_update_bone(
                         edit_bones, slot_name, head, tail,
                         use_connect=False,

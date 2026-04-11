@@ -153,25 +153,33 @@ class OBJECT_OT_setup_pmx_attributes(bpy.types.Operator):
                 at_count += 1
 
         # 扭转骨系统 PMX 属性
-        # 主骨 (腕捩 / 手捩): 启用 fixed_axis, 方向沿自身 (tail - head)
-        # 子骨 (腕捩1/2/3 / 手捩1/2/3): 付与親 指向主骨, 影响值 = 子骨索引 / 4
-        TWIST_BASES = ("腕捩", "手捩")
+        # 主骨 (腕捩 / 手捩): 启用 fixed_axis, 方向沿对应臂段 (腕→ひじ / ひじ→手首)
+        #   注意: 不能用主骨自己的 (tail - head) — twist 显示骨的 tail 朝 +Z (MMD 惯例),
+        #   也可能因为是从 XPS helper rename 来的而方向错乱。必须从臂段两端骨 head
+        #   差值计算轴向才是正确的 twist 方向。
+        # 子骨 (腕捩1/2/3 / 手捩1/2/3): 付与親 指向主骨, 影响值 0.25/0.50/0.75
+        TWIST_AXIS_SOURCE = {
+            "腕捩": ("腕", "ひじ"),
+            "手捩": ("ひじ", "手首"),
+        }
         TWIST_INFLUENCE = {1: 0.25, 2: 0.50, 3: 0.75}
         twist_main = 0
         twist_sub = 0
-        for base in TWIST_BASES:
+        for base, (seg_from, seg_to) in TWIST_AXIS_SOURCE.items():
             for suffix in (".L", ".R"):
                 main_name = base + suffix
+                from_name = seg_from + suffix
+                to_name = seg_to + suffix
                 main_pb = obj.pose.bones.get(main_name)
-                if main_pb:
-                    main_db = obj.data.bones.get(main_name)
-                    if main_db:
-                        axis = (main_db.tail_local - main_db.head_local)
-                        if axis.length > 1e-6:
-                            axis.normalize()
-                            main_pb.mmd_bone.enabled_fixed_axis = True
-                            main_pb.mmd_bone.fixed_axis = axis
-                            twist_main += 1
+                from_db = obj.data.bones.get(from_name)
+                to_db = obj.data.bones.get(to_name)
+                if main_pb and from_db and to_db:
+                    axis = (to_db.head_local - from_db.head_local)
+                    if axis.length > 1e-6:
+                        axis.normalize()
+                        main_pb.mmd_bone.enabled_fixed_axis = True
+                        main_pb.mmd_bone.fixed_axis = axis
+                        twist_main += 1
                 for i, inf in TWIST_INFLUENCE.items():
                     sub_name = f"{base}{i}{suffix}"
                     sub_pb = obj.pose.bones.get(sub_name)
@@ -182,7 +190,7 @@ class OBJECT_OT_setup_pmx_attributes(bpy.types.Operator):
                         sub_pb.mmd_bone.additional_transform_influence = inf
                         twist_sub += 1
         if twist_main or twist_sub:
-            print(f"[CTMMD 8] Twist system: {twist_main} main (fixed_axis), {twist_sub} sub (付与親)")
+            print(f"[CTMMD 8] Twist system: {twist_main} main (fixed_axis from segment), {twist_sub} sub (付与親)")
 
         print(f"[CTMMD 8] Set additional_transform for {at_count} bones")
         self.report({'INFO'}, f"PMX attributes set: {name_j_count} name_j, {at_count} additional_transform, twist {twist_main}+{twist_sub}")
