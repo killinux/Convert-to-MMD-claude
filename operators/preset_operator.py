@@ -199,12 +199,14 @@ class OBJECT_OT_setup_pmx_attributes(bpy.types.Operator):
         if twist_main or twist_sub:
             print(f"[CTMMD 8] Twist system: {twist_main} main (fixed_axis from bone Y.xzy), {twist_sub} sub (付与親)")
 
-        # is_tip 标志: PMX 显示为"末端点"而非箭头骨, 用于所有不需要 tail 视觉化
-        # 的控制/扭转骨 (target PMX 约定: 腕捩/手捩 系列 + 肩P/肩C 都是 tip)
+        # is_tip 标志: PMX 显示为"末端点"而非箭头骨。
+        # 注意: main twist (腕捩.L/R/手捩.L/R) 故意不设 is_tip, 因为 mmd_tools
+        # PMX exporter 对 is_tip 骨将 displayConnection 写成 -1, 导出时丢失 tail
+        # 的精确位置, reimport 时长度被归一到 1.0 PMX 单位, 导致 rest tail 无法
+        # 对齐到子关节 head (ひじ/手首)。sub twist 和 肩P/肩C 仍然 is_tip。
         TIP_BONES = set()
         for base in ("腕捩", "手捩"):
             for suffix in (".L", ".R"):
-                TIP_BONES.add(base + suffix)
                 for i in (1, 2, 3):
                     TIP_BONES.add(f"{base}{i}{suffix}")
         TIP_BONES.update({"肩P.L", "肩P.R", "肩C.L", "肩C.R"})
