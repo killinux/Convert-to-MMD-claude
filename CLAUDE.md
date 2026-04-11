@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-A Blender addon (Python package) that converts armature bone structures from various formats (Mixamo, VRM, DAZ, etc.) to MMD (MikuMikuDance) format. It requires Blender 3.0+ and optionally depends on the `mmd_tools` Blender addon for the final conversion step.
+A Blender addon (Python package) that converts armature bone structures from various formats (Mixamo, VRM, DAZ, etc.) to MMD (MikuMikuDance) format. It requires Blender 3.0+ and optionally depends on the `mmd_tools` Blender addon for the final conversion step,要做一个通用的任何xps都能转成pmx的工具
 
 ## Development
 
