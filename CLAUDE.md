@@ -62,6 +62,40 @@ The intended user workflow matches the UI button numbering:
 ### Mode switching
 Many operators switch Blender modes internally. `complete_missing_bones` and `add_ik` switch to EDIT mode. `add_ik` then switches to POSE mode to add constraints. Be careful when editing these operators that mode transitions happen in the correct order.
 
+## Debugging rule: rotate parent, watch child follow
+
+**任何"mesh 跟着骨头动得不对"类的 bug, 第一步必须用 ground truth 验证: 在 pose mode 手动旋转父骨, 看子骨是否按预期跟随**。不要先看权重数据。
+
+理由: 在 MMD 体系里, 一个骨能不能在 viewport 里产生预期变形, 取决于两个独立层:
+
+1. **bone evaluation chain (constraint / driver)**: 子骨能不能跟随父骨/付与親源骨旋转。这个层是 mmd_tools 创建的 `_shadow_*` / `_dummy_*` 骨 + TRANSFORM constraint 链。如果链断了, **即使权重 100% 正确, mesh 也不动**。
+2. **vertex weight (skinning)**: 哪些 vert 跟哪根骨, 各占多少权重。
+
+权重数据 (`vg.weight`) 的 audit 只验证第 2 层, **看不出第 1 层的故障**。第 1 层的故障表现是"骨的 local rotation 是 0°", 不是"权重错"。
+
+**强制诊断顺序**:
+1. **L4 命名**: bone.name 全扫一遍, 确认 VMD 能找到骨
+2. **L1 几何**: bone.head_local / x_axis 比对 target rest pose
+3. **L2 评估** ← 重点: 在 pose mode 直接旋转父骨, 看子骨是否跟随。不跟随 → constraint 缺失或 driver 没接上
+4. **L3 蒙皮**: 最后才看权重
+
+**触发 L2 调试的常见症状** (这些不是 L3 问题, 不要先猜权重):
+- "上臂扭曲" / "肩→肘段 mesh 不跟手臂动"
+- "腕捩.X 在 pose mode 控制的内容跟 target 不一样"
+- "VMD 播放时 twist 没渐变"
+
+**检查 L2 的 Python 一行**:
+```python
+import bpy; arm = bpy.data.objects['CONV_arm']
+print([(c.type, c.subtarget) for c in arm.pose.bones['腕捩1.L'].constraints])
+# target 应该有 [('TRANSFORM', '_shadow_腕捩1.L')]
+# 如果是 [] 就是 L2 故障 — constraint 链没生成
+```
+
+**根因**: `mmd_tools.convert_to_mmd_model()` 只设 mmd_bone 元数据, 不创建 viewport constraint。`mmd_tools.import_model()` 自动调用 `apply_additional_transform`, 但 convert 路径不调用。XPS → MMD 的 pipeline 末尾必须显式调用 `bpy.ops.mmd_tools.apply_additional_transform()` 一次, 不然所有 twist 子骨都是死骨。本项目这一步在 `OBJECT_OT_use_mmd_tools_convert` 末尾完成 (commit `c834b5c`)。
+
+详细原理 + 历史教训见 `doc/twist_debugging_lessons.md`。
+
 ## Remote Development (AWS + Mac Blender)
 
 本插件可通过 Blender Remote Bridge 进行远程开发和测试：
