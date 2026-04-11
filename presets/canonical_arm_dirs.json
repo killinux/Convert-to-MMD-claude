@@ -1,0 +1,16 @@
+{
+  "_comment": "Canonical MMD arm rest directions captured from Purifier Inase 18 None.pmx. Used as fallback reference when align_arms_to_reference cannot find a target armature in the scene. Directions are in armature-local space (Blender right-handed Z-up), unit length.",
+  "source": "Purifier Inase 18 None.pmx",
+  "space": "armature_local",
+  "normalized": true,
+  "arms": {
+    "L": {
+      "upper_dir": [0.796343, 0.011175, -0.604742],
+      "fore_dir":  [0.776210, 0.005282, -0.630452]
+    },
+    "R": {
+      "upper_dir": [-0.796467, 0.011193, -0.604578],
+      "fore_dir":  [-0.776713, 0.004376, -0.629839]
+    }
+  }
+}

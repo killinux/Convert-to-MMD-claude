@@ -1,7 +1,37 @@
 import bpy
+import json
 import math
+import os
 from mathutils import Matrix, Vector
 from ..bone_utils import apply_armature_transforms
+
+
+_CANONICAL_CACHE = None
+
+
+def _load_canonical_arm_dirs():
+    """Read bundled presets/canonical_arm_dirs.json and return {side: (upper, fore)}
+    with unit Vectors in armature-local space. Cached on first access."""
+    global _CANONICAL_CACHE
+    if _CANONICAL_CACHE is not None:
+        return _CANONICAL_CACHE
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    path = os.path.join(here, "presets", "canonical_arm_dirs.json")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        result = {}
+        for side in ("L", "R"):
+            arm = data["arms"][side]
+            result[side] = (
+                Vector(arm["upper_dir"]).normalized(),
+                Vector(arm["fore_dir"]).normalized(),
+            )
+        _CANONICAL_CACHE = result
+        return result
+    except Exception as e:
+        print(f"[CTMMD canonical] 读取 {path} 失败: {e}")
+        return None
 # 新增的T-Pose到A-Pose转换操作符
 class OBJECT_OT_convert_to_apose(bpy.types.Operator):
     """将骨架转换为 A-Pose 并应用为新的静置姿态"""
@@ -303,45 +333,62 @@ class OBJECT_OT_fix_forearm_bend(bpy.types.Operator):
 
 
 class OBJECT_OT_align_arms_to_reference(bpy.types.Operator):
-    """可选修正: 把 active 骨架的上臂 + 前腕方向对齐到参考骨架(scene 中另一个含
-    腕.L/R 的 armature), 消除因 rest 臂方向与 target 差异导致的 VMD 回放偏移。
-    参考骨架通常是导入的 target PMX。执行后烘焙到 active 骨架的 rest pose。"""
+    """可选修正: 把 active 骨架的上臂 + 前腕方向对齐到参考方向, 消除因 rest 臂方向
+    与 target 差异导致的 VMD 回放偏移。优先使用 scene 中另一个含 腕.L/R 的 armature
+    (比如导入的 target PMX) 作为参考; 找不到则 fallback 到 bundled 的 canonical
+    rest 方向 (presets/canonical_arm_dirs.json, 来自 Purifier Inase 18)。
+    执行后烘焙到 active 骨架的 rest pose。"""
     bl_idname = "object.align_arms_to_reference"
     bl_label = "可选: 对齐手臂到参考骨架"
-    bl_description = "把 active 骨架上臂/前腕方向对齐到 scene 中另一个骨架(参考 target PMX), 烘焙为新 rest pose"
+    bl_description = "把 active 骨架上臂/前腕方向对齐到参考 (scene 中其他 armature 或内置 canonical), 烘焙为新 rest pose"
 
     ANGLE_THRESHOLD_DEG = 0.5
 
     def _find_reference(self, active):
-        candidates = []
+        """Return (name, {side: (upper_dir, fore_dir) armature-local unit}) or None."""
         for o in bpy.data.objects:
             if o.type != 'ARMATURE' or o is active:
                 continue
             if _find_arm_chain(o, "L") and _find_arm_chain(o, "R"):
-                candidates.append(o)
-        return candidates[0] if candidates else None
+                dirs = {}
+                ok = True
+                for side in ("L", "R"):
+                    u, e, w = _find_arm_chain(o, side)
+                    uh = o.data.bones[u].head_local
+                    eh = o.data.bones[e].head_local
+                    wh = o.data.bones[w].head_local
+                    upper = (eh - uh)
+                    fore = (wh - eh)
+                    if upper.length < 1e-6 or fore.length < 1e-6:
+                        ok = False
+                        break
+                    dirs[side] = (upper.normalized(), fore.normalized())
+                if ok:
+                    return (f"scene:{o.name}", dirs)
+        # fallback: canonical preset
+        canon = _load_canonical_arm_dirs()
+        if canon:
+            return ("canonical:Purifier Inase 18", canon)
+        return None
 
-    def _build_plan(self, obj, ref, side):
+    def _build_plan(self, obj, side, ref_upper_dir, ref_fore_dir):
         """Returns list of (bone_name, pivot_world, axis_world, angle_rad)
-        aligning conv upper arm to ref's, then forearm."""
+        aligning conv upper arm to ref_upper_dir, then forearm to ref_fore_dir.
+        ref_*_dir are unit Vectors in armature-local space; we compare against
+        conv's armature-local directions (works because active armature has
+        transforms applied → matrix_world ≈ identity)."""
         plans = []
         u, e, w = _find_arm_chain(obj, side)
-        ru, re_, rw = _find_arm_chain(ref, side)
+        conv_u = obj.data.bones[u].head_local.copy()
+        conv_e = obj.data.bones[e].head_local.copy()
+        conv_w = obj.data.bones[w].head_local.copy()
 
-        # upper arm direction in world space
-        conv_u = obj.matrix_world @ obj.pose.bones[u].head
-        conv_e = obj.matrix_world @ obj.pose.bones[e].head
-        ref_u = ref.matrix_world @ ref.pose.bones[ru].head
-        ref_e = ref.matrix_world @ ref.pose.bones[re_].head
-
-        # for direction comparison ignore world translation, just unit dirs
         dir_conv_upper = (conv_e - conv_u).normalized()
-        dir_ref_upper = (ref_e - ref_u).normalized()
-        upper_angle = dir_conv_upper.angle(dir_ref_upper)
+        upper_angle = dir_conv_upper.angle(ref_upper_dir)
         upper_axis = None
         upper_angle_valid = upper_angle >= math.radians(self.ANGLE_THRESHOLD_DEG)
         if upper_angle_valid:
-            upper_axis = dir_conv_upper.cross(dir_ref_upper)
+            upper_axis = dir_conv_upper.cross(ref_upper_dir)
             if upper_axis.length < 1e-6:
                 upper_angle_valid = False
             else:
@@ -349,23 +396,19 @@ class OBJECT_OT_align_arms_to_reference(bpy.types.Operator):
                 plans.append((u, conv_u.copy(), upper_axis, upper_angle))
                 print(f"[CTMMD align-ref] {side}: upper arm {u} 旋转 {math.degrees(upper_angle):.2f}°")
 
-        # predict conv_e after upper rotation (for computing forearm in new frame)
+        # predict conv_e / conv_w after upper rotation
         if upper_angle_valid:
             R = Matrix.Rotation(upper_angle, 3, upper_axis)
             conv_e_new = conv_u + R @ (conv_e - conv_u)
-            # wrist moves with forearm under upper rotation too
-            conv_w = obj.matrix_world @ obj.pose.bones[w].head
             conv_w_new = conv_u + R @ (conv_w - conv_u)
         else:
             conv_e_new = conv_e
-            conv_w_new = obj.matrix_world @ obj.pose.bones[w].head
+            conv_w_new = conv_w
 
-        ref_w = ref.matrix_world @ ref.pose.bones[rw].head
         dir_conv_fore = (conv_w_new - conv_e_new).normalized()
-        dir_ref_fore = (ref_w - ref_e).normalized()
-        fore_angle = dir_conv_fore.angle(dir_ref_fore)
+        fore_angle = dir_conv_fore.angle(ref_fore_dir)
         if fore_angle >= math.radians(self.ANGLE_THRESHOLD_DEG):
-            fore_axis = dir_conv_fore.cross(dir_ref_fore)
+            fore_axis = dir_conv_fore.cross(ref_fore_dir)
             if fore_axis.length > 1e-6:
                 fore_axis.normalize()
                 plans.append((e, conv_e_new.copy(), fore_axis, fore_angle))
@@ -377,28 +420,34 @@ class OBJECT_OT_align_arms_to_reference(bpy.types.Operator):
         if not obj or obj.type != 'ARMATURE':
             self.report({'ERROR'}, "请先选中要修正的骨架(active)")
             return {'CANCELLED'}
-        ref = self._find_reference(obj)
-        if not ref:
-            self.report({'ERROR'}, "未找到参考骨架 — 请把 target PMX 导入到同一 scene")
-            return {'CANCELLED'}
-        print(f"[CTMMD align-ref] active={obj.name}  reference={ref.name}")
         if not apply_armature_transforms(context):
             self.report({'ERROR'}, "apply_armature_transforms 失败")
             return {'CANCELLED'}
         bpy.ops.object.mode_set(mode='OBJECT')
 
+        ref_info = self._find_reference(obj)
+        if not ref_info:
+            self.report({'ERROR'}, "未找到参考骨架, 且 bundled canonical 预设读取失败")
+            return {'CANCELLED'}
+        ref_name, ref_dirs = ref_info
+        print(f"[CTMMD align-ref] active={obj.name}  reference={ref_name}")
+
         all_plans = []
         for side in ("L", "R"):
-            if _find_arm_chain(obj, side) and _find_arm_chain(ref, side):
-                all_plans.extend(self._build_plan(obj, ref, side))
+            if not _find_arm_chain(obj, side):
+                continue
+            if side not in ref_dirs:
+                continue
+            ref_upper, ref_fore = ref_dirs[side]
+            all_plans.extend(self._build_plan(obj, side, ref_upper, ref_fore))
 
         if not all_plans:
-            self.report({'INFO'}, f"已接近参考骨架 (<{self.ANGLE_THRESHOLD_DEG}°), 无需修正")
+            self.report({'INFO'}, f"已接近参考 (<{self.ANGLE_THRESHOLD_DEG}°), 无需修正")
             return {'FINISHED'}
 
         result = _bake_pose_delta_to_rest(context, obj, all_plans, "CTMMD align-ref")
         if result != 'FINISHED':
             self.report({'ERROR'}, "烘焙到 rest pose 失败")
             return {'CANCELLED'}
-        self.report({'INFO'}, f"手臂对齐完成 ({len(all_plans)} 处), 参考: {ref.name}")
+        self.report({'INFO'}, f"手臂对齐完成 ({len(all_plans)} 处), 参考: {ref_name}")
         return {'FINISHED'}
