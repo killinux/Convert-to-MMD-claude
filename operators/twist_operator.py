@@ -215,7 +215,7 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
         side_fmt = _detect_side_format(obj)
         print(f"[CTMMD 2.1]   Naming mode: {'prefix(左/右)' if side_fmt=='prefix' else 'suffix(.L/.R)'}")
 
-        # Plan: 先在 OBJECT 模式扫描候选 (只读), 构建 (seg, side) -> assignment
+        # Plan: 先在 OBJECT 模式扫描候选 (只读), 构建 (seg, side) -> candidates
         plans = []  # list of dicts per (seg, side)
         for seg_from_base, seg_to_base, main_base, sub_count, main_t, sub_ts in TWIST_SEGMENTS:
             for side in ("L", "R"):
@@ -224,7 +224,6 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
                 candidates, sf_ws, st_ws = _scan_candidates(
                     obj, mesh_objects, (seg_from_name, seg_to_name), side
                 )
-                assignment = _assign_candidates_to_slots(candidates, main_t, sub_ts[:sub_count])
                 plans.append({
                     "seg_from_name": seg_from_name,
                     "seg_to_name": seg_to_name,
@@ -233,14 +232,40 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
                     "sub_ts": sub_ts[:sub_count],
                     "side": side,
                     "candidates": candidates,
-                    "assignment": assignment,
+                    "assignment": {},
                 })
-                print(f"[CTMMD 2.1] -- {main_base} {side}: {len(candidates)} candidates --")
-                for c in candidates:
-                    print(f"[CTMMD 2.1]     cand: {c[0]:<38s} t_head={c[1]:+.2f} t_w={c[2]:+.2f} w={c[3]}")
-                for slot_idx, bone_name in assignment.items():
-                    slot_name = main_base if slot_idx == 0 else f"{main_base}{slot_idx}"
-                    print(f"[CTMMD 2.1]     assign slot {slot_name:<8s} <- {bone_name}")
+
+        # 全局去重: 一根 XPS 骨可能同时落在上臂和前臂段 (典型是 foretwist 在
+        # ひじ.L 边界)。按"权重加权 t 更 interior (靠近 0.5) "的段优先分配,
+        # 从其他段的候选列表中移除。
+        def _interior_score(t_w):
+            return min(t_w, 1.0 - t_w)  # 越大越 interior
+        bone_to_plans = {}
+        for idx, plan in enumerate(plans):
+            for c in plan["candidates"]:
+                bone_to_plans.setdefault(c[0], []).append((idx, c[2]))
+        for bone_name, entries in bone_to_plans.items():
+            if len(entries) <= 1:
+                continue
+            # 选 interior_score 最高的段
+            best_idx = max(entries, key=lambda e: _interior_score(e[1]))[0]
+            for pi, _ in entries:
+                if pi != best_idx:
+                    plans[pi]["candidates"] = [
+                        c for c in plans[pi]["candidates"] if c[0] != bone_name
+                    ]
+
+        # 在去重后的候选上分配 slot
+        for plan in plans:
+            plan["assignment"] = _assign_candidates_to_slots(
+                plan["candidates"], plan["main_t"], plan["sub_ts"]
+            )
+            print(f"[CTMMD 2.1] -- {plan['main_base']} {plan['side']}: {len(plan['candidates'])} candidates --")
+            for c in plan["candidates"]:
+                print(f"[CTMMD 2.1]     cand: {c[0]:<38s} t_head={c[1]:+.2f} t_w={c[2]:+.2f} w={c[3]}")
+            for slot_idx, bone_name in plan["assignment"].items():
+                slot_name = plan["main_base"] if slot_idx == 0 else f"{plan['main_base']}{slot_idx}"
+                print(f"[CTMMD 2.1]     assign slot {slot_name:<8s} <- {bone_name}")
 
         # Apply in EDIT mode
         bpy.ops.object.mode_set(mode='EDIT')
@@ -268,11 +293,9 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
 
             for slot_idx, (slot_name, t) in enumerate(zip(slot_names, all_ts)):
                 cand_name = plan["assignment"].get(slot_idx)
-                if cand_name:
+                cand_eb = edit_bones.get(cand_name) if cand_name else None
+                if cand_eb:
                     # rename + reparent, preserve head/tail
-                    cand_eb = edit_bones.get(cand_name)
-                    if not cand_eb:
-                        continue
                     saved_head = cand_eb.head.copy()
                     saved_tail = cand_eb.tail.copy()
                     cand_eb.use_connect = False
@@ -283,7 +306,7 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
                     cand_eb.name = slot_name
                     renamed.append(f"{cand_name} -> {slot_name}")
                 else:
-                    # create empty bone at standard t
+                    # create empty bone at standard t (覆盖: 无候选, 或候选骨在别处已被消费)
                     head = seg_from_eb.head + t * seg_dir
                     tail = head + unit * TWIST_BONE_LENGTH
                     bone_utils.create_or_update_bone(
