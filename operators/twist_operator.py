@@ -161,28 +161,29 @@ def _scan_candidates(armature, mesh_objects, segment_name_pair, side):
 
 def _assign_candidates_to_slots(candidates, main_t, sub_ts):
     """
-    贪心分配: 权重最多的 → main; 其余按 t_w 就近分配到剩余 sub 槽。
+    贪心分配: 权重最多的 → main; 其余按 t_head (几何位置) 就近分配到剩余 sub 槽。
+    用 t_head 而非 t_w (权重加权 t) 是为了 L/R 对称 — 几何镜像严格对称,
+    权重分布在手绘 XPS 模型里常有轻微不对称, 用 t_w 会导致左右 slot 不一致。
     返回: { slot_index: bone_name }
       slot_index: 0 = main, 1..len(sub_ts) = subs
     """
     assignment = {}
     if not candidates:
         return assignment
-    # 按权重数量降序
-    sorted_c = sorted(candidates, key=lambda c: -c[3])
+    # 按权重数量降序, 同权重量按名字字母顺 (L/R 对称)
+    sorted_c = sorted(candidates, key=lambda c: (-c[3], c[0]))
     # 第一个 → main
     assignment[0] = sorted_c[0][0]
     used_slots = {0}
-    # 其余按 t_w 就近
     for c in sorted_c[1:]:
-        t_w = c[2]
-        # 在空 sub 槽位中找最近
+        _, t_head, _, _, _, _ = c
+        t_clamped = max(0.0, min(1.0, t_head))
         best_slot = None
         best_dist = float("inf")
         for i, st in enumerate(sub_ts, start=1):
             if i in used_slots:
                 continue
-            d = abs(t_w - st)
+            d = abs(t_clamped - st)
             if d < best_dist:
                 best_dist = d
                 best_slot = i
