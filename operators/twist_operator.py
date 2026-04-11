@@ -305,7 +305,8 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
             for slot_idx, (slot_name, t) in enumerate(zip(slot_names, all_ts)):
                 head = seg_from_eb.head + t * seg_dir
                 if slot_idx == 0:
-                    tail = head + seg_unit * TWIST_BONE_LENGTH  # main: along segment
+                    # main twist: tail 精确对齐父臂 tail (= 子关节 head), 消除 rest gap
+                    tail = seg_to_eb.head.copy()
                 else:
                     tail = head + Z_UP * TWIST_BONE_LENGTH       # sub: +Z
                 cand_name = plan["assignment"].get(slot_idx)
@@ -317,6 +318,10 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
                     cand_eb.head = head
                     cand_eb.tail = tail
                     cand_eb.use_deform = True
+                    # main twist: roll 对齐父臂, 保证 local X/Z 与父骨一致,
+                    # 使 VMD 四元数通过 mmd_tools PMX bone_mapper 投影时不跑偏
+                    if slot_idx == 0:
+                        cand_eb.roll = seg_from_eb.roll
                     cand_eb.name = slot_name
                     renamed.append(f"{cand_name} -> {slot_name}")
                 else:
@@ -327,6 +332,10 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
                         parent_name=plan["seg_from_name"],
                         use_deform=True,
                     )
+                    if slot_idx == 0:
+                        new_eb = edit_bones.get(slot_name)
+                        if new_eb:
+                            new_eb.roll = seg_from_eb.roll
                     created.append(slot_name)
 
         # 串联主链: ひじ parent = 腕捩, 手首 parent = 手捩
