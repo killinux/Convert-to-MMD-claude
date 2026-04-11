@@ -7,26 +7,34 @@ from .. import preset_operator
 
 def _split_chain_weights(
     obj, src_name, dst_name, seg_from_name, seg_to_name,
-    perp_threshold=1.5,
+    perp_threshold=1.5, src_keep_floor=0.0,
 ):
     """PMXEditor 风格两骨沿段插值: 把 src_name 顶点组按沿
-    (seg_from_name.head → seg_to_name.head) 段的 t 位置线性分摊到 dst_name。
-        k = clamp(t, 0, 1)
-        src_new = w * (1 - k)
-        dst_new += w * k
+    (seg_from_name.head → seg_to_name.head) 段的 t 位置分配到 dst_name。
+
+    两种模式 (由 src_keep_floor 决定):
+      * 转移模式 (src_keep_floor=0.0, 默认): 用于"插入中间骨"场景, 比如
+        上半身2→上半身3, 顶点从 src 线性迁移到 dst, t=1 时 src 清零。
+            src_new = w * (1 - k)
+            dst_new += w * k
+      * 追加模式 (src_keep_floor=1.0): 用于"相邻骨过渡"场景, 比如 肩→腕
+        交接点, 顶点保留 src 原值同时追加 dst, 最终两骨共同支配该顶点
+        (export 时 mmd_tools 会 normalize 到 sum=1)。
+            src_new = w  (不变)
+            dst_new += w * k
+      * 中间值 (如 0.5): src 保留至少 50% 的 w, 同时 dst 按 k 累加。
 
     鲁棒性过滤: 计算顶点到段的垂直距离 perp, 只有
         perp / seg_length <= perp_threshold
-    的顶点参与分权, 否则保持原样。这避免 XPS 源里"衣服/下摆"等远离骨本体
-    但错误挂在同一骨上的顶点被污染 (其他模型可能把 肩.L 重用到装饰上)。
-    默认阈值 1.5 ≈ 允许顶点在段长 1.5 倍范围内, 对 肩→腕 / 上半身段 足够宽松
-    同时能排除明显跨身体污染。
+    的顶点参与分权, 否则保持原样。避免 XPS 源里"衣服/下摆"等远离骨本体
+    但错误挂在同一骨上的顶点被污染。
 
     典型用法:
-      - ("上半身2", "上半身3", "上半身2", "首"):  插入上半身3 中间骨后分权
-      - ("肩.L",   "腕.L",    "肩.L",    "腕.L"):  腋窝区 肩→腕 平滑过渡
+      - ("上半身2", "上半身3", "上半身2", "首"):  转移模式 (默认)
+      - ("肩.L",   "腕.L",    "肩.L",    "腕.L"):  追加模式 (src_keep_floor=1.0)
     返回 (处理顶点数, 被 perp 过滤的顶点数)。
     """
+    src_keep_floor = max(0.0, min(1.0, src_keep_floor))
     src_b = obj.data.bones.get(seg_from_name)
     dst_b = obj.data.bones.get(seg_to_name)
     if not src_b or not dst_b:
@@ -83,7 +91,9 @@ def _split_chain_weights(
                 filtered += 1
                 continue
             k = t
-            new_src = src_w * (1.0 - k)
+            # src 保留下限 = src_keep_floor, 线性部分随 k 从 1 降到 (1 - (1-floor))
+            src_factor = 1.0 - k * (1.0 - src_keep_floor)
+            new_src = src_w * src_factor
             new_dst = existing_dst + src_w * k
             plans.append((v.index, new_src, new_dst))
         for v_idx, new_src, new_dst in plans:
@@ -102,10 +112,13 @@ def _split_upper_body_3_weights(obj):
 
 
 def _split_shoulder_to_arm_weights(obj, side):
-    """腋窝平滑: 把 肩.{side} 的顶点按沿 肩→腕 段 t 位置线性分摊给 腕.{side}。
-    对消除 XPS 源模型肩胛到上臂的硬折痕特别重要。"""
+    """腋窝平滑: 把 肩.{side} 的顶点按沿 肩→腕 段 t 位置追加 腕.{side} 权重,
+    同时保留 肩.{side} 原权重 (src_keep_floor=1.0, 追加模式)。这是 肩 和 腕
+    相邻骨重叠区的正确做法: 交接点顶点同时由两根骨支配, export 时 mmd_tools
+    会 normalize 到 BDEF2 sum=1, 最终 50/50 平滑过渡, 消除 XPS 源硬折痕。"""
     return _split_chain_weights(
-        obj, f"肩.{side}", f"腕.{side}", f"肩.{side}", f"腕.{side}"
+        obj, f"肩.{side}", f"腕.{side}", f"肩.{side}", f"腕.{side}",
+        src_keep_floor=1.0,
     )
 
 
