@@ -293,6 +293,9 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             grid.operator("object.assign_weights_phase6", text="5.6 未处理诊断")
 
             row = layout.row()
+            row.operator("object.split_upper_arm_twist_weights", text="5.7 可选: 上臂 twist 权重渐变")
+
+            row = layout.row()
             row.operator("object.add_mmd_ik", text="6. 添加MMD IK")
             row = layout.row()
             row.operator("object.create_bone_group", text="7. 创建骨骼集合")

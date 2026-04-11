@@ -397,3 +397,111 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
 
         self.report({"INFO"}, f"Twist system complete: renamed {len(renamed)}, created {len(created)}")
         return {'FINISHED'}
+
+
+class OBJECT_OT_split_upper_arm_twist_weights(bpy.types.Operator):
+    """可选: 把 腕.L/R 上臂段的顶点权重按沿臂 t 位置重分配到 腕捩1/2/腕捩/3。
+    不动 腕捩.L 已有的 XPS 原始顶点, 只从 腕.L 迁移。用于补齐 target PMX 的
+    4 骨梯度 twist 覆盖 (target ≈3000 verts, 原始 conv ≈681)。建议在 step 5
+    (assign_weights) 之后、step 6 之前运行。"""
+    bl_idname = "object.split_upper_arm_twist_weights"
+    bl_label = "可选: 上臂 twist 权重渐变"
+    bl_description = "把 腕.L 上臂顶点按 t 位置重分到 腕捩.L/1/2/3 (在 step 5 后运行)"
+
+    T_KEEP_ON_ARM = 0.125  # t < 此值保留在 腕.L (肩根, 无 twist 影响)
+
+    def _pick_target(self, t, side):
+        """沿臂 t → 最近 twist 骨 (按 t_anchor 最近邻)。
+        t_anchors: 腕捩1=0.25, 腕捩2=0.50, 腕捩(main)=0.60, 腕捩3=0.75"""
+        if t < self.T_KEEP_ON_ARM:
+            return None
+        if t < 0.375:
+            return f"腕捩1.{side}"
+        if t < 0.55:
+            return f"腕捩2.{side}"
+        if t < 0.675:
+            return f"腕捩.{side}"
+        return f"腕捩3.{side}"
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'ARMATURE':
+            self.report({'ERROR'}, "请先选中骨架")
+            return {'CANCELLED'}
+
+        meshes = []
+        for m in bpy.data.objects:
+            if m.type != 'MESH':
+                continue
+            for mod in m.modifiers:
+                if mod.type == 'ARMATURE' and mod.object == obj:
+                    meshes.append(m)
+                    break
+        if not meshes:
+            self.report({'ERROR'}, "未找到绑定该骨架的 mesh")
+            return {'CANCELLED'}
+
+        total_moved = 0
+        per_slot_count = {}
+        for side in ("L", "R"):
+            upper_bone = obj.data.bones.get(f"腕.{side}")
+            elbow_bone = obj.data.bones.get(f"ひじ.{side}")
+            if not upper_bone or not elbow_bone:
+                print(f"[CTMMD twist-split] 跳过 {side}: 缺 腕/ひじ")
+                continue
+
+            arm_head_w = obj.matrix_world @ upper_bone.head_local
+            arm_end_w = obj.matrix_world @ elbow_bone.head_local
+            seg = arm_end_w - arm_head_w
+            seg_len_sq = seg.length_squared
+            if seg_len_sq < 1e-9:
+                continue
+
+            source_name = f"腕.{side}"
+            for m in meshes:
+                src_vg = m.vertex_groups.get(source_name)
+                if not src_vg:
+                    continue
+
+                target_vgs = {}
+                for tname in (f"腕捩1.{side}", f"腕捩2.{side}", f"腕捩.{side}", f"腕捩3.{side}"):
+                    if tname not in m.vertex_groups:
+                        m.vertex_groups.new(name=tname)
+                    target_vgs[tname] = m.vertex_groups[tname]
+
+                mesh_mw = m.matrix_world
+                # pre-collect to avoid mutating during iteration
+                moves = []  # list of (v_idx, target_name, weight, existing_target_weight)
+                for v in m.data.vertices:
+                    src_w = 0.0
+                    existing_target = {}
+                    for g in v.groups:
+                        if g.group == src_vg.index:
+                            src_w = g.weight
+                        else:
+                            for tname, tvg in target_vgs.items():
+                                if g.group == tvg.index:
+                                    existing_target[tname] = g.weight
+                                    break
+                    if src_w <= 0:
+                        continue
+                    v_world = mesh_mw @ v.co
+                    t = (v_world - arm_head_w).dot(seg) / seg_len_sq
+                    target = self._pick_target(t, side)
+                    if not target:
+                        continue
+                    moves.append((v.index, target, src_w, existing_target.get(target, 0.0)))
+
+                for v_idx, target, src_w, existing in moves:
+                    tvg = target_vgs[target]
+                    tvg.add([v_idx], existing + src_w, 'REPLACE')
+                    src_vg.remove([v_idx])
+                    per_slot_count[target] = per_slot_count.get(target, 0) + 1
+                    total_moved += 1
+
+        for slot, n in sorted(per_slot_count.items()):
+            print(f"[CTMMD twist-split] {slot}: +{n} verts")
+        print(f"[CTMMD twist-split] 迁移顶点总数: {total_moved}")
+
+        self.report({'INFO'}, f"上臂 twist 权重渐变完成: 迁移 {total_moved} 个顶点")
+        return {'FINISHED'}

@@ -67,6 +67,7 @@ def register():
     _safe_register(clear_unweighted_bones_operator.OBJECT_OT_clear_unweighted_bones)
     _safe_register(clear_unweighted_bones_operator.OBJECT_OT_merge_single_child_bones)
     _safe_register(twist_operator.OBJECT_OT_complete_twist_bones)
+    _safe_register(twist_operator.OBJECT_OT_split_upper_arm_twist_weights)
     _safe_register(leg_operator.OBJECT_OT_complete_d_bones)
     _safe_register(leg_operator.OBJECT_OT_complete_hip_cancel_bones)
     _safe_register(leg_operator.OBJECT_OT_assign_weights)
@@ -131,6 +132,7 @@ def unregister():
     _safe_unregister(leg_operator.OBJECT_OT_assign_weights_phase6)
     _safe_unregister(leg_operator.OBJECT_OT_assign_upper3_weights)
     _safe_unregister(twist_operator.OBJECT_OT_complete_twist_bones)
+    _safe_unregister(twist_operator.OBJECT_OT_split_upper_arm_twist_weights)
     del bpy.types.Scene.my_enum
     # 注销动态属性
     bones = preset_operator.get_bones_list()
