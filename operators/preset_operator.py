@@ -137,6 +137,19 @@ class OBJECT_OT_setup_pmx_attributes(bpy.types.Operator):
                     d_pb.mmd_bone.additional_transform_influence = influence
                     at_count += 1
 
+        # 肩キャンセル: 付与親=肩P, 反転(-1.0)。目的: 抵消 肩P 对 腕 的旋转传递,
+        # 让 VMD 里 肩P 动作只影响肩部而不二次叠加到手臂上。
+        for suffix in (".L", ".R"):
+            c_name = "肩C" + suffix
+            p_name = "肩P" + suffix
+            c_pb = obj.pose.bones.get(c_name)
+            if c_pb and obj.pose.bones.get(p_name):
+                c_pb.mmd_bone.additional_transform_bone = p_name
+                c_pb.mmd_bone.has_additional_rotation = True
+                c_pb.mmd_bone.has_additional_location = False
+                c_pb.mmd_bone.additional_transform_influence = -1.0
+                at_count += 1
+
         # 腰キャンセル: 付与親=腰, 反転(-1.0)
         # 注意: 付与親目标必须是"腰"(祖父)而不是"下半身"(父)。因为 腰キャンセル 的 parent 已经是
         # 下半身, 如果付与親再指 下半身, mmd_tools 导入 PMX 时会把 dummy bone parent 错误地设为
