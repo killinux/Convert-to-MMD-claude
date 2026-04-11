@@ -255,15 +255,19 @@ class OBJECT_OT_use_mmd_tools_convert(bpy.types.Operator):
             f"{base}{i}{side}"
             for base in ("腕捩","手捩") for i in (1,2,3) for side in (".L",".R")
         }
-        # arm 可能被 convert 重命名 / 重新生成, 重新拿
-        arm = context.view_layer.objects.active
-        if arm and arm.type == 'ARMATURE':
+        if obj and obj.type == 'ARMATURE':
+            v = h = 0
             for name in MAIN_TWIST_VISIBLE:
-                b = arm.data.bones.get(name)
-                if b: b.hide = False
+                b = obj.data.bones.get(name)
+                if b:
+                    b.hide = False
+                    v += 1
             for name in HIDDEN_BONES:
-                b = arm.data.bones.get(name)
-                if b: b.hide = True
+                b = obj.data.bones.get(name)
+                if b:
+                    b.hide = True
+                    h += 1
+            print(f"[CTMMD convert] Re-applied hide flags: {v} visible, {h} hidden")
 
         # 恢复原始选择状态
         context.view_layer.objects.active = obj
