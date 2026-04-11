@@ -4,6 +4,77 @@ from .. import bone_map_and_group
 from .. import bone_utils
 from .. import preset_operator
 
+
+def _split_upper_body_3_weights(obj):
+    """在 上半身2 与 首 之间插入 上半身3 后, 按 t 位置把 上半身2 的顶点权重
+    线性分摊给 上半身3 (PMXEditor 风格两骨插值):
+        k = clamp((vert - 上半身2.head) · seg / |seg|², 0, 1)
+        上半身2_new = w * (1 - k)
+        上半身3_new += w * k
+    这样靠近颈部的顶点会随 上半身3 旋转, 使 VMD 的 上半身3 键帧真正生效。
+    返回处理的顶点数。"""
+    u2 = obj.data.bones.get("上半身2")
+    u3 = obj.data.bones.get("上半身3")
+    neck = obj.data.bones.get("首")
+    if not u2 or not u3 or not neck:
+        return 0
+    seg_from = u2.head_local
+    seg_to = neck.head_local
+    seg = seg_to - seg_from
+    seg_len_sq = seg.length_squared
+    if seg_len_sq < 1e-9:
+        return 0
+    meshes = [
+        m for m in bpy.data.objects
+        if m.type == 'MESH' and any(
+            mod.type == 'ARMATURE' and mod.object == obj for mod in m.modifiers
+        )
+    ]
+    arm_mw = obj.matrix_world
+    seg_from_w = arm_mw @ seg_from
+    seg_to_w = arm_mw @ seg_to
+    seg_w = seg_to_w - seg_from_w
+    seg_len_sq_w = seg_w.length_squared
+    moved = 0
+    for m in meshes:
+        src_vg = m.vertex_groups.get("上半身2")
+        if not src_vg:
+            continue
+        dst_name = "上半身3"
+        if dst_name not in m.vertex_groups:
+            m.vertex_groups.new(name=dst_name)
+        dst_vg = m.vertex_groups[dst_name]
+        mesh_mw = m.matrix_world
+        plans = []
+        for v in m.data.vertices:
+            src_w = 0.0
+            existing_dst = 0.0
+            for g in v.groups:
+                if g.group == src_vg.index:
+                    src_w = g.weight
+                elif g.group == dst_vg.index:
+                    existing_dst = g.weight
+            if src_w <= 0:
+                continue
+            v_w = mesh_mw @ v.co
+            t = (v_w - seg_from_w).dot(seg_w) / seg_len_sq_w
+            t = max(0.0, min(1.0, t))
+            if t <= 0:
+                continue
+            k = t
+            new_u2 = src_w * (1.0 - k)
+            new_u3 = existing_dst + src_w * k
+            plans.append((v.index, new_u2, new_u3))
+        for v_idx, new_u2, new_u3 in plans:
+            if new_u2 > 1e-6:
+                src_vg.add([v_idx], new_u2, 'REPLACE')
+            else:
+                src_vg.remove([v_idx])
+            if new_u3 > 1e-6:
+                dst_vg.add([v_idx], new_u3, 'REPLACE')
+            moved += 1
+    return moved
+
 class OBJECT_OT_rename_to_mmd(bpy.types.Operator):
     """将选定的骨骼重命名为 MMD 格式"""
     bl_idname = "object.rename_to_mmd"
@@ -359,6 +430,14 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
             b = obj.data.bones.get(n)
             if b:
                 b.hide = True
+
+        # 如果刚创建了 上半身3 (XPS 源无对应骨), 把 上半身2 的顶点按沿段 t 位置
+        # 线性分摊给 上半身3, 使 VMD 的 上半身3 键帧真正生效。不跑这步的话
+        # 上半身3 在 conv 里会是零权重空骨, target PMX 约 10900 verts 挂在这个骨上。
+        if "上半身3" in created_bones:
+            n_split = _split_upper_body_3_weights(obj)
+            print(f"[CTMMD 2] 上半身3 auto-weight: {n_split} verts split from 上半身2")
+
         self.report({'INFO'}, f"Bone completion finished: created {len(created_bones)}, updated {len(updated_bones)}")
 
         return {'FINISHED'}
