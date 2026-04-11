@@ -352,20 +352,32 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
 
         bpy.ops.object.mode_set(mode='OBJECT')
 
-        # 设置 hide 标志: MMD 惯例
+        # 设置 hide 标志 + layer: MMD 惯例
         #   main (腕捩/手捩): hide=False (用户可见可操作)
         #   sub  (腕捩1/2/3 / 手捩1/2/3): hide=True (付与親 自动驱动, 不应直接操作)
         # 注意: rename 来的候选骨 (xtra07pp / foretwist) 常因 XPS 导入时 "unused "
         # 前缀导致 hide=True 被继承, 必须显式重置。
+        # layer 同样重要: mmd_tools export (pmx/exporter.py:372) 会检查
+        #   bone.layers 与 armature.data.layers 的交集, 没交集就写 visible=False 到
+        #   PMX, 导致 reimport 时 hide=True 回来。XPS importer 把 unused 骨放到高
+        #   layer, 必须把 twist 骨拉回主 layer (layer 0)。
+        def _reset_layer(bone):
+            # layer 0 True, 其他 False。一次赋值避免"至少一个 layer 必须为 True"约束
+            layers = [False] * len(bone.layers)
+            layers[0] = True
+            bone.layers = layers
+
         for plan in plans:
             main_name = _side_name(plan["main_base"], side_fmt, plan["side"])
             mb = obj.data.bones.get(main_name)
             if mb:
+                _reset_layer(mb)
                 mb.hide = False
             for i in range(1, len(plan["sub_ts"]) + 1):
                 sub_name = _side_name(f"{plan['main_base']}{i}", side_fmt, plan["side"])
                 sb = obj.data.bones.get(sub_name)
                 if sb:
+                    _reset_layer(sb)
                     sb.hide = True
 
         print(f"[CTMMD 2.1] Done: renamed {len(renamed)}, created {len(created)}")
