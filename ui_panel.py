@@ -260,6 +260,10 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             row.operator("object.import_preset", text="导入预设")
             row.operator("object.export_preset", text="导出预设")
 
+            # 可选预处理 (不属于标准流程):
+            layout.label(text="可选预处理:", icon='MODIFIER')
+            layout.operator("object.fix_forearm_bend", text="⚙ 修正前腕弯曲 (烘焙rest)")
+
             # 添加T-Pose到A-Pose转换按钮
             layout.operator("object.convert_to_apose", text="转换为A-Pose")
 
