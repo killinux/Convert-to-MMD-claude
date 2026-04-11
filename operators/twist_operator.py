@@ -421,6 +421,11 @@ class OBJECT_OT_split_upper_arm_twist_weights(bpy.types.Operator):
     bl_label = "可选: 上臂 twist 权重渐变"
     bl_description = "PMXEditor 风格双骨插值: 腕.L 顶点沿 t 平滑过渡到 腕捩1/2/3/腕捩 main"
 
+    # 肩关节 dead zone: t < SHOULDER_DEAD_ZONE 的顶点 (贴近 腕.L.head/ 肩关节)
+    # 不参与 twist 分权, 完全留在 腕.L 自己身上。避免 肩-腕 交接点的顶点被
+    # 腕捩1 等吸走权重, 保持 肩.L+腕.L 双骨主导的 BDEF2 平滑过渡。
+    SHOULDER_DEAD_ZONE = 0.05
+
     def _anchors(self, side):
         return [
             (0.00, f"腕.{side}"),
@@ -517,6 +522,10 @@ class OBJECT_OT_split_upper_arm_twist_weights(bpy.types.Operator):
                                 break
                     v_world = mesh_mw @ v.co
                     t = (v_world - arm_head_w).dot(seg) / seg_len_sq
+                    # 肩关节 dead zone: 贴近 腕.L.head 的顶点不动, 保持 肩/腕
+                    # 的多骨混权不被 twist 覆盖
+                    if t < self.SHOULDER_DEAD_ZONE:
+                        continue
                     (t_lo, n_lo), (t_hi, n_hi), k = self._bracket(t, anchors)
                     w_lo = src_w * (1.0 - k)
                     w_hi = src_w * k
