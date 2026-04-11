@@ -280,6 +280,9 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             row = layout.row()
             row.operator("object.complete_hip_cancel_bones", text="4. 补全腰キャンセル")
 
+            row = layout.row()
+            row.operator("object.cleanup_face_bones", text="4.5 清理 XPS 面部细骨 (合并到 頭)", icon='MESH_MONKEY')
+
             # 权重分配：可一键全执行或逐步调试
             row = layout.row()
             row.operator("object.assign_weights", text="5. 分配权重（一键全执行）")

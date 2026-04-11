@@ -24,6 +24,7 @@ from .operators import clear_unweighted_bones_operator
 from .operators import leg_operator
 from .operators import twist_operator
 from .operators import physics_operator
+from .operators import face_operator
 from . import ui_panel
 from . import bone_map_and_group
 from . import bone_utils
@@ -72,6 +73,7 @@ def register():
     _safe_register(physics_operator.OBJECT_OT_setup_physics)
     _safe_register(physics_operator.OBJECT_OT_extract_physics_template)
     _safe_register(physics_operator.OBJECT_OT_toggle_rigid_visibility)
+    _safe_register(face_operator.OBJECT_OT_cleanup_face_bones)
     _safe_register(leg_operator.OBJECT_OT_complete_d_bones)
     _safe_register(leg_operator.OBJECT_OT_complete_hip_cancel_bones)
     _safe_register(leg_operator.OBJECT_OT_assign_weights)
@@ -140,6 +142,7 @@ def unregister():
     _safe_unregister(physics_operator.OBJECT_OT_setup_physics)
     _safe_unregister(physics_operator.OBJECT_OT_extract_physics_template)
     _safe_unregister(physics_operator.OBJECT_OT_toggle_rigid_visibility)
+    _safe_unregister(face_operator.OBJECT_OT_cleanup_face_bones)
     del bpy.types.Scene.my_enum
     # 注销动态属性
     bones = preset_operator.get_bones_list()
