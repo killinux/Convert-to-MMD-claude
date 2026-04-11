@@ -147,6 +147,105 @@ class OBJECT_OT_convert_to_apose(bpy.types.Operator):
         return {'FINISHED'}
 
 
+def _find_arm_chain(obj, side):
+    """Return (shoulder_bone, elbow_bone, wrist_bone) name tuple by trying
+    XPS ('arm left/right shoulder 2/elbow/wrist') then MMD (腕/ひじ/手首 .L/.R).
+    Returns None if not found."""
+    xps_side = "left" if side == "L" else "right"
+    candidates = [
+        (f"arm {xps_side} shoulder 2", f"arm {xps_side} elbow", f"arm {xps_side} wrist"),
+        (f"腕.{side}", f"ひじ.{side}", f"手首.{side}"),
+    ]
+    for u, e, w in candidates:
+        if u in obj.pose.bones and e in obj.pose.bones and w in obj.pose.bones:
+            return u, e, w
+    return None
+
+
+def _bake_pose_delta_to_rest(context, obj, plans, log_tag):
+    """Apply a list of (bone_name, pivot_world, axis_world, angle_rad) rotations
+    to obj in pose mode and bake as new rest pose (mesh follows via duplicated
+    armature modifier). Returns 'FINISHED' or 'CANCELLED'."""
+    if not plans:
+        return 'FINISHED'
+
+    meshes_with_arm = []
+    for m in bpy.data.objects:
+        if m.type != 'MESH' or m.data.shape_keys:
+            continue
+        for mod in m.modifiers:
+            if mod.type == 'ARMATURE' and mod.object == obj:
+                meshes_with_arm.append(m)
+                break
+
+    created_temp = False
+    if not meshes_with_arm:
+        try:
+            bpy.ops.mesh.primitive_cube_add(size=0.5)
+            tmp = context.active_object
+            tmp.name = "CTMMD_TEMP_MESH_FIX"
+            mod = tmp.modifiers.new(name="Armature", type='ARMATURE')
+            mod.object = obj
+            tmp["is_temp_mesh"] = True
+            meshes_with_arm.append(tmp)
+            created_temp = True
+        except Exception as e:
+            print(f"[{log_tag}] 创建临时网格失败: {e}")
+            return 'CANCELLED'
+
+    for m in meshes_with_arm:
+        for mod in list(m.modifiers):
+            if mod.type == 'ARMATURE' and mod.object == obj and "_copy" not in mod.name:
+                new_mod = m.modifiers.new(name=mod.name + "_copy", type='ARMATURE')
+                new_mod.object = mod.object
+                new_mod.use_vertex_groups = mod.use_vertex_groups
+                new_mod.use_bone_envelopes = mod.use_bone_envelopes
+                break
+
+    context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode='POSE')
+    bpy.ops.pose.select_all(action='SELECT')
+    bpy.ops.pose.rot_clear()
+    bpy.ops.pose.scale_clear()
+    bpy.ops.pose.loc_clear()
+    bpy.ops.pose.select_all(action='DESELECT')
+
+    for bone_name, pivot, axis, angle in plans:
+        pb = obj.pose.bones[bone_name]
+        rot_w = Matrix.Rotation(angle, 4, axis)
+        delta = Matrix.Translation(pivot) @ rot_w @ Matrix.Translation(-pivot)
+        pb.matrix = delta @ pb.matrix
+        context.view_layer.update()
+
+    try:
+        for m in meshes_with_arm:
+            context.view_layer.objects.active = m
+            for mod in list(m.modifiers):
+                if mod.type == 'ARMATURE' and mod.object == obj and "_copy" in mod.name:
+                    bpy.ops.object.modifier_apply(modifier=mod.name)
+                    break
+    except RuntimeError as e:
+        for m in meshes_with_arm:
+            for mod in list(m.modifiers):
+                if "_copy" in mod.name:
+                    m.modifiers.remove(mod)
+        print(f"[{log_tag}] 应用 modifier 失败: {e}")
+        return 'CANCELLED'
+
+    context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode='POSE')
+    bpy.ops.pose.select_all(action='SELECT')
+    bpy.ops.pose.armature_apply()
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+    if created_temp:
+        for m in meshes_with_arm:
+            if m.get("is_temp_mesh"):
+                bpy.data.objects.remove(m, do_unlink=True)
+
+    return 'FINISHED'
+
+
 class OBJECT_OT_fix_forearm_bend(bpy.types.Operator):
     """可选修正: 把小手臂(ひじ→手首) 拉直到与上臂共线, 然后烘焙到 rest pose。
     用于 XPS 源模型 rest 姿态下前腕弯曲导致 VMD 播放时 腕.L.tail / 腕捩.L.tail /
@@ -157,17 +256,6 @@ class OBJECT_OT_fix_forearm_bend(bpy.types.Operator):
 
     ANGLE_THRESHOLD_DEG = 2.0
 
-    def _find_arm_chain(self, obj, side):
-        xps_side = "left" if side == "L" else "right"
-        candidates = [
-            (f"arm {xps_side} shoulder 2", f"arm {xps_side} elbow", f"arm {xps_side} wrist"),
-            (f"腕.{side}", f"ひじ.{side}", f"手首.{side}"),
-        ]
-        for u, e, w in candidates:
-            if u in obj.pose.bones and e in obj.pose.bones and w in obj.pose.bones:
-                return u, e, w
-        return None
-
     def execute(self, context):
         obj = context.active_object
         if not obj or obj.type != 'ARMATURE':
@@ -176,13 +264,11 @@ class OBJECT_OT_fix_forearm_bend(bpy.types.Operator):
         if not apply_armature_transforms(context):
             self.report({'ERROR'}, "apply_armature_transforms 失败")
             return {'CANCELLED'}
-
         bpy.ops.object.mode_set(mode='OBJECT')
 
-        # 1. 计算每侧需要的旋转 (世界空间, 绕肘关节 head)
         plans = []
         for side in ("L", "R"):
-            chain = self._find_arm_chain(obj, side)
+            chain = _find_arm_chain(obj, side)
             if not chain:
                 continue
             u_name, e_name, w_name = chain
@@ -201,96 +287,118 @@ class OBJECT_OT_fix_forearm_bend(bpy.types.Operator):
             if axis.length < 1e-6:
                 continue
             axis.normalize()
-            pivot = e_head.copy()
-            plans.append((e_name, pivot, axis, angle, side))
+            plans.append((e_name, e_head.copy(), axis, angle))
             print(f"[CTMMD fix-forearm] {side}: {e_name} 需旋转 {math.degrees(angle):.2f}° 拉直")
 
         if not plans:
             self.report({'INFO'}, "前腕已接近直线或未找到骨骼, 无需修正")
             return {'FINISHED'}
 
-        # 2. 为所有绑定该骨架的无 shape-key 网格复制一份 armature modifier
-        #    (与 convert_to_apose 同一套把 pose 烘焙到 mesh 的机制)
-        meshes_with_arm = []
-        for m in bpy.data.objects:
-            if m.type != 'MESH' or m.data.shape_keys:
-                continue
-            for mod in m.modifiers:
-                if mod.type == 'ARMATURE' and mod.object == obj:
-                    meshes_with_arm.append(m)
-                    break
-
-        created_temp = False
-        if not meshes_with_arm:
-            try:
-                bpy.ops.mesh.primitive_cube_add(size=0.5)
-                tmp = context.active_object
-                tmp.name = "CTMMD_TEMP_MESH_FIX"
-                mod = tmp.modifiers.new(name="Armature", type='ARMATURE')
-                mod.object = obj
-                tmp["is_temp_mesh"] = True
-                meshes_with_arm.append(tmp)
-                created_temp = True
-            except Exception as e:
-                self.report({'ERROR'}, f"创建临时网格失败: {e}")
-                return {'CANCELLED'}
-
-        for m in meshes_with_arm:
-            for mod in list(m.modifiers):
-                if mod.type == 'ARMATURE' and mod.object == obj and "_copy" not in mod.name:
-                    new_mod = m.modifiers.new(name=mod.name + "_copy", type='ARMATURE')
-                    new_mod.object = mod.object
-                    new_mod.use_vertex_groups = mod.use_vertex_groups
-                    new_mod.use_bone_envelopes = mod.use_bone_envelopes
-                    break
-
-        # 3. 切到 pose 模式并清除已有 pose
-        context.view_layer.objects.active = obj
-        bpy.ops.object.mode_set(mode='POSE')
-        bpy.ops.pose.select_all(action='SELECT')
-        bpy.ops.pose.rot_clear()
-        bpy.ops.pose.scale_clear()
-        bpy.ops.pose.loc_clear()
-        bpy.ops.pose.select_all(action='DESELECT')
-
-        # 4. 对每个 elbow bone 应用 "绕肘关节 head 的旋转"
-        for bone_name, pivot, axis, angle, side in plans:
-            pb = obj.pose.bones[bone_name]
-            rot_w = Matrix.Rotation(angle, 4, axis)
-            to_origin = Matrix.Translation(-pivot)
-            from_origin = Matrix.Translation(pivot)
-            delta = from_origin @ rot_w @ to_origin
-            pb.matrix = delta @ pb.matrix
-            context.view_layer.update()
-
-        # 5. 把复制的 modifier 烘焙到 mesh, 让 mesh 跟随 rest 变化
-        try:
-            for m in meshes_with_arm:
-                context.view_layer.objects.active = m
-                for mod in list(m.modifiers):
-                    if mod.type == 'ARMATURE' and mod.object == obj and "_copy" in mod.name:
-                        bpy.ops.object.modifier_apply(modifier=mod.name)
-                        break
-        except RuntimeError as e:
-            for m in meshes_with_arm:
-                for mod in list(m.modifiers):
-                    if "_copy" in mod.name:
-                        m.modifiers.remove(mod)
-            self.report({'ERROR'}, f"应用 modifier 失败: {e}")
+        result = _bake_pose_delta_to_rest(context, obj, plans, "CTMMD fix-forearm")
+        if result != 'FINISHED':
+            self.report({'ERROR'}, "烘焙到 rest pose 失败")
             return {'CANCELLED'}
+        self.report({'INFO'}, f"前腕弯曲修正完成 ({len(plans)} 处已烘焙到 rest pose)")
+        return {'FINISHED'}
 
-        # 6. 回到骨架, 把当前 pose apply 为新的 rest pose
-        context.view_layer.objects.active = obj
-        bpy.ops.object.mode_set(mode='POSE')
-        bpy.ops.pose.select_all(action='SELECT')
-        bpy.ops.pose.armature_apply()
+
+class OBJECT_OT_align_arms_to_reference(bpy.types.Operator):
+    """可选修正: 把 active 骨架的上臂 + 前腕方向对齐到参考骨架(scene 中另一个含
+    腕.L/R 的 armature), 消除因 rest 臂方向与 target 差异导致的 VMD 回放偏移。
+    参考骨架通常是导入的 target PMX。执行后烘焙到 active 骨架的 rest pose。"""
+    bl_idname = "object.align_arms_to_reference"
+    bl_label = "可选: 对齐手臂到参考骨架"
+    bl_description = "把 active 骨架上臂/前腕方向对齐到 scene 中另一个骨架(参考 target PMX), 烘焙为新 rest pose"
+
+    ANGLE_THRESHOLD_DEG = 0.5
+
+    def _find_reference(self, active):
+        candidates = []
+        for o in bpy.data.objects:
+            if o.type != 'ARMATURE' or o is active:
+                continue
+            if _find_arm_chain(o, "L") and _find_arm_chain(o, "R"):
+                candidates.append(o)
+        return candidates[0] if candidates else None
+
+    def _build_plan(self, obj, ref, side):
+        """Returns list of (bone_name, pivot_world, axis_world, angle_rad)
+        aligning conv upper arm to ref's, then forearm."""
+        plans = []
+        u, e, w = _find_arm_chain(obj, side)
+        ru, re_, rw = _find_arm_chain(ref, side)
+
+        # upper arm direction in world space
+        conv_u = obj.matrix_world @ obj.pose.bones[u].head
+        conv_e = obj.matrix_world @ obj.pose.bones[e].head
+        ref_u = ref.matrix_world @ ref.pose.bones[ru].head
+        ref_e = ref.matrix_world @ ref.pose.bones[re_].head
+
+        # for direction comparison ignore world translation, just unit dirs
+        dir_conv_upper = (conv_e - conv_u).normalized()
+        dir_ref_upper = (ref_e - ref_u).normalized()
+        upper_angle = dir_conv_upper.angle(dir_ref_upper)
+        upper_axis = None
+        upper_angle_valid = upper_angle >= math.radians(self.ANGLE_THRESHOLD_DEG)
+        if upper_angle_valid:
+            upper_axis = dir_conv_upper.cross(dir_ref_upper)
+            if upper_axis.length < 1e-6:
+                upper_angle_valid = False
+            else:
+                upper_axis.normalize()
+                plans.append((u, conv_u.copy(), upper_axis, upper_angle))
+                print(f"[CTMMD align-ref] {side}: upper arm {u} 旋转 {math.degrees(upper_angle):.2f}°")
+
+        # predict conv_e after upper rotation (for computing forearm in new frame)
+        if upper_angle_valid:
+            R = Matrix.Rotation(upper_angle, 3, upper_axis)
+            conv_e_new = conv_u + R @ (conv_e - conv_u)
+            # wrist moves with forearm under upper rotation too
+            conv_w = obj.matrix_world @ obj.pose.bones[w].head
+            conv_w_new = conv_u + R @ (conv_w - conv_u)
+        else:
+            conv_e_new = conv_e
+            conv_w_new = obj.matrix_world @ obj.pose.bones[w].head
+
+        ref_w = ref.matrix_world @ ref.pose.bones[rw].head
+        dir_conv_fore = (conv_w_new - conv_e_new).normalized()
+        dir_ref_fore = (ref_w - ref_e).normalized()
+        fore_angle = dir_conv_fore.angle(dir_ref_fore)
+        if fore_angle >= math.radians(self.ANGLE_THRESHOLD_DEG):
+            fore_axis = dir_conv_fore.cross(dir_ref_fore)
+            if fore_axis.length > 1e-6:
+                fore_axis.normalize()
+                plans.append((e, conv_e_new.copy(), fore_axis, fore_angle))
+                print(f"[CTMMD align-ref] {side}: forearm {e} 旋转 {math.degrees(fore_angle):.2f}°")
+        return plans
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'ARMATURE':
+            self.report({'ERROR'}, "请先选中要修正的骨架(active)")
+            return {'CANCELLED'}
+        ref = self._find_reference(obj)
+        if not ref:
+            self.report({'ERROR'}, "未找到参考骨架 — 请把 target PMX 导入到同一 scene")
+            return {'CANCELLED'}
+        print(f"[CTMMD align-ref] active={obj.name}  reference={ref.name}")
+        if not apply_armature_transforms(context):
+            self.report({'ERROR'}, "apply_armature_transforms 失败")
+            return {'CANCELLED'}
         bpy.ops.object.mode_set(mode='OBJECT')
 
-        # 7. 清理临时网格
-        if created_temp:
-            for m in meshes_with_arm:
-                if m.get("is_temp_mesh"):
-                    bpy.data.objects.remove(m, do_unlink=True)
+        all_plans = []
+        for side in ("L", "R"):
+            if _find_arm_chain(obj, side) and _find_arm_chain(ref, side):
+                all_plans.extend(self._build_plan(obj, ref, side))
 
-        self.report({'INFO'}, f"前腕弯曲修正完成 ({len(plans)} 处已烘焙到 rest pose)")
+        if not all_plans:
+            self.report({'INFO'}, f"已接近参考骨架 (<{self.ANGLE_THRESHOLD_DEG}°), 无需修正")
+            return {'FINISHED'}
+
+        result = _bake_pose_delta_to_rest(context, obj, all_plans, "CTMMD align-ref")
+        if result != 'FINISHED':
+            self.report({'ERROR'}, "烘焙到 rest pose 失败")
+            return {'CANCELLED'}
+        self.report({'INFO'}, f"手臂对齐完成 ({len(all_plans)} 处), 参考: {ref.name}")
         return {'FINISHED'}
