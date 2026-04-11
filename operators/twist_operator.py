@@ -411,17 +411,18 @@ class OBJECT_OT_split_upper_arm_twist_weights(bpy.types.Operator):
     T_KEEP_ON_ARM = 0.125  # t < 此值保留在 腕.L (肩根, 无 twist 影响)
 
     def _pick_target(self, t, side):
-        """沿臂 t → 最近 twist 骨 (按 t_anchor 最近邻)。
-        t_anchors: 腕捩1=0.25, 腕捩2=0.50, 腕捩(main)=0.60, 腕捩3=0.75"""
-        if t < self.T_KEEP_ON_ARM:
-            return None
+        """沿臂 t → 按 twist 影响度分桶 (0% / 25% / 50% / 75% / 100%)。
+        影响度来源: 腕.L=0%, 腕捩1=25%, 腕捩2=50%, 腕捩3=75%, 腕捩(main)=100%。
+        顶点期望 twist = t * 100%, 选影响度最接近的骨。"""
+        if t < 0.125:
+            return None                 # 腕.L (0%)
         if t < 0.375:
-            return f"腕捩1.{side}"
-        if t < 0.55:
-            return f"腕捩2.{side}"
-        if t < 0.675:
-            return f"腕捩.{side}"
-        return f"腕捩3.{side}"
+            return f"腕捩1.{side}"      # 25%
+        if t < 0.625:
+            return f"腕捩2.{side}"      # 50%
+        if t < 0.875:
+            return f"腕捩3.{side}"      # 75%
+        return f"腕捩.{side}"           # 100% (main, 靠近 ひじ.head)
 
     def execute(self, context):
         obj = context.active_object
