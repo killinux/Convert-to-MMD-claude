@@ -294,18 +294,20 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
 
             # 所有 twist 骨 (rename 或 create) 都用标准 MMD 显示几何:
             #   head = 段上 t 位置 (沿 parent 段从 seg_from 到 seg_to)
-            #   tail = head + (0,0,0.082) — MMD 惯例, +Z 长度 1 PMX 单位
-            # 重置 rename 候选的 rest head 安全性说明:
-            #   twist 骨通过 fixed_axis 做扭转, 旋转沿段方向发生, pivot 沿段移动
-            #   不改变扭转几何 (点绕轴旋转与轴上 pivot 无关)。候选原 XPS 位置
-            #   与标准 t 位置的差异主要沿段方向, 垂直分量很小, 扭转时不会有明显
-            #   顶点漂移。这样能保证:
-            #     (a) 所有 twist 骨位置与 target PMX 一致
-            #     (b) setup_pmx_attributes 的 fixed_axis (从段方向算) 语义正确
-            #     (c) L/R 严格对称
+            #   main (腕捩/手捩): tail = head + 段方向 * TWIST_BONE_LENGTH
+            #     (target 主 twist 沿臂指向肘, 用于视觉上标示扭转轴方向)
+            #   sub  (腕捩1/2/3): tail = head + (0,0,TWIST_BONE_LENGTH)
+            #     (target 子 twist 统一朝 +Z, MMD 控制骨惯例)
+            # 重置 rename 候选 rest head 安全说明: twist 通过 fixed_axis 做扭转, pivot
+            # 沿段移动不影响扭转几何 (点绕轴旋转与轴上 pivot 无关)。候选原 XPS 位置
+            # 与标准 t 位置的差异主要沿段方向, 垂直分量很小, 扭转时无明显顶点漂移。
+            seg_unit = seg_dir.normalized()
             for slot_idx, (slot_name, t) in enumerate(zip(slot_names, all_ts)):
                 head = seg_from_eb.head + t * seg_dir
-                tail = head + Z_UP * TWIST_BONE_LENGTH
+                if slot_idx == 0:
+                    tail = head + seg_unit * TWIST_BONE_LENGTH  # main: along segment
+                else:
+                    tail = head + Z_UP * TWIST_BONE_LENGTH       # sub: +Z
                 cand_name = plan["assignment"].get(slot_idx)
                 cand_eb = edit_bones.get(cand_name) if cand_name else None
                 if cand_eb:
