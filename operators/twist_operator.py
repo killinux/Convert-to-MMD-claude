@@ -400,29 +400,50 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
 
 
 class OBJECT_OT_split_upper_arm_twist_weights(bpy.types.Operator):
-    """可选: 把 腕.L/R 上臂段的顶点权重按沿臂 t 位置重分配到 腕捩1/2/腕捩/3。
-    不动 腕捩.L 已有的 XPS 原始顶点, 只从 腕.L 迁移。用于补齐 target PMX 的
-    4 骨梯度 twist 覆盖 (target ≈3000 verts, 原始 conv ≈681)。建议在 step 5
-    (assign_weights) 之后、step 6 之前运行。"""
+    """可选: 把 腕.L/R 上臂段的顶点权重按沿臂 t 位置做 PMXEditor 风格的
+    双骨线性插值分裂。每个顶点在 t 的相邻两个 anchor 骨之间按 (1-k) : k
+    混合, 而不是单骨整体搬移, 从而得到连续的 twist 梯度。
+
+    5 个 anchor (twist 影响度):
+      t=0.00  腕.L      (0%)
+      t=0.25  腕捩1.L   (25%)
+      t=0.50  腕捩2.L   (50%)
+      t=0.75  腕捩3.L   (75%)
+      t=1.00  腕捩.L    (100% main, fixed_axis)
+
+    对 t ∈ [t_lo, t_hi] 的顶点, 原 腕.L 权重 w 分成:
+       bone_lo: w * (1 - k)
+       bone_hi: w * k       其中 k = (t - t_lo) / (t_hi - t_lo)
+
+    不动 腕捩.L 已有的 XPS 原始顶点 (从 xtra07pp 继承), 只分裂 腕.L 侧。
+    建议在 step 5 (assign_weights) 之后运行。"""
     bl_idname = "object.split_upper_arm_twist_weights"
     bl_label = "可选: 上臂 twist 权重渐变"
-    bl_description = "把 腕.L 上臂顶点按 t 位置重分到 腕捩.L/1/2/3 (在 step 5 后运行)"
+    bl_description = "PMXEditor 风格双骨插值: 腕.L 顶点沿 t 平滑过渡到 腕捩1/2/3/腕捩 main"
 
-    T_KEEP_ON_ARM = 0.125  # t < 此值保留在 腕.L (肩根, 无 twist 影响)
+    def _anchors(self, side):
+        return [
+            (0.00, f"腕.{side}"),
+            (0.25, f"腕捩1.{side}"),
+            (0.50, f"腕捩2.{side}"),
+            (0.75, f"腕捩3.{side}"),
+            (1.00, f"腕捩.{side}"),  # main (100% twist)
+        ]
 
-    def _pick_target(self, t, side):
-        """沿臂 t → 按 twist 影响度分桶 (0% / 25% / 50% / 75% / 100%)。
-        影响度来源: 腕.L=0%, 腕捩1=25%, 腕捩2=50%, 腕捩3=75%, 腕捩(main)=100%。
-        顶点期望 twist = t * 100%, 选影响度最接近的骨。"""
-        if t < 0.125:
-            return None                 # 腕.L (0%)
-        if t < 0.375:
-            return f"腕捩1.{side}"      # 25%
-        if t < 0.625:
-            return f"腕捩2.{side}"      # 50%
-        if t < 0.875:
-            return f"腕捩3.{side}"      # 75%
-        return f"腕捩.{side}"           # 100% (main, 靠近 ひじ.head)
+    def _bracket(self, t, anchors):
+        """Return ((t_lo, name_lo), (t_hi, name_hi), k) for the segment that
+        contains t. k ∈ [0, 1] is the linear blend weight toward the high
+        anchor."""
+        t = max(0.0, min(1.0, t))
+        for i in range(len(anchors) - 1):
+            t_lo, n_lo = anchors[i]
+            t_hi, n_hi = anchors[i + 1]
+            if t_lo <= t <= t_hi:
+                span = t_hi - t_lo
+                k = (t - t_lo) / span if span > 0 else 0.0
+                return (t_lo, n_lo), (t_hi, n_hi), k
+        # fallback: clamp to last anchor
+        return anchors[-2], anchors[-1], 1.0
 
     def execute(self, context):
         obj = context.active_object
@@ -442,8 +463,9 @@ class OBJECT_OT_split_upper_arm_twist_weights(bpy.types.Operator):
             self.report({'ERROR'}, "未找到绑定该骨架的 mesh")
             return {'CANCELLED'}
 
-        total_moved = 0
-        per_slot_count = {}
+        total_verts = 0
+        per_slot_add = {}       # bone_name -> 累积 weight
+        per_slot_verts = {}     # bone_name -> +verts 计数
         for side in ("L", "R"):
             upper_bone = obj.data.bones.get(f"腕.{side}")
             elbow_bone = obj.data.bones.get(f"ひじ.{side}")
@@ -458,51 +480,76 @@ class OBJECT_OT_split_upper_arm_twist_weights(bpy.types.Operator):
             if seg_len_sq < 1e-9:
                 continue
 
+            anchors = self._anchors(side)
             source_name = f"腕.{side}"
+            all_bone_names = [n for _, n in anchors]
+
             for m in meshes:
                 src_vg = m.vertex_groups.get(source_name)
                 if not src_vg:
                     continue
 
-                target_vgs = {}
-                for tname in (f"腕捩1.{side}", f"腕捩2.{side}", f"腕捩.{side}", f"腕捩3.{side}"):
-                    if tname not in m.vertex_groups:
-                        m.vertex_groups.new(name=tname)
-                    target_vgs[tname] = m.vertex_groups[tname]
+                vgs = {}
+                for name in all_bone_names:
+                    if name not in m.vertex_groups:
+                        m.vertex_groups.new(name=name)
+                    vgs[name] = m.vertex_groups[name]
 
                 mesh_mw = m.matrix_world
-                # pre-collect to avoid mutating during iteration
-                moves = []  # list of (v_idx, target_name, weight, existing_target_weight)
+                # pre-collect (vertex -> plan) to avoid in-loop mutation issues
+                plans = []
                 for v in m.data.vertices:
                     src_w = 0.0
-                    existing_target = {}
+                    existing = {}
                     for g in v.groups:
                         if g.group == src_vg.index:
                             src_w = g.weight
-                        else:
-                            for tname, tvg in target_vgs.items():
-                                if g.group == tvg.index:
-                                    existing_target[tname] = g.weight
-                                    break
                     if src_w <= 0:
                         continue
+                    # read current weights on all anchor bones so we can
+                    # accumulate correctly
+                    for name, vg in vgs.items():
+                        if name == source_name:
+                            continue
+                        for g in v.groups:
+                            if g.group == vg.index:
+                                existing[name] = g.weight
+                                break
                     v_world = mesh_mw @ v.co
                     t = (v_world - arm_head_w).dot(seg) / seg_len_sq
-                    target = self._pick_target(t, side)
-                    if not target:
-                        continue
-                    moves.append((v.index, target, src_w, existing_target.get(target, 0.0)))
+                    (t_lo, n_lo), (t_hi, n_hi), k = self._bracket(t, anchors)
+                    w_lo = src_w * (1.0 - k)
+                    w_hi = src_w * k
+                    plans.append((v.index, n_lo, w_lo, n_hi, w_hi, existing))
 
-                for v_idx, target, src_w, existing in moves:
-                    tvg = target_vgs[target]
-                    tvg.add([v_idx], existing + src_w, 'REPLACE')
-                    src_vg.remove([v_idx])
-                    per_slot_count[target] = per_slot_count.get(target, 0) + 1
-                    total_moved += 1
+                for v_idx, n_lo, w_lo, n_hi, w_hi, existing in plans:
+                    # write low anchor (always set since it may equal 腕.L)
+                    if n_lo == source_name:
+                        if w_lo > 0:
+                            vgs[n_lo].add([v_idx], w_lo, 'REPLACE')
+                        else:
+                            src_vg.remove([v_idx])
+                    else:
+                        vgs[n_lo].add([v_idx], existing.get(n_lo, 0.0) + w_lo, 'REPLACE')
+                    # write high anchor (never 腕.L since bracket goes up)
+                    if w_hi > 0:
+                        vgs[n_hi].add([v_idx], existing.get(n_hi, 0.0) + w_hi, 'REPLACE')
+                    # if the source bone was 腕.L but the low anchor is a twist bone,
+                    # clear the original 腕.L entry
+                    if n_lo != source_name:
+                        src_vg.remove([v_idx])
 
-        for slot, n in sorted(per_slot_count.items()):
-            print(f"[CTMMD twist-split] {slot}: +{n} verts")
-        print(f"[CTMMD twist-split] 迁移顶点总数: {total_moved}")
+                    if n_lo != source_name and w_lo > 0:
+                        per_slot_add[n_lo] = per_slot_add.get(n_lo, 0.0) + w_lo
+                        per_slot_verts[n_lo] = per_slot_verts.get(n_lo, 0) + 1
+                    if w_hi > 0:
+                        per_slot_add[n_hi] = per_slot_add.get(n_hi, 0.0) + w_hi
+                        per_slot_verts[n_hi] = per_slot_verts.get(n_hi, 0) + 1
+                    total_verts += 1
 
-        self.report({'INFO'}, f"上臂 twist 权重渐变完成: 迁移 {total_moved} 个顶点")
+        for slot in sorted(per_slot_add.keys()):
+            print(f"[CTMMD twist-split] {slot}: +{per_slot_verts[slot]} verts, wsum +{per_slot_add[slot]:.2f}")
+        print(f"[CTMMD twist-split] 处理顶点总数: {total_verts}")
+
+        self.report({'INFO'}, f"上臂 twist 权重渐变完成: {total_verts} 个顶点已插值分裂")
         return {'FINISHED'}
