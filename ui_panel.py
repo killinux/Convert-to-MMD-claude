@@ -311,6 +311,12 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             # 添加"使用mmdtools转换格式"按钮到最下方
             layout.operator("object.use_mmd_tools_convert", text="使用mmdtools转换格式")
 
+            # 9. 物理 (转换后加载 rigid body + joint 模板)
+            row = layout.row(align=True)
+            row.operator("object.setup_physics", text="9. 加载物理模板 (刚体+Joint)", icon='PHYSICS')
+            row.operator("object.extract_physics_template", text="", icon='EXPORT')
+            row.operator("object.toggle_rigid_visibility", text="", icon='HIDE_OFF')
+
             # PMXEditor 后续操作提示
             box = layout.box()
             col = box.column(align=True)

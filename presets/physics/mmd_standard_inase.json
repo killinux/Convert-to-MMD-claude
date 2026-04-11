@@ -1,0 +1,3381 @@
+{
+  "version": 1,
+  "source": "Purifier Inase 18 None",
+  "body_height_m": 1.34542715549469,
+  "rigids": [
+    {
+      "idx": 0,
+      "name_j": "hair front left 1",
+      "name_e": "",
+      "bone": "hair front left 1",
+      "shape": "CAPSULE",
+      "type": "1",
+      "size": [
+        0.011949816718697548,
+        0.0226435586810112,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.5277329854986533,
+        0.9999946531687419,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          0.9669018983840942,
+          -0.2551485598087311,
+          -1.391395926475525e-06,
+          -6.146728992462158e-08
+        ],
+        [
+          -1.490045292484865e-06,
+          5.117617547512054e-07,
+          -1.000000238418579,
+          0.011322127655148506
+        ],
+        [
+          0.2551485300064087,
+          0.9669018387794495,
+          -8.009374141693115e-08,
+          -7.450580596923828e-09
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 9,
+      "collision_group_mask": [
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.0,
+      "mass": 1.0,
+      "angular_damping": 0.9900000095367432,
+      "linear_damping": 0.8999999761581421,
+      "bounce": 0.0
+    },
+    {
+      "idx": 1,
+      "name_j": "hair front left 2",
+      "name_e": "",
+      "bone": "hair front left 2",
+      "shape": "CAPSULE",
+      "type": "1",
+      "size": [
+        0.011949816718697548,
+        0.025348741561174393,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.47141687853024833,
+        1.000000661327403,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          0.9913316369056702,
+          -0.13138405978679657,
+          5.634501576423645e-08,
+          9.313225746154785e-09
+        ],
+        [
+          9.022116387313872e-12,
+          2.8189970180392265e-07,
+          -1.0000003576278687,
+          0.012674199417233467
+        ],
+        [
+          0.13138405978679657,
+          0.9913315773010254,
+          8.195638656616211e-08,
+          -2.3283064365386963e-09
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 9,
+      "collision_group_mask": [
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.0,
+      "mass": 1.0,
+      "angular_damping": 0.9900000095367432,
+      "linear_damping": 0.8999999761581421,
+      "bounce": 0.0
+    },
+    {
+      "idx": 2,
+      "name_j": "hair front left 3",
+      "name_e": "",
+      "bone": "hair front left 3",
+      "shape": "CAPSULE",
+      "type": "1",
+      "size": [
+        0.011949816718697548,
+        0.024095702916383743,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.4959322864568276,
+        1.0000017006460908,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          0.9999200105667114,
+          0.012657251209020615,
+          -9.4645656645298e-08,
+          3.026798367500305e-09
+        ],
+        [
+          -1.1817408562819764e-07,
+          3.3742071536835283e-07,
+          -1.0000004768371582,
+          0.012047844007611275
+        ],
+        [
+          -0.012657245621085167,
+          0.9999198913574219,
+          2.5323242880403996e-07,
+          1.5308614820241928e-08
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 9,
+      "collision_group_mask": [
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.0,
+      "mass": 1.0,
+      "angular_damping": 0.9900000095367432,
+      "linear_damping": 0.8999999761581421,
+      "bounce": 0.0
+    },
+    {
+      "idx": 3,
+      "name_j": "hair front right 1",
+      "name_e": "",
+      "bone": "hair front right 1",
+      "shape": "CAPSULE",
+      "type": "1",
+      "size": [
+        0.011949813924729824,
+        0.018302543088793755,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.6529076874790862,
+        1.0000047832009098,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          0.8601387739181519,
+          0.5100603103637695,
+          -4.902482032775879e-06,
+          2.086162567138672e-07
+        ],
+        [
+          -3.5625505461212015e-06,
+          -3.032386302947998e-06,
+          -1.0000001192092896,
+          0.00915131252259016
+        ],
+        [
+          -0.5100601315498352,
+          0.8601386547088623,
+          -1.0132789611816406e-06,
+          2.7008354663848877e-08
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 9,
+      "collision_group_mask": [
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.0,
+      "mass": 1.0,
+      "angular_damping": 0.9900000095367432,
+      "linear_damping": 0.8999999761581421,
+      "bounce": 0.0
+    },
+    {
+      "idx": 4,
+      "name_j": "hair front right 2",
+      "name_e": "",
+      "bone": "hair front right 2",
+      "shape": "CAPSULE",
+      "type": "1",
+      "size": [
+        0.011949816718697548,
+        0.022404801100492477,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.5333589336394507,
+        0.9999986698260515,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          0.7909836173057556,
+          0.61183762550354,
+          6.556510925292969e-07,
+          -1.1455267667770386e-07
+        ],
+        [
+          1.2474224604375195e-06,
+          5.960464477539063e-08,
+          -1.0000001192092896,
+          0.011202331632375717
+        ],
+        [
+          -0.6118373870849609,
+          0.7909833788871765,
+          -7.152557373046875e-07,
+          -4.423782229423523e-08
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 9,
+      "collision_group_mask": [
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.0,
+      "mass": 1.0,
+      "angular_damping": 0.9900000095367432,
+      "linear_damping": 0.8999999761581421,
+      "bounce": 0.0
+    },
+    {
+      "idx": 5,
+      "name_j": "hair front right 3",
+      "name_e": "",
+      "bone": "hair front right 3",
+      "shape": "CAPSULE",
+      "type": "1",
+      "size": [
+        0.011949813924729824,
+        0.017563724890351295,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.6803662573091167,
+        0.9999959700900081,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          0.690887451171875,
+          0.7229625582695007,
+          2.6691704988479614e-06,
+          -9.709037840366364e-08
+        ],
+        [
+          4.26164524469641e-06,
+          -5.122274160385132e-08,
+          -0.9999999403953552,
+          0.008781995624303818
+        ],
+        [
+          -0.7229625582695007,
+          0.6908870339393616,
+          -2.9634684324264526e-06,
+          4.7963112592697144e-08
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 9,
+      "collision_group_mask": [
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.0,
+      "mass": 1.0,
+      "angular_damping": 0.9900000095367432,
+      "linear_damping": 0.8999999761581421,
+      "bounce": 0.0
+    },
+    {
+      "idx": 6,
+      "name_j": "head hair left 1",
+      "name_e": "",
+      "bone": "head hair left 1",
+      "shape": "CAPSULE",
+      "type": "1",
+      "size": [
+        0.011949816718697548,
+        0.04434679076075554,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.26946169730516,
+        0.9999953798230657,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          0.9975497722625732,
+          0.0699591189622879,
+          3.073364496231079e-07,
+          -1.664739102125168e-08
+        ],
+        [
+          3.5826317912324157e-07,
+          -5.807960405945778e-07,
+          -1.0,
+          0.022173382341861725
+        ],
+        [
+          -0.06995899230241776,
+          0.9975493550300598,
+          -9.217765182256699e-07,
+          4.6333298087120056e-08
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 9,
+      "collision_group_mask": [
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.0,
+      "mass": 1.0,
+      "angular_damping": 0.9900000095367432,
+      "linear_damping": 0.8999999761581421,
+      "bounce": 0.0
+    },
+    {
+      "idx": 7,
+      "name_j": "head hair left 2",
+      "name_e": "",
+      "bone": "head hair left 2",
+      "shape": "CAPSULE",
+      "type": "1",
+      "size": [
+        0.011949813924729824,
+        0.04434692859649658,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.26946172484535424,
+        0.999998823954567,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          0.9975497722625732,
+          0.0699591189622879,
+          6.51925802230835e-09,
+          -1.1699739843606949e-08
+        ],
+        [
+          -1.4426817962487348e-08,
+          1.4033867046236992e-07,
+          -1.0000001192092896,
+          0.022173425182700157
+        ],
+        [
+          -0.06995900720357895,
+          0.9975493550300598,
+          -1.695007085800171e-07,
+          2.9569491744041443e-08
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 9,
+      "collision_group_mask": [
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.0,
+      "mass": 1.0,
+      "angular_damping": 0.9900000095367432,
+      "linear_damping": 0.8999999761581421,
+      "bounce": 0.0
+    },
+    {
+      "idx": 8,
+      "name_j": "head hair front right 1",
+      "name_e": "",
+      "bone": "head hair front right 1",
+      "shape": "CAPSULE",
+      "type": "1",
+      "size": [
+        0.011949816718697548,
+        0.07206732034683228,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.16581460487718339,
+        0.999999793232799,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          0.8657175898551941,
+          0.5005330443382263,
+          -7.450580596923828e-09,
+          4.6566128730773926e-08
+        ],
+        [
+          2.1128131777459203e-07,
+          9.685754776000977e-08,
+          -1.000000238418579,
+          0.03603372350335121
+        ],
+        [
+          -0.5005329847335815,
+          0.865717351436615,
+          1.4901161193847656e-07,
+          7.450580596923828e-09
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 9,
+      "collision_group_mask": [
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.0,
+      "mass": 1.0,
+      "angular_damping": 0.9900000095367432,
+      "linear_damping": 0.8999999761581421,
+      "bounce": 0.0
+    },
+    {
+      "idx": 9,
+      "name_j": "head hair front right 2",
+      "name_e": "",
+      "bone": "head hair front right 2",
+      "shape": "CAPSULE",
+      "type": "1",
+      "size": [
+        0.011949816718697548,
+        0.07206732034683228,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.16581462201969602,
+        0.9999998966163888,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          0.8657174706459045,
+          0.5005331635475159,
+          7.450580596923828e-09,
+          6.332993507385254e-08
+        ],
+        [
+          2.984833997743408e-07,
+          -7.450580596923828e-08,
+          -1.000000238418579,
+          0.03603370860219002
+        ],
+        [
+          -0.5005331635475159,
+          0.8657171726226807,
+          -3.725290298461914e-08,
+          -5.960464477539063e-08
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 9,
+      "collision_group_mask": [
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.0,
+      "mass": 1.0,
+      "angular_damping": 0.9900000095367432,
+      "linear_damping": 0.8999999761581421,
+      "bounce": 0.0
+    },
+    {
+      "idx": 10,
+      "name_j": "head hair front right 3",
+      "name_e": "",
+      "bone": "head hair front right 3",
+      "shape": "CAPSULE",
+      "type": "1",
+      "size": [
+        0.011949816718697548,
+        0.05490250512957573,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.21765508501004358,
+        0.999999389324911,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          0.9885735511779785,
+          -0.15074051916599274,
+          -1.7695128917694092e-07,
+          -1.7695128917694092e-08
+        ],
+        [
+          -2.3828525286262447e-07,
+          -6.123445928096771e-08,
+          -1.000000238418579,
+          0.027451345697045326
+        ],
+        [
+          0.15074054896831512,
+          0.988573431968689,
+          2.0489096641540527e-08,
+          9.313225746154785e-09
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 9,
+      "collision_group_mask": [
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.0,
+      "mass": 1.0,
+      "angular_damping": 0.9900000095367432,
+      "linear_damping": 0.8999999761581421,
+      "bounce": 0.0
+    },
+    {
+      "idx": 11,
+      "name_j": "head hair front right 4",
+      "name_e": "",
+      "bone": "head hair front right 4",
+      "shape": "CAPSULE",
+      "type": "1",
+      "size": [
+        0.011949816718697548,
+        0.05490265414118767,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.2176551145470561,
+        1.0000022391422971,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          0.988573431968689,
+          -0.15074050426483154,
+          4.0978193283081055e-07,
+          -1.4901161193847656e-08
+        ],
+        [
+          3.4311975127820915e-07,
+          1.1199153959751129e-07,
+          -1.000000238418579,
+          0.027451397851109505
+        ],
+        [
+          0.15074054896831512,
+          0.9885733127593994,
+          2.775341272354126e-07,
+          -2.6542693376541138e-08
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 9,
+      "collision_group_mask": [
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.0,
+      "mass": 1.0,
+      "angular_damping": 0.9900000095367432,
+      "linear_damping": 0.8999999761581421,
+      "bounce": 0.0
+    },
+    {
+      "idx": 12,
+      "name_j": "hair back left 1",
+      "name_e": "",
+      "bone": "hair back left 1",
+      "shape": "CAPSULE",
+      "type": "1",
+      "size": [
+        0.005246670916676521,
+        0.026233352720737457,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.19999975859031513,
+        0.9999987219487272,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          0.9413318634033203,
+          0.33748242259025574,
+          6.183981895446777e-07,
+          -4.377216100692749e-08
+        ],
+        [
+          7.143410698517982e-07,
+          6.631016731262207e-07,
+          -1.000000238418579,
+          0.013116559945046902
+        ],
+        [
+          -0.3374823331832886,
+          0.9413318037986755,
+          1.341104507446289e-07,
+          -5.4016709327697754e-08
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 9,
+      "collision_group_mask": [
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.0,
+      "mass": 1.0,
+      "angular_damping": 0.9900000095367432,
+      "linear_damping": 0.8999999761581421,
+      "bounce": 0.0
+    },
+    {
+      "idx": 13,
+      "name_j": "hair back left 2",
+      "name_e": "",
+      "bone": "hair back left 2",
+      "shape": "CAPSULE",
+      "type": "1",
+      "size": [
+        0.00525961397215724,
+        0.026298068463802338,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.20000052058868026,
+        1.0000025498221075,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          0.8672524094581604,
+          0.49786919355392456,
+          -2.2798776626586914e-06,
+          -8.055940270423889e-08
+        ],
+        [
+          -1.5199636891338741e-06,
+          -1.1920928955078125e-06,
+          -1.0000001192092896,
+          0.013148951344192028
+        ],
+        [
+          -0.497869074344635,
+          0.8672523498535156,
+          -4.6938657760620117e-07,
+          -1.1175870895385742e-08
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 9,
+      "collision_group_mask": [
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.0,
+      "mass": 1.0,
+      "angular_damping": 0.9900000095367432,
+      "linear_damping": 0.8999999761581421,
+      "bounce": 0.0
+    },
+    {
+      "idx": 14,
+      "name_j": "頭",
+      "name_e": "",
+      "bone": "頭",
+      "shape": "CAPSULE",
+      "type": "0",
+      "size": [
+        0.06373234838247299,
+        0.06373235583305359,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.8005388141502962,
+        0.8005389077366634,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          0.9995504021644592,
+          0.005923362448811531,
+          0.029393775388598442,
+          -0.006739642471075058
+        ],
+        [
+          -0.005923367105424404,
+          -0.9219682812690735,
+          0.38722026348114014,
+          0.003922745585441589
+        ],
+        [
+          0.029393766075372696,
+          -0.3872200846672058,
+          -0.9215189814567566,
+          -0.05680740252137184
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 0,
+      "collision_group_mask": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 15,
+      "name_j": "頭1",
+      "name_e": "",
+      "bone": "頭",
+      "shape": "CAPSULE",
+      "type": "0",
+      "size": [
+        0.051782526075839996,
+        0.0637323260307312,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.6504376987598964,
+        0.8005385333911946,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          0.9995504021644592,
+          0.000729195773601532,
+          0.02997579798102379,
+          0.0007035617018118501
+        ],
+        [
+          -0.005923367105424404,
+          -0.9752016067504883,
+          0.2212393581867218,
+          0.054310619831085205
+        ],
+        [
+          0.029393766075372696,
+          -0.22131720185279846,
+          -0.9747591018676758,
+          -0.021002085879445076
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 0,
+      "collision_group_mask": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 16,
+      "name_j": "下半身",
+      "name_e": "",
+      "bone": "下半身",
+      "shape": "CAPSULE",
+      "type": "0",
+      "size": [
+        0.11153161525726318,
+        0.08750063180923462,
+        0.0
+      ],
+      "size_per_bone_length": [
+        1.274639455775362,
+        1.0000012772347968,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          -1.6292068494294654e-07,
+          0.0,
+          -1.0,
+          0.0
+        ],
+        [
+          -1.000000238418579,
+          -5.960465898624534e-08,
+          1.6292072757551068e-07,
+          0.08500927686691284
+        ],
+        [
+          -2.980232949312267e-08,
+          1.0,
+          4.855416046843251e-15,
+          0.013202756643295288
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 0,
+      "collision_group_mask": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 17,
+      "name_j": "上半身",
+      "name_e": "",
+      "bone": "上半身",
+      "shape": "CAPSULE",
+      "type": "0",
+      "size": [
+        0.11153161525726318,
+        0.06471017003059387,
+        0.0
+      ],
+      "size_per_bone_length": [
+        1.7235566045882387,
+        1.000000230275467,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          -5.465064010866787e-44,
+          2.980233304583635e-08,
+          1.0000003576278687,
+          0.03235507011413574
+        ],
+        [
+          0.0,
+          -1.0,
+          2.980233304583635e-08,
+          5.055973417711357e-10
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 0,
+      "collision_group_mask": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 18,
+      "name_j": "上半身1",
+      "name_e": "",
+      "bone": "上半身1",
+      "shape": "CAPSULE",
+      "type": "0",
+      "size": [
+        0.11153161525726318,
+        0.0623643696308136,
+        0.0
+      ],
+      "size_per_bone_length": [
+        1.7883870107568298,
+        1.0000001194685608,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          -5.465064010866787e-44,
+          8.881786738100094e-15,
+          1.0000003576278687,
+          0.031182289123535156
+        ],
+        [
+          0.0,
+          -1.0,
+          0.0,
+          1.3969838619232178e-09
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 0,
+      "collision_group_mask": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 19,
+      "name_j": "上半身2",
+      "name_e": "",
+      "bone": "上半身2",
+      "shape": "CAPSULE",
+      "type": "0",
+      "size": [
+        0.1115315854549408,
+        0.10632163286209106,
+        0.0
+      ],
+      "size_per_bone_length": [
+        1.0490010027148071,
+        0.9999992291660579,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          -5.199842121328402e-07,
+          1.069561506028549e-08,
+          -1.0,
+          0.0
+        ],
+        [
+          1.000000238418579,
+          -7.711350917816162e-07,
+          -5.199843258196779e-07,
+          0.05316084623336792
+        ],
+        [
+          -7.413327693939209e-07,
+          -0.9999999403953552,
+          -1.0695227814494501e-08,
+          -1.0244548320770264e-08
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 0,
+      "collision_group_mask": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 20,
+      "name_j": "上半身3",
+      "name_e": "",
+      "bone": "上半身3",
+      "shape": "CAPSULE",
+      "type": "0",
+      "size": [
+        0.026823868975043297,
+        0.13411934673786163,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.19999995278092048,
+        0.9999997777925669,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          -5.324934164434305e-44,
+          -1.6391277313232422e-07,
+          1.0000003576278687,
+          0.06705969572067261
+        ],
+        [
+          -8.407790785948902e-45,
+          -1.0,
+          -5.960464477539063e-08,
+          -9.313225746154785e-09
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 0,
+      "collision_group_mask": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 21,
+      "name_j": "首",
+      "name_e": "",
+      "bone": "首",
+      "shape": "CAPSULE",
+      "type": "0",
+      "size": [
+        0.051782529801130295,
+        0.039325736463069916,
+        0.0
+      ],
+      "size_per_bone_length": [
+        1.316758940645152,
+        0.9999997158128817,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          -5.184804318001823e-44,
+          3.2782554626464844e-07,
+          1.0000003576278687,
+          0.019662879407405853
+        ],
+        [
+          1.5414283107572988e-44,
+          -1.0,
+          1.1920928955078125e-07,
+          3.725290298461914e-08
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 0,
+      "collision_group_mask": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 22,
+      "name_j": "首1",
+      "name_e": "",
+      "bone": "首1",
+      "shape": "CAPSULE",
+      "type": "0",
+      "size": [
+        0.05178253352642059,
+        0.04350946843624115,
+        0.0
+      ],
+      "size_per_bone_length": [
+        1.1901430995335156,
+        0.9999992294186058,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          -5.184804318001823e-44,
+          3.5762786865234375e-07,
+          1.0000003576278687,
+          0.021754669025540352
+        ],
+        [
+          1.5414283107572988e-44,
+          -1.0000001192092896,
+          1.1920928955078125e-07,
+          -4.6566128730773926e-09
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 0,
+      "collision_group_mask": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 23,
+      "name_j": "左足",
+      "name_e": "",
+      "bone": "足.L",
+      "shape": "CAPSULE",
+      "type": "0",
+      "size": [
+        0.08272971212863922,
+        0.4136485159397125,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.19999994956680042,
+        0.9999996397628602,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          1.0,
+          -8.68539643180679e-24,
+          -2.220446313948109e-16,
+          -1.6653345369377348e-16
+        ],
+        [
+          1.6364193467475352e-16,
+          -3.91155481338501e-08,
+          -1.0000001192092896,
+          0.2068243771791458
+        ],
+        [
+          -3.044421080503708e-18,
+          0.9999999403953552,
+          -1.862645149230957e-09,
+          3.725290298461914e-09
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 0,
+      "collision_group_mask": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 24,
+      "name_j": "左ひざ",
+      "name_e": "",
+      "bone": "ひざ.L",
+      "shape": "CAPSULE",
+      "type": "0",
+      "size": [
+        0.08002609014511108,
+        0.4001304507255554,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.19999998510369799,
+        0.99999992551849,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          3.841874368669325e-16,
+          -5.960464477539063e-08,
+          -1.0000001192092896,
+          0.20006521046161652
+        ],
+        [
+          -3.410856425677503e-17,
+          1.0,
+          0.0,
+          1.30385160446167e-08
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 0,
+      "collision_group_mask": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 25,
+      "name_j": "右足",
+      "name_e": "",
+      "bone": "足.R",
+      "shape": "CAPSULE",
+      "type": "0",
+      "size": [
+        0.08272971212863922,
+        0.4136485159397125,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.19999994956680042,
+        0.9999996397628602,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          1.0,
+          -8.68539643180679e-24,
+          -2.220446313948109e-16,
+          -7.450580596923828e-09
+        ],
+        [
+          1.6364193467475352e-16,
+          -3.91155481338501e-08,
+          -1.0000001192092896,
+          0.2068243771791458
+        ],
+        [
+          -3.044421080503708e-18,
+          0.9999999403953552,
+          -1.862645149230957e-09,
+          3.725290298461914e-09
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 0,
+      "collision_group_mask": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 26,
+      "name_j": "右ひざ",
+      "name_e": "",
+      "bone": "ひざ.R",
+      "shape": "CAPSULE",
+      "type": "0",
+      "size": [
+        0.08002609014511108,
+        0.4001304507255554,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.19999998510369799,
+        0.99999992551849,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          3.841874368669325e-16,
+          -5.960464477539063e-08,
+          -1.0000001192092896,
+          0.20006521046161652
+        ],
+        [
+          -3.410856425677503e-17,
+          1.0,
+          0.0,
+          1.30385160446167e-08
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 0,
+      "collision_group_mask": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 27,
+      "name_j": "左肩",
+      "name_e": "",
+      "bone": "肩.L",
+      "shape": "CAPSULE",
+      "type": "0",
+      "size": [
+        0.08763198554515839,
+        0.09925594925880432,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.8828890638554976,
+        1.0000000750643283,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          -2.4195418238392996e-11,
+          -0.9999998807907104,
+          -1.6658303181316114e-08,
+          0.015018948353827
+        ],
+        [
+          -0.000344915984896943,
+          -1.9526755323795442e-08,
+          0.9999999403953552,
+          0.0011004586704075336
+        ],
+        [
+          -1.0000001192092896,
+          1.4931078595736835e-08,
+          -0.0003448755305726081,
+          -0.02948363870382309
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 0,
+      "collision_group_mask": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 28,
+      "name_j": "左腕",
+      "name_e": "",
+      "bone": "腕.L",
+      "shape": "CAPSULE",
+      "type": "0",
+      "size": [
+        0.04281219467520714,
+        0.21406099200248718,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.19999992690767826,
+        0.99999972155306,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          -7.614399777366998e-08,
+          -0.9999997615814209,
+          4.330649971961975e-08,
+          1.1641532182693481e-10
+        ],
+        [
+          -6.258408689063799e-07,
+          -1.2852251529693604e-07,
+          -1.0000001192092896,
+          0.1070304587483406
+        ],
+        [
+          1.0000003576278687,
+          -6.053254253401974e-08,
+          -4.1661843397378107e-07,
+          -2.447485769607738e-09
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 0,
+      "collision_group_mask": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 29,
+      "name_j": "左ひじ",
+      "name_e": "",
+      "bone": "ひじ.L",
+      "shape": "CAPSULE",
+      "type": "0",
+      "size": [
+        0.04315866529941559,
+        0.21579328179359436,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.20000001381058669,
+        0.999999861894133,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          -1.1938743682549102e-07,
+          -0.9999997615814209,
+          -8.614733815193176e-09,
+          -7.450580596923828e-09
+        ],
+        [
+          -3.278283031704632e-07,
+          -7.520429790019989e-08,
+          -0.9999997615814209,
+          0.10789670795202255
+        ],
+        [
+          1.0,
+          -1.0733339905755201e-07,
+          -5.903643796045799e-08,
+          -2.1359748814120394e-07
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 0,
+      "collision_group_mask": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 30,
+      "name_j": "右肩",
+      "name_e": "",
+      "bone": "肩.R",
+      "shape": "CAPSULE",
+      "type": "0",
+      "size": [
+        0.08763198554515839,
+        0.09919121861457825,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.8834651571896206,
+        1.0,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          8.742275525719378e-08,
+          -0.9999998807907104,
+          -1.2737771246302577e-14,
+          0.015018164180219173
+        ],
+        [
+          2.8213003133714665e-07,
+          2.878420612972832e-09,
+          1.0000001192092896,
+          0.0010780156590044498
+        ],
+        [
+          -1.000000238418579,
+          -1.0232389513475937e-07,
+          1.4570318285223038e-07,
+          0.029500123113393784
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 0,
+      "collision_group_mask": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 31,
+      "name_j": "右腕",
+      "name_e": "",
+      "bone": "腕.R",
+      "shape": "CAPSULE",
+      "type": "0",
+      "size": [
+        0.042825400829315186,
+        0.21412700414657593,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.19999988865559143,
+        0.9999994432779571,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          -1.4827617178525543e-07,
+          -0.9999999403953552,
+          -2.514570951461792e-08,
+          3.841705620288849e-09
+        ],
+        [
+          5.364544222175027e-07,
+          -3.119930624961853e-08,
+          -1.000000238418579,
+          0.10706362128257751
+        ],
+        [
+          1.000000238418579,
+          -1.4667392633782583e-07,
+          4.4872359694636543e-07,
+          2.308152247110229e-08
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 0,
+      "collision_group_mask": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 32,
+      "name_j": "右ひじ",
+      "name_e": "",
+      "bone": "ひじ.R",
+      "shape": "CAPSULE",
+      "type": "0",
+      "size": [
+        0.04313715919852257,
+        0.21568578481674194,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.1999999827281627,
+        0.9999998618253015,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          -9.037827197744264e-08,
+          -0.9999999403953552,
+          -1.234002411365509e-08,
+          1.0593794286251068e-08
+        ],
+        [
+          3.231748202381368e-12,
+          -4.0745362639427185e-08,
+          -1.0000003576278687,
+          0.1078430563211441
+        ],
+        [
+          1.0000003576278687,
+          -8.847485588603377e-08,
+          -8.902384962539145e-08,
+          -9.345291829276903e-08
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 0,
+      "collision_group_mask": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 33,
+      "name_j": "左乳奶",
+      "name_e": "",
+      "bone": "乳奶.L",
+      "shape": "SPHERE",
+      "type": "1",
+      "size": [
+        0.04779926687479019,
+        0.0,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.6000000561140252,
+        0.0,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          -1.0,
+          -5.625034100245889e-16,
+          1.509958451606508e-07,
+          -1.7762144532973423e-10
+        ],
+        [
+          -1.2375070891255339e-14,
+          -1.0000001192092896,
+          -8.19564220932989e-08,
+          0.03983272239565849
+        ],
+        [
+          1.5099578831723193e-07,
+          -3.7252920748187535e-09,
+          1.0000003576278687,
+          1.2880570920970058e-07
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 15,
+      "collision_group_mask": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 34,
+      "name_j": "右乳奶",
+      "name_e": "",
+      "bone": "乳奶.R",
+      "shape": "SPHERE",
+      "type": "1",
+      "size": [
+        0.04779926687479019,
+        0.0,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.6000000561140252,
+        0.0,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          -1.0,
+          -5.625034100245889e-16,
+          1.509958451606508e-07,
+          -1.8133047841040195e-10
+        ],
+        [
+          -1.2375070891255339e-14,
+          -1.0000001192092896,
+          -8.19564220932989e-08,
+          0.03983272984623909
+        ],
+        [
+          1.5099578831723193e-07,
+          -3.7252920748187535e-09,
+          1.0000003576278687,
+          1.101093261013375e-07
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 15,
+      "collision_group_mask": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    }
+  ],
+  "joints": [
+    {
+      "name_j": "hair front left 1",
+      "name_e": "",
+      "rigid_a_idx": 14,
+      "rigid_b_idx": 0,
+      "local_matrix_in_a": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.04715871810913086
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          -0.1011609211564064
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.05305981636047363
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "maximum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "minimum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_rotation": [
+        0.1745329350233078,
+        0.1745329350233078,
+        0.1745329350233078
+      ],
+      "minimum_rotation": [
+        -0.1745329350233078,
+        -0.1745329350233078,
+        -0.1745329350233078
+      ],
+      "spring_angular": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spring_linear": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name_j": "hair front left 2",
+      "name_e": "",
+      "rigid_a_idx": 0,
+      "rigid_b_idx": 1,
+      "local_matrix_in_a": [
+        [
+          0.9669014811515808,
+          0.0,
+          0.2551499903202057,
+          5.21540641784668e-08
+        ],
+        [
+          0.025381136685609818,
+          0.9950401186943054,
+          -0.09618287533521652,
+          -1.8742866814136505e-08
+        ],
+        [
+          -0.2538844645023346,
+          0.09947536140680313,
+          0.9621056914329529,
+          -0.011321814730763435
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "maximum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "minimum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_rotation": [
+        0.1745329350233078,
+        0.1745329350233078,
+        0.1745329350233078
+      ],
+      "minimum_rotation": [
+        -0.1745329350233078,
+        -0.1745329350233078,
+        -0.1745329350233078
+      ],
+      "spring_angular": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spring_linear": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name_j": "hair front left 3",
+      "name_e": "",
+      "rigid_a_idx": 1,
+      "rigid_b_idx": 2,
+      "local_matrix_in_a": [
+        [
+          0.9913315773010254,
+          0.0,
+          0.13138391077518463,
+          -3.3527612686157227e-08
+        ],
+        [
+          0.004704734310507774,
+          0.9993586540222168,
+          -0.03549864888191223,
+          1.1496013030409813e-09
+        ],
+        [
+          -0.13129962980747223,
+          0.03580906242132187,
+          0.9906957745552063,
+          -0.012674367055296898
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "maximum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "minimum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_rotation": [
+        0.1745329350233078,
+        0.1745329350233078,
+        0.1745329350233078
+      ],
+      "minimum_rotation": [
+        -0.1745329350233078,
+        -0.1745329350233078,
+        -0.1745329350233078
+      ],
+      "spring_angular": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spring_linear": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name_j": "hair front right 1",
+      "name_e": "",
+      "rigid_a_idx": 14,
+      "rigid_b_idx": 3,
+      "local_matrix_in_a": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.03187887743115425
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          -0.10571349412202835
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.05685734748840332
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "maximum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "minimum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_rotation": [
+        0.1745329350233078,
+        0.1745329350233078,
+        0.1745329350233078
+      ],
+      "minimum_rotation": [
+        -0.1745329350233078,
+        -0.1745329350233078,
+        -0.1745329350233078
+      ],
+      "spring_angular": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spring_linear": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name_j": "hair front right 2",
+      "name_e": "",
+      "rigid_a_idx": 3,
+      "rigid_b_idx": 4,
+      "local_matrix_in_a": [
+        [
+          0.8601422309875488,
+          4.470348358154297e-08,
+          -0.5100542306900024,
+          -1.447042734525894e-07
+        ],
+        [
+          -0.2823561429977417,
+          0.8327956199645996,
+          -0.4761580228805542,
+          -6.891787052154541e-08
+        ],
+        [
+          0.42477092146873474,
+          0.5535805821418762,
+          0.716322660446167,
+          -0.00915115512907505
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "maximum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "minimum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_rotation": [
+        0.1745329350233078,
+        0.1745329350233078,
+        0.1745329350233078
+      ],
+      "minimum_rotation": [
+        -0.1745329350233078,
+        -0.1745329350233078,
+        -0.1745329350233078
+      ],
+      "spring_angular": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spring_linear": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name_j": "hair front right 3",
+      "name_e": "",
+      "rigid_a_idx": 4,
+      "rigid_b_idx": 5,
+      "local_matrix_in_a": [
+        [
+          0.7909828424453735,
+          2.2351741790771484e-08,
+          -0.6118384003639221,
+          9.56608516844426e-08
+        ],
+        [
+          -0.11085855215787888,
+          0.9834482669830322,
+          -0.1433175504207611,
+          -3.943569026887417e-09
+        ],
+        [
+          0.6017113924026489,
+          0.18118923902511597,
+          0.7778906226158142,
+          -0.011202500201761723
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "maximum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "minimum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_rotation": [
+        0.1745329350233078,
+        0.1745329350233078,
+        0.1745329350233078
+      ],
+      "minimum_rotation": [
+        -0.1745329350233078,
+        -0.1745329350233078,
+        -0.1745329350233078
+      ],
+      "spring_angular": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spring_linear": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name_j": "head hair left 1",
+      "name_e": "",
+      "rigid_a_idx": 14,
+      "rigid_b_idx": 6,
+      "local_matrix_in_a": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.07490463554859161
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          -0.04555390030145645
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0011370182037353516
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "maximum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "minimum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_rotation": [
+        0.1745329350233078,
+        0.1745329350233078,
+        0.1745329350233078
+      ],
+      "minimum_rotation": [
+        -0.1745329350233078,
+        -0.1745329350233078,
+        -0.1745329350233078
+      ],
+      "spring_angular": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spring_linear": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name_j": "head hair left 2",
+      "name_e": "",
+      "rigid_a_idx": 6,
+      "rigid_b_idx": 7,
+      "local_matrix_in_a": [
+        [
+          0.997549831867218,
+          3.725290298461914e-09,
+          -0.0699593797326088,
+          1.1130596888619948e-08
+        ],
+        [
+          0.013727284036576748,
+          0.980560302734375,
+          0.19573718309402466,
+          -4.7264620661735535e-08
+        ],
+        [
+          0.0685993880033493,
+          -0.19621795415878296,
+          0.9781577587127686,
+          -0.022173557430505753
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "maximum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "minimum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_rotation": [
+        0.1745329350233078,
+        0.1745329350233078,
+        0.1745329350233078
+      ],
+      "minimum_rotation": [
+        -0.1745329350233078,
+        -0.1745329350233078,
+        -0.1745329350233078
+      ],
+      "spring_angular": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spring_linear": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name_j": "head hair front right 1",
+      "name_e": "",
+      "rigid_a_idx": 14,
+      "rigid_b_idx": 8,
+      "local_matrix_in_a": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          -0.0120983412489295
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          -0.10260584950447083
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.061887502670288086
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "maximum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "minimum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_rotation": [
+        0.1745329350233078,
+        0.1745329350233078,
+        0.1745329350233078
+      ],
+      "minimum_rotation": [
+        -0.1745329350233078,
+        -0.1745329350233078,
+        -0.1745329350233078
+      ],
+      "spring_angular": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spring_linear": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name_j": "head hair front right 2",
+      "name_e": "",
+      "rigid_a_idx": 8,
+      "rigid_b_idx": 9,
+      "local_matrix_in_a": [
+        [
+          0.8657174706459045,
+          2.2351741790771484e-08,
+          -0.5005331039428711,
+          -3.13382386707417e-08
+        ],
+        [
+          0.06383449584245682,
+          0.9918343424797058,
+          0.11040759086608887,
+          1.862645149230957e-09
+        ],
+        [
+          0.4964459240436554,
+          -0.12753304839134216,
+          0.8586482405662537,
+          -0.03603361174464226
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "maximum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "minimum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_rotation": [
+        0.1745329350233078,
+        0.1745329350233078,
+        0.1745329350233078
+      ],
+      "minimum_rotation": [
+        -0.1745329350233078,
+        -0.1745329350233078,
+        -0.1745329350233078
+      ],
+      "spring_angular": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spring_linear": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name_j": "head hair front right 3",
+      "name_e": "",
+      "rigid_a_idx": 14,
+      "rigid_b_idx": 10,
+      "local_matrix_in_a": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          -0.05958167091012001
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          -0.06420928239822388
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          -0.02642810344696045
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "maximum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "minimum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_rotation": [
+        0.1745329350233078,
+        0.1745329350233078,
+        0.1745329350233078
+      ],
+      "minimum_rotation": [
+        -0.1745329350233078,
+        -0.1745329350233078,
+        -0.1745329350233078
+      ],
+      "spring_angular": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spring_linear": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name_j": "head hair front right 4",
+      "name_e": "",
+      "rigid_a_idx": 10,
+      "rigid_b_idx": 11,
+      "local_matrix_in_a": [
+        [
+          0.9885732531547546,
+          9.313224635931761e-10,
+          0.1507405936717987,
+          -1.1208227235215418e-08
+        ],
+        [
+          -0.013090664520859718,
+          0.9962220191955566,
+          0.08585000783205032,
+          -1.862645149230957e-09
+        ],
+        [
+          -0.15017108619213104,
+          -0.08684232831001282,
+          0.9848384857177734,
+          -0.027451422065496445
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "maximum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "minimum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_rotation": [
+        0.1745329350233078,
+        0.1745329350233078,
+        0.1745329350233078
+      ],
+      "minimum_rotation": [
+        -0.1745329350233078,
+        -0.1745329350233078,
+        -0.1745329350233078
+      ],
+      "spring_angular": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spring_linear": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name_j": "hair back left 1",
+      "name_e": "",
+      "rigid_a_idx": 14,
+      "rigid_b_idx": 12,
+      "local_matrix_in_a": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0839826837182045
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.005945151671767235
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          -0.04566323757171631
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "maximum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "minimum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_rotation": [
+        0.1745329350233078,
+        0.1745329350233078,
+        0.1745329350233078
+      ],
+      "minimum_rotation": [
+        -0.1745329350233078,
+        -0.1745329350233078,
+        -0.1745329350233078
+      ],
+      "spring_angular": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spring_linear": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name_j": "hair back left 2",
+      "name_e": "",
+      "rigid_a_idx": 12,
+      "rigid_b_idx": 13,
+      "local_matrix_in_a": [
+        [
+          0.9413315653800964,
+          -7.450580596923828e-09,
+          -0.33748310804367065,
+          1.4733981146264341e-08
+        ],
+        [
+          -0.10556396842002869,
+          0.9498196840286255,
+          -0.2944464385509491,
+          1.30385160446167e-08
+        ],
+        [
+          0.3205481171607971,
+          0.31279778480529785,
+          0.8940953016281128,
+          -0.013116681948304176
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "maximum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "minimum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_rotation": [
+        0.1745329350233078,
+        0.1745329350233078,
+        0.1745329350233078
+      ],
+      "minimum_rotation": [
+        -0.1745329350233078,
+        -0.1745329350233078,
+        -0.1745329350233078
+      ],
+      "spring_angular": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spring_linear": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name_j": "左乳奶",
+      "name_e": "",
+      "rigid_a_idx": 19,
+      "rigid_b_idx": 33,
+      "local_matrix_in_a": [
+        [
+          -5.19984268976259e-07,
+          0.05268978700041771,
+          0.9986109733581543,
+          0.03798583522439003
+        ],
+        [
+          1.069561417210707e-08,
+          0.9986109733581543,
+          -0.05268978700041771,
+          -0.03354167193174362
+        ],
+        [
+          -1.0,
+          -1.6717098816343423e-08,
+          -5.198255053073808e-07,
+          -0.061916932463645935
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "maximum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "minimum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_rotation": [
+        0.1745329350233078,
+        0.1745329350233078,
+        0.1745329350233078
+      ],
+      "minimum_rotation": [
+        -0.1745329350233078,
+        -0.1745329350233078,
+        -0.1745329350233078
+      ],
+      "spring_angular": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spring_linear": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name_j": "右乳奶",
+      "name_e": "",
+      "rigid_a_idx": 19,
+      "rigid_b_idx": 34,
+      "local_matrix_in_a": [
+        [
+          -5.19984268976259e-07,
+          0.05268978700041771,
+          0.9986109733581543,
+          0.03796401247382164
+        ],
+        [
+          1.069561417210707e-08,
+          0.9986109733581543,
+          -0.05268978700041771,
+          -0.03348977118730545
+        ],
+        [
+          -1.0,
+          -1.6717098816343423e-08,
+          -5.198255053073808e-07,
+          0.06190243735909462
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "maximum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "minimum_location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_rotation": [
+        0.1745329350233078,
+        0.1745329350233078,
+        0.1745329350233078
+      ],
+      "minimum_rotation": [
+        -0.1745329350233078,
+        -0.1745329350233078,
+        -0.1745329350233078
+      ],
+      "spring_angular": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spring_linear": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ]
+}
