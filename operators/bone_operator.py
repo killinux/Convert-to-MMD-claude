@@ -223,14 +223,13 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
 
         # 动态添加上肢骨骼（安全访问，缺失时跳过）
         limb_defs = [
-            # 両目: 目.L/目.R 的统一控制骨, parent=頭, 位于两眼中点稍前方
+            # 両目: display-only 控制骨 (parent=頭), 目.L/R 仍直接 parent=頭 (对齐 target PMX 约定)
             ("両目", ["目.L", "目.R", "頭"], lambda: {
                 "head": (edit_bones["目.L"].head + edit_bones["目.R"].head) / 2 + Vector((0, -0.05, 0.04)),
                 "tail": (edit_bones["目.L"].head + edit_bones["目.R"].head) / 2 + Vector((0, -0.10, 0.04)),
                 "parent": "頭", "use_deform": False, "use_connect": False}),
-            # 目.L/目.R: parent 改为両目
-            ("目.L", ["目.L", "頭"], lambda: {"head": edit_bones["目.L"].head, "tail": edit_bones["目.L"].tail, "parent": "両目", "use_connect": False}),
-            ("目.R", ["目.R", "頭"], lambda: {"head": edit_bones["目.R"].head, "tail": edit_bones["目.R"].tail, "parent": "両目", "use_connect": False}),
+            ("目.L", ["目.L", "頭"], lambda: {"head": edit_bones["目.L"].head, "tail": edit_bones["目.L"].tail, "parent": "頭", "use_connect": False}),
+            ("目.R", ["目.R", "頭"], lambda: {"head": edit_bones["目.R"].head, "tail": edit_bones["目.R"].tail, "parent": "頭", "use_connect": False}),
             # 肩P.L/R: 肩的父骨骼, head 与 肩 同位置, tail +Z (MMD 惯例: 控制骨显示朝上)
             # 长度 0.082 XPS unit ≈ 1.0 PMX unit (export scale=12)
             ("肩P.L", ["肩.L"], lambda: {"head": edit_bones["肩.L"].head, "tail": edit_bones["肩.L"].head + Vector((0, 0, 0.082)), "parent": "上半身3", "use_deform": False, "use_connect": False}),
