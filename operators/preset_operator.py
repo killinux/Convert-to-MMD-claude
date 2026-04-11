@@ -278,6 +278,18 @@ class OBJECT_OT_use_mmd_tools_convert(bpy.types.Operator):
                     h += 1
             print(f"[CTMMD convert] Re-applied hide flags: {v} visible, {h} hidden")
 
+        # 把 mmd_bone 元数据 (additional_transform / fixed_axis) 物化为 Blender bone
+        # constraint 链。convert_to_mmd_model() 只设属性, 不创建 viewport constraint;
+        # 没有这一步, 腕捩1/2/3 等 sub twist 子骨在 Blender 视口里完全是死的, 挂在它们
+        # 上面的 vert 永远停在 rest pose, VMD 播放时上臂没有 twist 渐变。
+        # mmd_tools.import_model 会自动跑这一步, convert_to_mmd_model 不会, 所以 XPS 转
+        # 路径必须显式追加。会创建 _shadow_腕捩X / _dummy_腕捩X + TRANSFORM constraint。
+        try:
+            bpy.ops.mmd_tools.apply_additional_transform()
+            print("[CTMMD convert] Applied additional_transform constraints")
+        except Exception as e:
+            print(f"[CTMMD convert] apply_additional_transform 失败: {e}")
+
         # 恢复原始选择状态
         context.view_layer.objects.active = obj
         obj.select_set(True)
