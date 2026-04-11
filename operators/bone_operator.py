@@ -5,24 +5,25 @@ from .. import bone_utils
 from .. import preset_operator
 
 
-def _split_upper_body_3_weights(obj):
-    """在 上半身2 与 首 之间插入 上半身3 后, 按 t 位置把 上半身2 的顶点权重
-    线性分摊给 上半身3 (PMXEditor 风格两骨插值):
-        k = clamp((vert - 上半身2.head) · seg / |seg|², 0, 1)
-        上半身2_new = w * (1 - k)
-        上半身3_new += w * k
-    这样靠近颈部的顶点会随 上半身3 旋转, 使 VMD 的 上半身3 键帧真正生效。
-    返回处理的顶点数。"""
-    u2 = obj.data.bones.get("上半身2")
-    u3 = obj.data.bones.get("上半身3")
-    neck = obj.data.bones.get("首")
-    if not u2 or not u3 or not neck:
+def _split_chain_weights(obj, src_name, dst_name, seg_from_name, seg_to_name):
+    """PMXEditor 风格两骨沿段插值: 把 src_name 顶点组按沿
+    (seg_from_name.head → seg_to_name.head) 段的 t 位置线性分摊到 dst_name。
+        k = clamp(t, 0, 1)
+        src_new = w * (1 - k)
+        dst_new += w * k
+    典型用法:
+      - ("上半身2", "上半身3", "上半身2", "首"):  插入上半身3 中间骨后分权
+      - ("肩.L",   "腕.L",    "肩.L",    "腕.L"):  腋窝区 肩→腕 平滑过渡
+    返回处理的顶点数。
+    """
+    src_b = obj.data.bones.get(seg_from_name)
+    dst_b = obj.data.bones.get(seg_to_name)
+    if not src_b or not dst_b:
         return 0
-    seg_from = u2.head_local
-    seg_to = neck.head_local
+    seg_from = src_b.head_local
+    seg_to = dst_b.head_local
     seg = seg_to - seg_from
-    seg_len_sq = seg.length_squared
-    if seg_len_sq < 1e-9:
+    if seg.length_squared < 1e-9:
         return 0
     meshes = [
         m for m in bpy.data.objects
@@ -35,12 +36,13 @@ def _split_upper_body_3_weights(obj):
     seg_to_w = arm_mw @ seg_to
     seg_w = seg_to_w - seg_from_w
     seg_len_sq_w = seg_w.length_squared
+    if seg_len_sq_w < 1e-9:
+        return 0
     moved = 0
     for m in meshes:
-        src_vg = m.vertex_groups.get("上半身2")
+        src_vg = m.vertex_groups.get(src_name)
         if not src_vg:
             continue
-        dst_name = "上半身3"
         if dst_name not in m.vertex_groups:
             m.vertex_groups.new(name=dst_name)
         dst_vg = m.vertex_groups[dst_name]
@@ -62,18 +64,30 @@ def _split_upper_body_3_weights(obj):
             if t <= 0:
                 continue
             k = t
-            new_u2 = src_w * (1.0 - k)
-            new_u3 = existing_dst + src_w * k
-            plans.append((v.index, new_u2, new_u3))
-        for v_idx, new_u2, new_u3 in plans:
-            if new_u2 > 1e-6:
-                src_vg.add([v_idx], new_u2, 'REPLACE')
+            new_src = src_w * (1.0 - k)
+            new_dst = existing_dst + src_w * k
+            plans.append((v.index, new_src, new_dst))
+        for v_idx, new_src, new_dst in plans:
+            if new_src > 1e-6:
+                src_vg.add([v_idx], new_src, 'REPLACE')
             else:
                 src_vg.remove([v_idx])
-            if new_u3 > 1e-6:
-                dst_vg.add([v_idx], new_u3, 'REPLACE')
+            if new_dst > 1e-6:
+                dst_vg.add([v_idx], new_dst, 'REPLACE')
             moved += 1
     return moved
+
+
+def _split_upper_body_3_weights(obj):
+    return _split_chain_weights(obj, "上半身2", "上半身3", "上半身2", "首")
+
+
+def _split_shoulder_to_arm_weights(obj, side):
+    """腋窝平滑: 把 肩.{side} 的顶点按沿 肩→腕 段 t 位置线性分摊给 腕.{side}。
+    对消除 XPS 源模型肩胛到上臂的硬折痕特别重要。"""
+    return _split_chain_weights(
+        obj, f"肩.{side}", f"腕.{side}", f"肩.{side}", f"腕.{side}"
+    )
 
 class OBJECT_OT_rename_to_mmd(bpy.types.Operator):
     """将选定的骨骼重命名为 MMD 格式"""
@@ -437,6 +451,16 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
         if "上半身3" in created_bones:
             n_split = _split_upper_body_3_weights(obj)
             print(f"[CTMMD 2] 上半身3 auto-weight: {n_split} verts split from 上半身2")
+
+        # 腋窝平滑: 把 肩.L/R 沿 肩→腕 段的顶点线性分摊给 腕.L/R, 让靠近 腕 那端的
+        # 顶点跟随上臂旋转, 消除 XPS 源单骨硬绑定的肩-腕折痕 (在抬手姿态最明显)。
+        # target PMX 的腋窝顶点几乎全部同时挂 肩+腕+上半身3, 这个分权把 conv 的
+        # 单骨分布向目标的多骨混权靠拢。
+        for side in ("L", "R"):
+            if f"肩.{side}" in obj.data.bones and f"腕.{side}" in obj.data.bones:
+                n = _split_shoulder_to_arm_weights(obj, side)
+                if n > 0:
+                    print(f"[CTMMD 2] 腋窝 肩→腕.{side} auto-weight: {n} verts split")
 
         self.report({'INFO'}, f"Bone completion finished: created {len(created_bones)}, updated {len(updated_bones)}")
 
