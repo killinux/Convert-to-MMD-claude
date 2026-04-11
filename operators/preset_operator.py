@@ -247,6 +247,24 @@ class OBJECT_OT_use_mmd_tools_convert(bpy.types.Operator):
             )
             return {'CANCELLED'}
 
+        # mmd_tools convert_to_mmd_model 会把部分 bone.hide 标志重置, 在此重新应用:
+        #   main twist (腕捩/手捩): hide=False (用户可见)
+        #   sub twist + 肩C: hide=True (隐藏, 编辑模式可见)
+        MAIN_TWIST_VISIBLE = {"腕捩.L","腕捩.R","手捩.L","手捩.R"}
+        HIDDEN_BONES = {"肩C.L","肩C.R"} | {
+            f"{base}{i}{side}"
+            for base in ("腕捩","手捩") for i in (1,2,3) for side in (".L",".R")
+        }
+        # arm 可能被 convert 重命名 / 重新生成, 重新拿
+        arm = context.view_layer.objects.active
+        if arm and arm.type == 'ARMATURE':
+            for name in MAIN_TWIST_VISIBLE:
+                b = arm.data.bones.get(name)
+                if b: b.hide = False
+            for name in HIDDEN_BONES:
+                b = arm.data.bones.get(name)
+                if b: b.hide = True
+
         # 恢复原始选择状态
         context.view_layer.objects.active = obj
         obj.select_set(True)
