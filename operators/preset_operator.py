@@ -152,8 +152,40 @@ class OBJECT_OT_setup_pmx_attributes(bpy.types.Operator):
                 cancel_pb.mmd_bone.additional_transform_influence = -1.0
                 at_count += 1
 
+        # 扭转骨系统 PMX 属性
+        # 主骨 (腕捩 / 手捩): 启用 fixed_axis, 方向沿自身 (tail - head)
+        # 子骨 (腕捩1/2/3 / 手捩1/2/3): 付与親 指向主骨, 影响值 = 子骨索引 / 4
+        TWIST_BASES = ("腕捩", "手捩")
+        TWIST_INFLUENCE = {1: 0.25, 2: 0.50, 3: 0.75}
+        twist_main = 0
+        twist_sub = 0
+        for base in TWIST_BASES:
+            for suffix in (".L", ".R"):
+                main_name = base + suffix
+                main_pb = obj.pose.bones.get(main_name)
+                if main_pb:
+                    main_db = obj.data.bones.get(main_name)
+                    if main_db:
+                        axis = (main_db.tail_local - main_db.head_local)
+                        if axis.length > 1e-6:
+                            axis.normalize()
+                            main_pb.mmd_bone.enabled_fixed_axis = True
+                            main_pb.mmd_bone.fixed_axis = axis
+                            twist_main += 1
+                for i, inf in TWIST_INFLUENCE.items():
+                    sub_name = f"{base}{i}{suffix}"
+                    sub_pb = obj.pose.bones.get(sub_name)
+                    if sub_pb and main_pb:
+                        sub_pb.mmd_bone.additional_transform_bone = main_name
+                        sub_pb.mmd_bone.has_additional_rotation = True
+                        sub_pb.mmd_bone.has_additional_location = False
+                        sub_pb.mmd_bone.additional_transform_influence = inf
+                        twist_sub += 1
+        if twist_main or twist_sub:
+            print(f"[CTMMD 8] Twist system: {twist_main} main (fixed_axis), {twist_sub} sub (付与親)")
+
         print(f"[CTMMD 8] Set additional_transform for {at_count} bones")
-        self.report({'INFO'}, f"PMX attributes set: {name_j_count} name_j, {at_count} additional_transform")
+        self.report({'INFO'}, f"PMX attributes set: {name_j_count} name_j, {at_count} additional_transform, twist {twist_main}+{twist_sub}")
         return {'FINISHED'}
 
 

@@ -50,13 +50,16 @@ class OBJECT_OT_rename_to_mmd(bpy.types.Operator):
         # XPS 通用兜底 rename 表: 把 XPS 已经存在的"位置和角色与 MMD 标准骨完全
         # 对应"的辅助骨直接重命名, 不新建/不迁移。
         #
-        # 注意: 不能简单 rename 的情况:
-        #   - foretwist/foretwist1 看起来像扭转骨, 但 XPS 把它们都放在前臂区域,
-        #     而 MMD 的 腕捩(上臂扭转) 在上臂、手捩(前臂扭转) 在前臂。位置不匹配,
-        #     直接 rename 会让 腕捩 出现在前臂位置, 整条手臂链条形态错乱。
-        #     这类骨骼仍由 step 2.1 处理 (新建 + gradient 权重转移)。
+        # 不在这里处理 twist 骨: 扭转骨 (foretwist / xtra07 / xtra07pp 等) 命名因模型
+        # 而异, 且可能位置语义和 XPS 命名不一致。改由 step 2.1 (complete_twist_bones)
+        # 按几何位置 + 权重匹配分配到 腕捩/手捩 槽位。
         UNUSED_RENAME_MAP = {
             "unused bip001 pelvis": "下半身",  # 胯部 -> MMD 下半身, 位置一致, 干净 rename
+            # 常见 XPS 胸部命名 (用在 XNA Lara / DOA / Tomb Raider 系列)
+            "boob left 1": "乳奶.L",
+            "boob right 1": "乳奶.R",
+            "breast left 1": "乳奶.L",
+            "breast right 1": "乳奶.R",
         }
         for src, dst in UNUSED_RENAME_MAP.items():
             src_bone = obj.pose.bones.get(src)
@@ -220,6 +223,14 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
 
         # 动态添加上肢骨骼（安全访问，缺失时跳过）
         limb_defs = [
+            # 両目: 目.L/目.R 的统一控制骨, parent=頭, 位于两眼中点稍前方
+            ("両目", ["目.L", "目.R", "頭"], lambda: {
+                "head": (edit_bones["目.L"].head + edit_bones["目.R"].head) / 2 + Vector((0, -0.05, 0.04)),
+                "tail": (edit_bones["目.L"].head + edit_bones["目.R"].head) / 2 + Vector((0, -0.10, 0.04)),
+                "parent": "頭", "use_deform": False, "use_connect": False}),
+            # 目.L/目.R: parent 改为両目
+            ("目.L", ["目.L", "頭"], lambda: {"head": edit_bones["目.L"].head, "tail": edit_bones["目.L"].tail, "parent": "両目", "use_connect": False}),
+            ("目.R", ["目.R", "頭"], lambda: {"head": edit_bones["目.R"].head, "tail": edit_bones["目.R"].tail, "parent": "両目", "use_connect": False}),
             # 肩P.L/R: 肩的父骨骼，位置与肩相同，parent=上半身3
             ("肩P.L", ["肩.L"], lambda: {"head": edit_bones["肩.L"].head, "tail": edit_bones["肩.L"].head + Vector((0.03, 0, 0)), "parent": "上半身3", "use_deform": False, "use_connect": False}),
             ("肩P.R", ["肩.R"], lambda: {"head": edit_bones["肩.R"].head, "tail": edit_bones["肩.R"].head + Vector((-0.03, 0, 0)), "parent": "上半身3", "use_deform": False, "use_connect": False}),
