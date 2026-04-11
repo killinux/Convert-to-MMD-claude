@@ -353,6 +353,13 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
 
         # 切回 OBJECT 模式（权重分配由步骤2.5统一完成）
         bpy.ops.object.mode_set(mode='OBJECT')
+        # 隐藏技术骨 (MMD 惯例): 肩C 是 cancel 骨, 通过 付与親 抵消 肩P 旋转,
+        # 用户不应直接操作, 因此在 pose mode 隐藏 (只有 edit mode 能看到)。
+        # 肩P / ダミー 虽然也是控制骨但用户需要能看到/选中, 保持 hide=False。
+        for n in ("肩C.L", "肩C.R"):
+            b = obj.data.bones.get(n)
+            if b:
+                b.hide = True
         self.report({'INFO'}, f"Bone completion finished: created {len(created_bones)}, updated {len(updated_bones)}")
 
         return {'FINISHED'}

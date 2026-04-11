@@ -352,6 +352,22 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
 
         bpy.ops.object.mode_set(mode='OBJECT')
 
+        # 设置 hide 标志: MMD 惯例
+        #   main (腕捩/手捩): hide=False (用户可见可操作)
+        #   sub  (腕捩1/2/3 / 手捩1/2/3): hide=True (付与親 自动驱动, 不应直接操作)
+        # 注意: rename 来的候选骨 (xtra07pp / foretwist) 常因 XPS 导入时 "unused "
+        # 前缀导致 hide=True 被继承, 必须显式重置。
+        for plan in plans:
+            main_name = _side_name(plan["main_base"], side_fmt, plan["side"])
+            mb = obj.data.bones.get(main_name)
+            if mb:
+                mb.hide = False
+            for i in range(1, len(plan["sub_ts"]) + 1):
+                sub_name = _side_name(f"{plan['main_base']}{i}", side_fmt, plan["side"])
+                sb = obj.data.bones.get(sub_name)
+                if sb:
+                    sb.hide = True
+
         print(f"[CTMMD 2.1] Done: renamed {len(renamed)}, created {len(created)}")
         for r in renamed:
             print(f"[CTMMD 2.1]   Renamed: {r}")
