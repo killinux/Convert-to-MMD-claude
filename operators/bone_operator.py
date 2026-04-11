@@ -5,26 +5,37 @@ from .. import bone_utils
 from .. import preset_operator
 
 
-def _split_chain_weights(obj, src_name, dst_name, seg_from_name, seg_to_name):
+def _split_chain_weights(
+    obj, src_name, dst_name, seg_from_name, seg_to_name,
+    perp_threshold=1.5,
+):
     """PMXEditor 风格两骨沿段插值: 把 src_name 顶点组按沿
     (seg_from_name.head → seg_to_name.head) 段的 t 位置线性分摊到 dst_name。
         k = clamp(t, 0, 1)
         src_new = w * (1 - k)
         dst_new += w * k
+
+    鲁棒性过滤: 计算顶点到段的垂直距离 perp, 只有
+        perp / seg_length <= perp_threshold
+    的顶点参与分权, 否则保持原样。这避免 XPS 源里"衣服/下摆"等远离骨本体
+    但错误挂在同一骨上的顶点被污染 (其他模型可能把 肩.L 重用到装饰上)。
+    默认阈值 1.5 ≈ 允许顶点在段长 1.5 倍范围内, 对 肩→腕 / 上半身段 足够宽松
+    同时能排除明显跨身体污染。
+
     典型用法:
       - ("上半身2", "上半身3", "上半身2", "首"):  插入上半身3 中间骨后分权
       - ("肩.L",   "腕.L",    "肩.L",    "腕.L"):  腋窝区 肩→腕 平滑过渡
-    返回处理的顶点数。
+    返回 (处理顶点数, 被 perp 过滤的顶点数)。
     """
     src_b = obj.data.bones.get(seg_from_name)
     dst_b = obj.data.bones.get(seg_to_name)
     if not src_b or not dst_b:
-        return 0
+        return (0, 0)
     seg_from = src_b.head_local
     seg_to = dst_b.head_local
     seg = seg_to - seg_from
     if seg.length_squared < 1e-9:
-        return 0
+        return (0, 0)
     meshes = [
         m for m in bpy.data.objects
         if m.type == 'MESH' and any(
@@ -37,8 +48,10 @@ def _split_chain_weights(obj, src_name, dst_name, seg_from_name, seg_to_name):
     seg_w = seg_to_w - seg_from_w
     seg_len_sq_w = seg_w.length_squared
     if seg_len_sq_w < 1e-9:
-        return 0
+        return (0, 0)
+    perp_limit_sq = (perp_threshold * perp_threshold) * seg_len_sq_w
     moved = 0
+    filtered = 0
     for m in meshes:
         src_vg = m.vertex_groups.get(src_name)
         if not src_vg:
@@ -59,9 +72,15 @@ def _split_chain_weights(obj, src_name, dst_name, seg_from_name, seg_to_name):
             if src_w <= 0:
                 continue
             v_w = mesh_mw @ v.co
-            t = (v_w - seg_from_w).dot(seg_w) / seg_len_sq_w
+            rel = v_w - seg_from_w
+            t = rel.dot(seg_w) / seg_len_sq_w
             t = max(0.0, min(1.0, t))
             if t <= 0:
+                continue
+            # 垂直距离² = |rel|² - (t·|seg|)²  (rel 已投影到段上)
+            perp_sq = rel.length_squared - t * t * seg_len_sq_w
+            if perp_sq > perp_limit_sq:
+                filtered += 1
                 continue
             k = t
             new_src = src_w * (1.0 - k)
@@ -75,7 +94,7 @@ def _split_chain_weights(obj, src_name, dst_name, seg_from_name, seg_to_name):
             if new_dst > 1e-6:
                 dst_vg.add([v_idx], new_dst, 'REPLACE')
             moved += 1
-    return moved
+    return (moved, filtered)
 
 
 def _split_upper_body_3_weights(obj):
@@ -88,6 +107,9 @@ def _split_shoulder_to_arm_weights(obj, side):
     return _split_chain_weights(
         obj, f"肩.{side}", f"腕.{side}", f"肩.{side}", f"腕.{side}"
     )
+
+
+
 
 class OBJECT_OT_rename_to_mmd(bpy.types.Operator):
     """将选定的骨骼重命名为 MMD 格式"""
@@ -449,18 +471,18 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
         # 线性分摊给 上半身3, 使 VMD 的 上半身3 键帧真正生效。不跑这步的话
         # 上半身3 在 conv 里会是零权重空骨, target PMX 约 10900 verts 挂在这个骨上。
         if "上半身3" in created_bones:
-            n_split = _split_upper_body_3_weights(obj)
-            print(f"[CTMMD 2] 上半身3 auto-weight: {n_split} verts split from 上半身2")
+            n_split, n_filt = _split_upper_body_3_weights(obj)
+            print(f"[CTMMD 2] 上半身3 auto-weight: {n_split} verts split from 上半身2 ({n_filt} filtered by perp)")
 
         # 腋窝平滑: 把 肩.L/R 沿 肩→腕 段的顶点线性分摊给 腕.L/R, 让靠近 腕 那端的
         # 顶点跟随上臂旋转, 消除 XPS 源单骨硬绑定的肩-腕折痕 (在抬手姿态最明显)。
         # target PMX 的腋窝顶点几乎全部同时挂 肩+腕+上半身3, 这个分权把 conv 的
-        # 单骨分布向目标的多骨混权靠拢。
+        # 单骨分布向目标的多骨混权靠拢。perp 过滤保证跨身体污染的顶点不参与。
         for side in ("L", "R"):
             if f"肩.{side}" in obj.data.bones and f"腕.{side}" in obj.data.bones:
-                n = _split_shoulder_to_arm_weights(obj, side)
-                if n > 0:
-                    print(f"[CTMMD 2] 腋窝 肩→腕.{side} auto-weight: {n} verts split")
+                n, n_filt = _split_shoulder_to_arm_weights(obj, side)
+                if n > 0 or n_filt > 0:
+                    print(f"[CTMMD 2] 腋窝 肩→腕.{side} auto-weight: {n} verts split ({n_filt} filtered by perp)")
 
         self.report({'INFO'}, f"Bone completion finished: created {len(created_bones)}, updated {len(updated_bones)}")
 
