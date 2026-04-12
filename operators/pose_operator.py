@@ -383,7 +383,7 @@ class OBJECT_OT_align_arms_to_reference(bpy.types.Operator):
         if canon:
             # canonical doesn't have wrist_dir, pad with None
             padded = {s: (u, f, None) for s, (u, f) in canon.items()}
-            return ("canonical:Purifier Inase 18", padded)
+            return ("canonical:MMD standard A-pose", padded)
         return None
 
     def _build_plan(self, obj, side, ref_upper_dir, ref_fore_dir, ref_wrist_dir=None):

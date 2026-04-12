@@ -19,7 +19,7 @@ TWIST_SEGMENTS = [
     ("ひじ", "手首", "手捩", 3, 0.60, (0.25, 0.50, 0.75)),
 ]
 
-TWIST_BONE_LENGTH = 0.082   # 参考 target PMX: 1.0 PMX unit in XPS scale (export ×12)
+TWIST_BONE_LENGTH_RATIO = 0.48  # sub twist 显示长度 = 段长 × 此比例 (原 0.082 / ~0.17 段长)
 PERP_THRESHOLD_RATIO = 0.3  # 候选骨 head 到段的垂直距离 < 段长 * 比率 才算命中段
 T_RANGE = (-0.1, 1.2)       # 允许 head 投影稍微超出 [0,1]
 Z_UP = Vector((0, 0, 1))    # MMD twist/控制骨显示方向惯例: 沿 +Z 长度 1
@@ -302,13 +302,14 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
             # 沿段移动不影响扭转几何 (点绕轴旋转与轴上 pivot 无关)。候选原 XPS 位置
             # 与标准 t 位置的差异主要沿段方向, 垂直分量很小, 扭转时无明显顶点漂移。
             seg_unit = seg_dir.normalized()
+            twist_bone_len = seg_len * TWIST_BONE_LENGTH_RATIO
             for slot_idx, (slot_name, t) in enumerate(zip(slot_names, all_ts)):
                 head = seg_from_eb.head + t * seg_dir
                 if slot_idx == 0:
                     # main twist: tail 精确对齐父臂 tail (= 子关节 head), 消除 rest gap
                     tail = seg_to_eb.head.copy()
                 else:
-                    tail = head + Z_UP * TWIST_BONE_LENGTH       # sub: +Z
+                    tail = head + Z_UP * twist_bone_len           # sub: +Z
                 cand_name = plan["assignment"].get(slot_idx)
                 cand_eb = edit_bones.get(cand_name) if cand_name else None
                 if cand_eb:
