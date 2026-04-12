@@ -401,12 +401,14 @@ class OBJECT_OT_use_mmd_tools_convert(bpy.types.Operator):
                     pb.lock_rotation[2] = True
         print("[CTMMD convert] Re-applied lock_rotation on twist bones")
 
-        # 把 mmd_bone 元数据 (additional_transform / fixed_axis) 物化为 Blender bone
-        # constraint 链。convert_to_mmd_model() 只设属性, 不创建 viewport constraint;
-        # 没有这一步, 腕捩1/2/3 等 sub twist 子骨在 Blender 视口里完全是死的, 挂在它们
-        # 上面的 vert 永远停在 rest pose, VMD 播放时上臂没有 twist 渐变。
-        # mmd_tools.import_model 会自动跑这一步, convert_to_mmd_model 不会, 所以 XPS 转
-        # 路径必须显式追加。会创建 _shadow_腕捩X / _dummy_腕捩X + TRANSFORM constraint。
+        # 把 mmd_bone 元数据 (additional_transform / fixed_axis) 物化为 Blender
+        # constraint 链。涵盖所有设了 additional_transform_bone 的骨:
+        #   - D骨 (足D/ひざD/足首D): shadow/dummy + TRANSFORM (influence=1.0)
+        #   - 腰キャンセル: shadow/dummy + TRANSFORM (influence=-1.0, 反转)
+        #   - 肩C: shadow/dummy + TRANSFORM (influence=-1.0)
+        #   - twist 子骨 (腕捩1-3/手捩1-3): shadow/dummy + TRANSFORM
+        # 对齐良好的骨对 (如 D骨与源骨同位), mmd_tools 会跳过 shadow/dummy
+        # 直接用 TRANSFORM constraint 指向源骨 (优化路径)。
         try:
             bpy.ops.mmd_tools.apply_additional_transform()
             print("[CTMMD convert] Applied additional_transform constraints")
