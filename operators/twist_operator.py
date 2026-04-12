@@ -129,20 +129,23 @@ def _scan_candidates(armature, mesh_objects, segment_name_pair, side):
         return [], seg_from_ws, seg_to_ws
 
     exclude = _mmd_target_names()
-    # 排除手指/脚趾相关骨: 不应该是 twist 候选
+    # 排除手指相关骨: 不应该是 twist 候选
     # DAZ 的 lCarpal1-4 是 lForearmBend 的直接子骨（和 lHand 平级），
     # 位于手首附近 t≈1.0，会被误识别为前臂 twist。
-    # 策略: 找到段终端骨 (手首/ひじ) 的兄弟骨及其所有子骨，全部排除。
+    # 策略: 排除段终端骨 (手首) 的子骨链 + 手首兄弟中「有手指子骨」的骨。
+    # 不能排除所有兄弟，否则上臂 twist (lShldrTwist) 也会被误排除。
     hand_bones = set()
     seg_to_bone = armature.data.bones.get(seg_to_name)
     if seg_to_bone:
-        # 排除手首自身的子骨链
         for child in seg_to_bone.children_recursive:
             hand_bones.add(child.name)
-        # 排除手首兄弟骨（同父）及其子骨链（如 lCarpal1-4）
+        # 排除手首兄弟中「自身有子骨的」(如 lCarpal1→lIndex1)
+        # 真正的 twist 骨（lShldrTwist/lForearmTwist）通常是叶骨无子骨
         if seg_to_bone.parent:
             for sibling in seg_to_bone.parent.children:
-                if sibling.name != seg_to_bone.name and sibling.name != seg_from_name:
+                if sibling.name == seg_to_bone.name or sibling.name == seg_from_name:
+                    continue
+                if len(sibling.children) > 0:
                     hand_bones.add(sibling.name)
                     for child in sibling.children_recursive:
                         hand_bones.add(child.name)
