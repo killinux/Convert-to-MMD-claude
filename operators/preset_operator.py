@@ -186,6 +186,9 @@ class OBJECT_OT_setup_pmx_attributes(bpy.types.Operator):
                     axes = main_pb.bone.matrix_local.to_3x3().transposed()
                     main_pb.mmd_bone.enabled_fixed_axis = True
                     main_pb.mmd_bone.fixed_axis = axes[1].xzy
+                    # 锁定 X/Z 旋转，只允许绕 Y 轴 twist（与 mmd_tools build_rig 行为一致）
+                    main_pb.lock_rotation[0] = True
+                    main_pb.lock_rotation[2] = True
                     twist_main += 1
                 for i, inf in TWIST_INFLUENCE.items():
                     sub_name = f"{base}{i}{suffix}"
