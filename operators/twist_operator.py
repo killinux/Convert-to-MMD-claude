@@ -380,10 +380,14 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
                 arm_name = _side_name(base_arm, side_fmt, side)
                 # 只在 twist main 是从 rename 候选来的情况下才交换
                 if not any(f"-> {twist_name}" in r for r in renamed):
+                    print(f"[CTMMD 2.1]   Swap skip: {twist_name} not in renamed {renamed}")
                     continue
+                print(f"[CTMMD 2.1]   Swap check: {arm_name} <-> {twist_name}, meshes={len(mesh_objects)}")
                 for mesh in mesh_objects:
                     vg_arm = mesh.vertex_groups.get(arm_name)
                     vg_twist = mesh.vertex_groups.get(twist_name)
+                    vg_names = [vg.name for vg in mesh.vertex_groups]
+                    print(f"[CTMMD 2.1]     {mesh.name}: arm_vg={arm_name in vg_names} twist_vg={twist_name in vg_names}")
                     if not vg_arm and not vg_twist:
                         continue
                     tmp_name = f"__swap_tmp_{side}"
