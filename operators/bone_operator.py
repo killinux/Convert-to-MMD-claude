@@ -284,6 +284,17 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
         upper_body_head = upper_body_bone.head.copy()
         upper_body_tail = upper_body_bone.tail.copy()
 
+        # 计算体型参考量，用于将 fallback 偏移改为比例值（通用化）
+        _head_b = edit_bones.get('頭')  # 頭
+        _ankle_b = edit_bones.get('足首.L') or edit_bones.get('足首.R')  # 足首
+        _neck_b = edit_bones.get('首')  # 首
+        if _head_b and _ankle_b:
+            body_height = _head_b.head.z - _ankle_b.head.z
+        else:
+            body_height = 1.35  # Inase 基准 fallback
+        spine_len = (_neck_b.head.z - upper_body_head.z) if _neck_b else body_height * 0.3
+        ctrl_bone_len = body_height * 0.06  # 控制骨显示长度 (原 0.082 @ body_height=1.35)
+
         # 提前读取上半身链各骨骼（edit模式下读取原始位置）
         upper1_bone = edit_bones.get("上半身1")
         upper2_bone = edit_bones.get("上半身2")
@@ -291,7 +302,7 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
         head_bone = edit_bones.get("頭")
 
         # 上半身 tail 指向上半身1的原始 head（保持 XPS 原始关节位置不变）
-        upper_tail_z = upper1_bone.head.z if upper1_bone else upper_body_head.z + 0.15
+        upper_tail_z = upper1_bone.head.z if upper1_bone else upper_body_head.z + spine_len * 0.37
 
         # 计算上半身3的位置：
         # head 对齐到上半身2的 tail，tail 对齐到首的 head，保持骨骼链连续
@@ -299,8 +310,8 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
             upper3_head = Vector((0, upper2_bone.tail.y, upper2_bone.tail.z))  # head → 上半身2 tail
             upper3_tail = Vector((0, neck_bone.head.y, neck_bone.head.z))       # tail → 首 head
         else:
-            upper3_head = Vector((0, upper_body_head.y, upper_body_head.z + 0.30))
-            upper3_tail = Vector((0, upper_body_head.y, upper_body_head.z + 0.45))
+            upper3_head = Vector((0, upper_body_head.y, upper_body_head.z + spine_len * 0.75))
+            upper3_tail = Vector((0, upper_body_head.y, upper_body_head.z + spine_len * 1.12))
 
         # 首1 位置：插入首和頭之间，确保非零长度
         if neck_bone and head_bone:
@@ -312,64 +323,64 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
             neck1_tail = head_head_pos.copy()
             # 如果中间点和頭.head太近（<0.01），手动偏移
             if (neck1_tail - neck1_head).length < 0.01:
-                neck1_head = Vector((0, head_head_pos.y, head_head_pos.z - 0.05))
+                neck1_head = Vector((0, head_head_pos.y, head_head_pos.z - spine_len * 0.12))
                 neck1_tail = head_head_pos.copy()
         elif neck_bone:
             neck1_head = neck_bone.tail.copy()
-            neck1_tail = Vector((0, neck_bone.tail.y, neck_bone.tail.z + 0.08))
+            neck1_tail = Vector((0, neck_bone.tail.y, neck_bone.tail.z + spine_len * 0.20))
         else:
-            neck1_head = Vector((0, upper_body_head.y, upper_body_head.z + 0.50))
-            neck1_tail = Vector((0, upper_body_head.y, upper_body_head.z + 0.58))
+            neck1_head = Vector((0, upper_body_head.y, upper_body_head.z + spine_len * 1.25))
+            neck1_tail = Vector((0, upper_body_head.y, upper_body_head.z + spine_len * 1.45))
 
         # 定义基本骨骼的属性
         bone_properties = {
-            "操作中心": {"head": Vector((0, 0, 0)), "tail": Vector((0, 0, 0.15)), "parent": None, "use_deform": False, "use_connect": False},
-            "全ての親": {"head": Vector((0, 0, 0)), "tail": Vector((0, 0, 0.3)), "parent": None, "use_deform": False, "use_connect": False},
-            "センター": {"head": Vector((0, 0, 0.8)), "tail": Vector((0, 0, 0.6)), "parent": "全ての親", "use_deform": False, "use_connect": False},
-            "グルーブ": {"head": Vector((0, 0, 0.8)), "tail": Vector((0, 0, 0.9)), "parent": "センター", "use_deform": False, "use_connect": False},
-            "腰": {"head": Vector((0, upper_body_head.y + 0.1, upper_body_head.z - 0.12)), "tail": Vector((0, upper_body_head.y, upper_body_head.z)),
+            "操作中心": {"head": Vector((0, 0, 0)), "tail": Vector((0, 0, body_height * 0.11)), "parent": None, "use_deform": False, "use_connect": False},
+            "全ての親": {"head": Vector((0, 0, 0)), "tail": Vector((0, 0, body_height * 0.22)), "parent": None, "use_deform": False, "use_connect": False},
+            "センター": {"head": Vector((0, 0, upper_body_head.z * 0.75)), "tail": Vector((0, 0, upper_body_head.z * 0.56)), "parent": "全ての親", "use_deform": False, "use_connect": False},
+            "グルーブ": {"head": Vector((0, 0, upper_body_head.z * 0.75)), "tail": Vector((0, 0, upper_body_head.z * 0.84)), "parent": "センター", "use_deform": False, "use_connect": False},
+            "腰": {"head": Vector((0, upper_body_head.y + spine_len * 0.25, upper_body_head.z - spine_len * 0.30)), "tail": Vector((0, upper_body_head.y, upper_body_head.z)),
                 "parent": "グルーブ", "use_deform": False, "use_connect": False},
             "上半身": {"head": Vector((0, upper_body_head.y, upper_body_head.z)),
                 "tail": Vector((0, upper_body_head.y, upper_tail_z)),
                 "parent": "腰", "use_connect": False},
             "上半身1": {
-                "head": Vector((0, upper1_bone.head.y, upper1_bone.head.z)) if upper1_bone else Vector((0, upper_body_head.y, upper_body_head.z + 0.15)),
-                "tail": Vector((0, upper2_bone.head.y, upper2_bone.head.z)) if upper2_bone else Vector((0, upper_body_head.y, upper_body_head.z + 0.20)),
+                "head": Vector((0, upper1_bone.head.y, upper1_bone.head.z)) if upper1_bone else Vector((0, upper_body_head.y, upper_body_head.z + spine_len * 0.37)),
+                "tail": Vector((0, upper2_bone.head.y, upper2_bone.head.z)) if upper2_bone else Vector((0, upper_body_head.y, upper_body_head.z + spine_len * 0.50)),
                 "parent": "上半身", "use_connect": False},
-            "上半身2": {"head": Vector((0, upper2_bone.head.y, upper2_bone.head.z)) if upper2_bone else Vector((0, upper_body_head.y, upper_body_head.z+0.20)),
-                "tail": Vector((0, upper2_bone.head.y, upper2_bone.head.z+0.15)) if upper2_bone else Vector((0, upper_body_head.y, upper_body_head.z+0.35)),
+            "上半身2": {"head": Vector((0, upper2_bone.head.y, upper2_bone.head.z)) if upper2_bone else Vector((0, upper_body_head.y, upper_body_head.z + spine_len * 0.50)),
+                "tail": Vector((0, upper2_bone.head.y, upper2_bone.head.z + spine_len * 0.37)) if upper2_bone else Vector((0, upper_body_head.y, upper_body_head.z + spine_len * 0.87)),
                 "parent": "上半身1", "use_connect": False},
             "上半身3": {"head": upper3_head, "tail": upper3_tail, "parent": "上半身2", "use_connect": False, "use_deform": True},
             "首": {
-                "head": edit_bones["首"].head.copy() if edit_bones.get("首") else Vector((0, upper_body_head.y, upper_body_head.z + 0.45)),
+                "head": edit_bones["首"].head.copy() if edit_bones.get("首") else Vector((0, upper_body_head.y, upper_body_head.z + spine_len * 1.12)),
                 "tail": neck1_head,
                 "parent": "上半身3", "use_connect": False, "use_deform": True
             },
             # 上肢骨骼链（安全访问，缺失时跳过）
-            "下半身": {"head": Vector((0, upper_body_head.y, upper_body_head.z)), "tail": Vector((0, upper_body_head.y, upper_body_head.z - 0.15)), "parent": "腰", "use_connect": False}
+            "下半身": {"head": Vector((0, upper_body_head.y, upper_body_head.z)), "tail": Vector((0, upper_body_head.y, upper_body_head.z - spine_len * 0.37)), "parent": "腰", "use_connect": False}
         }
 
         # 动态添加上肢骨骼（安全访问，缺失时跳过）
         limb_defs = [
             # 両目: display-only 控制骨 (parent=頭), 目.L/R 仍直接 parent=頭 (对齐 target PMX 约定)
             ("両目", ["目.L", "目.R", "頭"], lambda: {
-                "head": (edit_bones["目.L"].head + edit_bones["目.R"].head) / 2 + Vector((0, -0.05, 0.04)),
-                "tail": (edit_bones["目.L"].head + edit_bones["目.R"].head) / 2 + Vector((0, -0.10, 0.04)),
+                "head": (edit_bones["目.L"].head + edit_bones["目.R"].head) / 2 + Vector((0, -body_height * 0.037, body_height * 0.03)),
+                "tail": (edit_bones["目.L"].head + edit_bones["目.R"].head) / 2 + Vector((0, -body_height * 0.074, body_height * 0.03)),
                 "parent": "頭", "use_deform": False, "use_connect": False}),
             ("目.L", ["目.L", "頭"], lambda: {"head": edit_bones["目.L"].head, "tail": edit_bones["目.L"].tail, "parent": "頭", "use_connect": False}),
             ("目.R", ["目.R", "頭"], lambda: {"head": edit_bones["目.R"].head, "tail": edit_bones["目.R"].tail, "parent": "頭", "use_connect": False}),
             # 肩P.L/R: 肩的父骨骼, head 与 肩 同位置, tail +Z (MMD 惯例: 控制骨显示朝上)
             # 长度 0.082 XPS unit ≈ 1.0 PMX unit (export scale=12)
-            ("肩P.L", ["肩.L"], lambda: {"head": edit_bones["肩.L"].head, "tail": edit_bones["肩.L"].head + Vector((0, 0, 0.082)), "parent": "上半身3", "use_deform": False, "use_connect": False}),
-            ("肩P.R", ["肩.R"], lambda: {"head": edit_bones["肩.R"].head, "tail": edit_bones["肩.R"].head + Vector((0, 0, 0.082)), "parent": "上半身3", "use_deform": False, "use_connect": False}),
+            ("肩P.L", ["肩.L"], lambda: {"head": edit_bones["肩.L"].head, "tail": edit_bones["肩.L"].head + Vector((0, 0, ctrl_bone_len)), "parent": "上半身3", "use_deform": False, "use_connect": False}),
+            ("肩P.R", ["肩.R"], lambda: {"head": edit_bones["肩.R"].head, "tail": edit_bones["肩.R"].head + Vector((0, 0, ctrl_bone_len)), "parent": "上半身3", "use_deform": False, "use_connect": False}),
             # 肩.L/R: parent 改为肩P, 保留原 head/tail
             ("肩.L",  ["肩.L", "腕.L"],  lambda: {"head": edit_bones["肩.L"].head, "tail": edit_bones["腕.L"].head, "parent": "肩P.L", "use_connect": False}),
             ("肩.R",  ["肩.R", "腕.R"],  lambda: {"head": edit_bones["肩.R"].head, "tail": edit_bones["腕.R"].head, "parent": "肩P.R", "use_connect": False}),
             # 肩C.L/R: 肩的キャンセル骨. head = 肩 tail = 腕 head (同一点), tail +Z
             # 注意: 腕 和 肩C 共享 head 不是 tail! 以前版本用 use_connect=True + 小 tail 偏移
             # 的做法会把 腕.head snap 到 肩C.tail, 导致 腕 原位置被拉偏 0.03 单位。
-            ("肩C.L", ["肩.L", "腕.L"], lambda: {"head": edit_bones["腕.L"].head, "tail": edit_bones["腕.L"].head + Vector((0, 0, 0.082)), "parent": "肩.L", "use_deform": False, "use_connect": False}),
-            ("肩C.R", ["肩.R", "腕.R"], lambda: {"head": edit_bones["腕.R"].head, "tail": edit_bones["腕.R"].head + Vector((0, 0, 0.082)), "parent": "肩.R", "use_deform": False, "use_connect": False}),
+            ("肩C.L", ["肩.L", "腕.L"], lambda: {"head": edit_bones["腕.L"].head, "tail": edit_bones["腕.L"].head + Vector((0, 0, ctrl_bone_len)), "parent": "肩.L", "use_deform": False, "use_connect": False}),
+            ("肩C.R", ["肩.R", "腕.R"], lambda: {"head": edit_bones["腕.R"].head, "tail": edit_bones["腕.R"].head + Vector((0, 0, ctrl_bone_len)), "parent": "肩.R", "use_deform": False, "use_connect": False}),
             # 腕: parent = 肩C, use_connect=False (不要被 snap 到 肩C.tail)
             ("腕.L",  ["腕.L", "ひじ.L"], lambda: {"head": edit_bones["腕.L"].head, "tail": edit_bones["ひじ.L"].head, "parent": "肩C.L", "use_connect": False}),
             ("腕.R",  ["腕.R", "ひじ.R"], lambda: {"head": edit_bones["腕.R"].head, "tail": edit_bones["ひじ.R"].head, "parent": "肩C.R", "use_connect": False}),
@@ -377,27 +388,27 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
             ("ひじ.L", ["ひじ.L"],         lambda: {"head": edit_bones["ひじ.L"].head, "tail": edit_bones.get("手首.L").head if edit_bones.get("手首.L") else edit_bones["ひじ.L"].tail, "parent": "腕.L", "use_connect": False}),
             ("ひじ.R", ["ひじ.R"],         lambda: {"head": edit_bones["ひじ.R"].head, "tail": edit_bones.get("手首.R").head if edit_bones.get("手首.R") else edit_bones["ひじ.R"].tail, "parent": "腕.R", "use_connect": False}),
             # 腰キャンセル骨：抵消下半身旋转，腿部骨骼挂在这下面
-            ("腰キャンセル.L", ["足.L"], lambda: {"head": edit_bones["足.L"].head, "tail": Vector((edit_bones["足.L"].head.x, edit_bones["足.L"].head.y, edit_bones["足.L"].head.z + 0.05)), "parent": "下半身", "use_connect": False, "use_deform": False}),
-            ("腰キャンセル.R", ["足.R"], lambda: {"head": edit_bones["足.R"].head, "tail": Vector((edit_bones["足.R"].head.x, edit_bones["足.R"].head.y, edit_bones["足.R"].head.z + 0.05)), "parent": "下半身", "use_connect": False, "use_deform": False}),
+            ("腰キャンセル.L", ["足.L"], lambda: {"head": edit_bones["足.L"].head, "tail": Vector((edit_bones["足.L"].head.x, edit_bones["足.L"].head.y, edit_bones["足.L"].head.z + ctrl_bone_len * 0.6)), "parent": "下半身", "use_connect": False, "use_deform": False}),
+            ("腰キャンセル.R", ["足.R"], lambda: {"head": edit_bones["足.R"].head, "tail": Vector((edit_bones["足.R"].head.x, edit_bones["足.R"].head.y, edit_bones["足.R"].head.z + ctrl_bone_len * 0.6)), "parent": "下半身", "use_connect": False, "use_deform": False}),
             # 腿部骨骼：parent 挂到腰キャンセル
             ("足.L",  ["足.L", "ひざ.L"],  lambda: {"head": edit_bones["足.L"].head, "tail": edit_bones["ひざ.L"].head, "parent": "腰キャンセル.L", "use_connect": False}),
             ("足.R",  ["足.R", "ひざ.R"],  lambda: {"head": edit_bones["足.R"].head, "tail": edit_bones["ひざ.R"].head, "parent": "腰キャンセル.R", "use_connect": False}),
             ("ひざ.L", ["ひざ.L", "足首.L"], lambda: {"head": edit_bones["ひざ.L"].head, "tail": edit_bones["足首.L"].head, "parent": "足.L", "use_connect": False}),
             ("ひざ.R", ["ひざ.R", "足首.R"], lambda: {"head": edit_bones["ひざ.R"].head, "tail": edit_bones["足首.R"].head, "parent": "足.R", "use_connect": False}),
-            ("足首.L", ["足首.L"],           lambda: {"head": edit_bones["足首.L"].head, "tail": edit_bones["つま先.L"].head.copy() if edit_bones.get("つま先.L") else Vector((edit_bones["足首.L"].head.x, edit_bones["足首.L"].head.y - 0.1, 0)), "parent": "ひざ.L", "use_connect": False}),
-            ("足首.R", ["足首.R"],           lambda: {"head": edit_bones["足首.R"].head, "tail": edit_bones["つま先.R"].head.copy() if edit_bones.get("つま先.R") else Vector((edit_bones["足首.R"].head.x, edit_bones["足首.R"].head.y - 0.1, 0)), "parent": "ひざ.R", "use_connect": False}),
+            ("足首.L", ["足首.L"],           lambda: {"head": edit_bones["足首.L"].head, "tail": edit_bones["つま先.L"].head.copy() if edit_bones.get("つま先.L") else Vector((edit_bones["足首.L"].head.x, edit_bones["足首.L"].head.y - body_height * 0.074, 0)), "parent": "ひざ.L", "use_connect": False}),
+            ("足首.R", ["足首.R"],           lambda: {"head": edit_bones["足首.R"].head, "tail": edit_bones["つま先.R"].head.copy() if edit_bones.get("つま先.R") else Vector((edit_bones["足首.R"].head.x, edit_bones["足首.R"].head.y - body_height * 0.074, 0)), "parent": "ひざ.R", "use_connect": False}),
             # つま先: parent=足首
             ("つま先.L", ["つま先.L"], lambda: {"head": edit_bones["つま先.L"].head, "tail": edit_bones["つま先.L"].tail, "parent": "足首.L", "use_connect": False}),
             ("つま先.R", ["つま先.R"], lambda: {"head": edit_bones["つま先.R"].head, "tail": edit_bones["つま先.R"].tail, "parent": "足首.R", "use_connect": False}),
             # ダミー.L/R: MMD 手首末端配饰挂点骨, 无权重无付与親, parent=手首
             # head 位于 手首 head 稍往手方向偏移一点, tail 再沿同方向延伸
             ("ダミー.L", ["手首.L"], lambda: {
-                "head": edit_bones["手首.L"].head + (edit_bones["手首.L"].tail - edit_bones["手首.L"].head).normalized() * 0.082,
-                "tail": edit_bones["手首.L"].head + (edit_bones["手首.L"].tail - edit_bones["手首.L"].head).normalized() * 0.164,
+                "head": edit_bones["手首.L"].head + (edit_bones["手首.L"].tail - edit_bones["手首.L"].head).normalized() * ctrl_bone_len,
+                "tail": edit_bones["手首.L"].head + (edit_bones["手首.L"].tail - edit_bones["手首.L"].head).normalized() * ctrl_bone_len * 2,
                 "parent": "手首.L", "use_deform": False, "use_connect": False}),
             ("ダミー.R", ["手首.R"], lambda: {
-                "head": edit_bones["手首.R"].head + (edit_bones["手首.R"].tail - edit_bones["手首.R"].head).normalized() * 0.082,
-                "tail": edit_bones["手首.R"].head + (edit_bones["手首.R"].tail - edit_bones["手首.R"].head).normalized() * 0.164,
+                "head": edit_bones["手首.R"].head + (edit_bones["手首.R"].tail - edit_bones["手首.R"].head).normalized() * ctrl_bone_len,
+                "tail": edit_bones["手首.R"].head + (edit_bones["手首.R"].tail - edit_bones["手首.R"].head).normalized() * ctrl_bone_len * 2,
                 "parent": "手首.R", "use_deform": False, "use_connect": False}),
             # 手指0骨 (指根): 手首と指1の中間に作成，指1をre-parent
             ("人指０.L", ["手首.L", "人指１.L"], lambda: {"head": (edit_bones["手首.L"].head + edit_bones["人指１.L"].head) / 2, "tail": edit_bones["人指１.L"].head, "parent": "手首.L", "use_connect": False}),

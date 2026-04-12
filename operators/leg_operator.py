@@ -78,6 +78,18 @@ PRESERVE_HELPER_KEYWORDS = (
 # per-vertex 拆分时的候选集限制（备用，当前 SPLIT_BONES 为空）。
 SPLIT_BONE_TARGETS = {}
 
+def _body_height(armature):
+    """计算体高 (頭.head.z - 足首.L.head.z)，用于将绝对阈值改为体高比例。
+    返回 Blender 单位的体高。如果找不到骨骼则返回 1.35 (Inase 基准值)。"""
+    head_bone = armature.data.bones.get('頭')
+    ankle_bone = armature.data.bones.get('足首.L') or armature.data.bones.get('足首.R')
+    if head_bone and ankle_bone:
+        h = (armature.matrix_world @ head_bone.head_local).z
+        a = (armature.matrix_world @ ankle_bone.head_local).z
+        return max(h - a, 0.1)  # 防止除零
+    return 1.35  # fallback: Inase 基准
+
+
 def _point_to_segment_dist(point, seg_head, seg_tail):
     """计算点到线段的最近距离"""
     seg = seg_tail - seg_head
@@ -211,7 +223,7 @@ class OBJECT_OT_complete_d_bones(bpy.types.Operator):
             else:
                 # fallback: 足首D tail + forward offset
                 ex_head = ankle_d_eb.tail.copy()
-                ex_tail = ex_head + Vector((0, -0.05, 0))
+                ex_tail = ex_head + Vector((0, -_body_height(obj) * 0.037, 0))
             bone_utils.create_or_update_bone(edit_bones, ex_name, ex_head, ex_tail,
                 use_connect=False, parent_name=ankle_d_name, use_deform=True)
             print(f"[CTMMD 3]   Created: {ex_name:<12} parent={ankle_d_name}")
@@ -255,6 +267,8 @@ class OBJECT_OT_complete_hip_cancel_bones(bpy.types.Operator):
             self.report({'ERROR'}, "Lower body bone not found. Run Step 2 first.")
             return {'CANCELLED'}
 
+
+        body_h = _body_height(obj)
         print("[CTMMD 4] ===== Step 4: Create Hip Cancel Bones =====")
         created = 0
         log = []
@@ -305,7 +319,7 @@ class OBJECT_OT_complete_hip_cancel_bones(bpy.types.Operator):
 
 MMD_BONE_NAMES = set(bone_map_and_group.mmd_bone_map.values())
 
-def _guess_side(bone, mesh_objects):
+def _guess_side(bone, mesh_objects, body_height=1.35):
     """根据骨骼下顶点的平均 X 坐标判断左右侧. 返 'L'/'R'/None"""
     x_vals = []
     for mesh in mesh_objects:
@@ -315,14 +329,15 @@ def _guess_side(bone, mesh_objects):
         for v in mesh.data.vertices:
             for g in v.groups:
                 if g.group == vg.index and g.weight > 0:
-                    # 转换到世界坐标取 X
                     x_vals.append((mesh.matrix_world @ v.co).x)
     if not x_vals:
         return None
     avg_x = sum(x_vals) / len(x_vals)
-    if avg_x > 0.01:
+    # 阈值基于体高的 0.7%（Inase 基准: 1.35 × 0.007 ≈ 0.01）
+    side_threshold = body_height * 0.007
+    if avg_x > side_threshold:
         return 'L'
-    if avg_x < -0.01:
+    if avg_x < -side_threshold:
         return 'R'
     return None
 
@@ -395,6 +410,9 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
         if not mesh_objects:
             self.report({"ERROR"}, "No skinned mesh objects found")
             return {'CANCELLED'}
+
+        # 计算体高，用于将所有距离阈值改为比例值（通用化）
+        body_h = _body_height(obj)
 
         print("[CTMMD 5] ===== Step 5: Unified Weight Assignment =====")
         print("[CTMMD 5] -- 5.1: unused -> main bones --")
@@ -477,7 +495,7 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
                 print(f"[CTMMD 5] [WARN] {bone.name:<30} no candidate, skipped")
                 skipped_count += 1
                 continue
-            src_side = _guess_side(bone, mesh_objects)
+            src_side = _guess_side(bone, mesh_objects, body_h)
             if best_dist >= self.DISTANCE_THRESHOLD:
                 vcount = sum(
                     1 for mesh in mesh_objects
@@ -523,7 +541,7 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
                                 filtered = same_side
 
                         # Z上限过滤：臀部顶点(Z超过腿骨顶端+0.05)不进腿骨
-                        HIP_TOLERANCE = 0.05
+                        HIP_TOLERANCE = body_h * 0.037
                         z_filtered = [(n, h, t) for n, h, t in filtered
                                       if not (_is_leg_bone(n) and vw.z > max(h.z, t.z) + HIP_TOLERANCE)]
                         if z_filtered:
@@ -531,7 +549,7 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
 
                         # Z下限过滤（通用保底）：顶点Z低于上半身头部+0.07时不进上半身系列
                         # 主要防止其他模型的臀部顶点因X偏移被上半身吸走
-                        UPPER_BODY_FLOOR = 0.07
+                        UPPER_BODY_FLOOR = body_h * 0.052
                         UPPER_BODY_KEYWORDS = {"上半身", "上半身1", "上半身2", "上半身3"}
                         ub_floor_filtered = []
                         for n, h, t in filtered:
@@ -631,7 +649,7 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
             print(f"[CTMMD 5]   {cancel_name}: cleared {cleared} vertex weights (constraint-driven bone)")
 
         print("[CTMMD 5] ===== Phase 4: Fix Stray Weights =====")
-        stray_threshold = 0.25
+        stray_threshold = body_h * 0.185
         stray_fixed_total = 0
 
         target_bones_ws = []
@@ -780,9 +798,7 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
 
 
 
-# 目标 PMX 分析得出的参数(单位: Blender units = PMX坐标 / 12.2)
-UPPER3_HEAD_Z = 1.3118          # 上半身3骨骼 head Z(硬切割阈值)
-UPPER3_BLEND_START_Z = 1.2725   # 目标PMX中上半身3权重开始出现的Z(渐变起点)
+# 上半身3 权重分配参数（从实际骨骼位置动态读取，不再硬编码绝对 Z 坐标）
 UPPER3_SOURCE_BONES = ["上半身", "上半身1", "上半身2", "上半身3"]
 UPPER3_TARGET_BONE = "上半身3"
 
@@ -795,8 +811,8 @@ class OBJECT_OT_assign_upper3_weights(bpy.types.Operator):
     mode: bpy.props.EnumProperty(
         name="模式",
         items=[
-            ('HARD_CUT', '硬切', 'Z > 1.3118 的顶点权重全部移入上半身3'),
-            ('PROPORTIONAL', '渐变过渡', '在过渡区 Z=[1.2725,1.3118] 内线性混合'),
+            ('HARD_CUT', '硬切', '上半身3.head 以上的的顶点权重全部移入上半身3'),
+            ('PROPORTIONAL', '渐变过渡', '在过渡区 上半身2.tail ~ 上半身3.head 内线性混合'),
         ],
         default='HARD_CUT'
     )
@@ -818,14 +834,29 @@ class OBJECT_OT_assign_upper3_weights(bpy.types.Operator):
             self.report({"ERROR"}, "No skinned mesh objects found")
             return {'CANCELLED'}
 
+        # 从实际骨骼位置读取 Z 坐标（不再硬编码 1.3118 / 1.2725）
+        upper3_bone = obj.data.bones.get('上半身3')
+        upper2_bone = obj.data.bones.get('上半身2')
+        if not upper3_bone:
+            self.report({"ERROR"}, "上半身3 bone not found")
+            return {'CANCELLED'}
+
+
+        body_h = _body_height(obj)
+        UPPER3_HEAD_Z = (obj.matrix_world @ upper3_bone.head_local).z
+        if upper2_bone:
+            UPPER3_BLEND_START_Z = (obj.matrix_world @ upper2_bone.tail_local).z
+        else:
+            UPPER3_BLEND_START_Z = UPPER3_HEAD_Z - _body_height(obj) * 0.03
+
         mode_label = "硬切" if self.mode == 'HARD_CUT' else "渐变过渡"
         print(f"[CTMMD 2.6] ===== Upper Body 3 Weight Assignment ({mode_label}) =====")
         print(f"[CTMMD 2.6]   Source bones: {UPPER3_SOURCE_BONES}")
         print(f"[CTMMD 2.6]   Target bone: {UPPER3_TARGET_BONE}")
         if self.mode == 'HARD_CUT':
-            print(f"[CTMMD 2.6]   Cut line: Z > {UPPER3_HEAD_Z}")
+            print(f"[CTMMD 2.6]   Cut line: Z > {UPPER3_HEAD_Z:.4f}")
         else:
-            print(f"[CTMMD 2.6]   Blend zone: Z=[{UPPER3_BLEND_START_Z}, {UPPER3_HEAD_Z}], above = 100% to upper body 3")
+            print(f"[CTMMD 2.6]   Blend zone: Z=[{UPPER3_BLEND_START_Z:.4f}, {UPPER3_HEAD_Z:.4f}]")
 
         total_transferred = 0
         total_vertices = 0
@@ -989,6 +1020,8 @@ class OBJECT_OT_assign_weights_phase2(bpy.types.Operator):
             self.report({'ERROR'}, "No skinned mesh objects found")
             return {'CANCELLED'}
 
+
+        body_h = _body_height(obj)
         print("[CTMMD 5.1] ===== Phase 2: unused bones -> target bones (per-vertex) =====")
         all_unused_names = {b.name for b in obj.data.bones if b.name.startswith("unused ")}
         unused_bones = [
@@ -1048,7 +1081,7 @@ class OBJECT_OT_assign_weights_phase2(bpy.types.Operator):
                 print(f"[CTMMD 5.1] [WARN] {bone.name:<30} no candidate, skipped")
                 skipped_count += 1
                 continue
-            src_side = _guess_side(bone, mesh_objects)
+            src_side = _guess_side(bone, mesh_objects, body_h)
 
             if best_dist >= self.DISTANCE_THRESHOLD:
                 # 超阈值：跳过自动处理，记录到 fallback_warnings 提示人工处理
@@ -1098,14 +1131,14 @@ class OBJECT_OT_assign_weights_phase2(bpy.types.Operator):
                                 filtered = same_side
 
                         # Z上限过滤：臀部顶点(Z超过腿骨顶端+0.05)不进腿骨
-                        HIP_TOLERANCE = 0.05
+                        HIP_TOLERANCE = body_h * 0.037
                         z_filtered = [(n, h, t) for n, h, t in filtered
                                       if not (_is_leg_bone(n) and vw.z > max(h.z, t.z) + HIP_TOLERANCE)]
                         if z_filtered:
                             filtered = z_filtered
 
                         # Z下限过滤（通用保底）：顶点Z低于上半身头部+0.07时不进上半身系列
-                        UPPER_BODY_FLOOR = 0.07
+                        UPPER_BODY_FLOOR = body_h * 0.052
                         UPPER_BODY_KEYWORDS = {"上半身", "上半身1", "上半身2", "上半身3"}
                         ub_floor_filtered = []
                         for n, h, t in filtered:
