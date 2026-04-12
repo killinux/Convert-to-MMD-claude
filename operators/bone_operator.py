@@ -502,6 +502,9 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
                 # 跳过 MMD 标准骨名
                 if eb.name in ("上半身", "下半身"):
                     continue
+                # 跳过 XPS 辅助骨 (unused/boob 等, 应保持原始 parent)
+                if eb.name.startswith("unused ") or "boob" in eb.name.lower():
+                    continue
                 # 只 reparent Z 位置低于下半身 head 的骨（胯部区域）
                 # 跳过胸部骨 (boob 等, Z 高于下半身)
                 if eb.head.z > hip_z:
