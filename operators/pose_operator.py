@@ -498,3 +498,94 @@ class OBJECT_OT_align_arms_to_reference(bpy.types.Operator):
             return {'CANCELLED'}
         self.report({'INFO'}, f"手臂对齐完成 ({len(all_plans)} 处), 参考: {ref_name}")
         return {'FINISHED'}
+
+
+# MMD 手指骨名: (根骨, 第1節, 第2節, 第3節)
+_FINGER_CHAINS = [
+    ("親指０", "親指１", "親指２"),
+    ("人指１", "人指２", "人指３"),
+    ("中指１", "中指２", "中指３"),
+    ("薬指１", "薬指２", "薬指３"),
+    ("小指１", "小指２", "小指３"),
+]
+
+
+class OBJECT_OT_align_fingers_to_reference(bpy.types.Operator):
+    """可選修正: 把 active 骨架的手指方向対齐到 scene 中的参考骨架。
+    每根手指的第一段 (指１) 方向対齐到参考, 烘焙到 rest pose。"""
+    bl_idname = "object.align_fingers_to_reference"
+    bl_label = "可選: 対齐手指到参考骨架"
+    bl_description = "把手指方向対齐到参考骨架, 烘焙为新 rest pose"
+
+    ANGLE_THRESHOLD_DEG = 1.0
+
+    def _find_ref_armature(self, active):
+        """Find another armature in scene that has MMD finger bones."""
+        for o in bpy.data.objects:
+            if o.type != 'ARMATURE' or o is active:
+                continue
+            if o.data.bones.get("人指１.L") and o.data.bones.get("人指１.R"):
+                return o
+        return None
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'ARMATURE':
+            self.report({'ERROR'}, "请先选中骨架")
+            return {'CANCELLED'}
+        if not apply_armature_transforms(context):
+            self.report({'ERROR'}, "apply_armature_transforms 失败")
+            return {'CANCELLED'}
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        ref = self._find_ref_armature(obj)
+        if not ref:
+            self.report({'ERROR'}, "未找到含手指骨的参考骨架")
+            return {'CANCELLED'}
+        print(f"[CTMMD align-fingers] active={obj.name}  reference={ref.name}")
+
+        plans = []
+        for side in ("L", "R"):
+            for chain in _FINGER_CHAINS:
+                # 只对齐第一段方向 (根 → 第1節)
+                root_name = f"{chain[0]}.{side}"
+                tip_name = f"{chain[1]}.{side}"
+
+                conv_root = obj.data.bones.get(root_name)
+                conv_tip = obj.data.bones.get(tip_name)
+                ref_root = ref.data.bones.get(root_name)
+                ref_tip = ref.data.bones.get(tip_name)
+
+                if not all([conv_root, conv_tip, ref_root, ref_tip]):
+                    continue
+
+                conv_dir = (conv_tip.head_local - conv_root.head_local)
+                ref_dir = (ref_tip.head_local - ref_root.head_local)
+                if conv_dir.length < 1e-6 or ref_dir.length < 1e-6:
+                    continue
+                conv_dir = conv_dir.normalized()
+                ref_dir = ref_dir.normalized()
+
+                angle = conv_dir.angle(ref_dir)
+                if angle < math.radians(self.ANGLE_THRESHOLD_DEG):
+                    continue
+
+                axis = conv_dir.cross(ref_dir)
+                if axis.length < 1e-6:
+                    continue
+                axis.normalize()
+
+                pivot = conv_root.head_local.copy()
+                plans.append((root_name, pivot, axis, angle))
+                print(f"[CTMMD align-fingers] {side}: {root_name} 旋转 {math.degrees(angle):.2f}°")
+
+        if not plans:
+            self.report({'INFO'}, "手指方向已接近参考, 无需修正")
+            return {'FINISHED'}
+
+        result = _bake_pose_delta_to_rest(context, obj, plans, "CTMMD align-fingers")
+        if result != 'FINISHED':
+            self.report({'ERROR'}, "烘焙到 rest pose 失败")
+            return {'CANCELLED'}
+        self.report({'INFO'}, f"手指对齐完成 ({len(plans)} 处)")
+        return {'FINISHED'}

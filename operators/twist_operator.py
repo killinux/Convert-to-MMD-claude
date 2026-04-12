@@ -596,3 +596,130 @@ class OBJECT_OT_split_upper_arm_twist_weights(bpy.types.Operator):
 
         self.report({'INFO'}, f"上臂 twist 权重渐变完成: {total_verts} 个顶点已插值分裂")
         return {'FINISHED'}
+
+
+class OBJECT_OT_split_forearm_twist_weights(bpy.types.Operator):
+    """可选: 把 ひじ.L/R 前腕段的顶点权重按沿臂 t 位置做双骨线性插值分裂。
+
+    5 个 anchor:
+      t=0.00  ひじ.L     (0%)
+      t=0.25  手捩1.L   (25%)
+      t=0.50  手捩2.L   (50%)
+      t=0.75  手捩3.L   (75%)
+      t=1.00  手捩.L    (100% main)
+
+    建议在 assign_weights + split_upper_arm 之后运行。"""
+    bl_idname = "object.split_forearm_twist_weights"
+    bl_label = "可选: 前腕 twist 权重渐变"
+    bl_description = "双骨插值: ひじ.L 顶点沿 t 过渡到 手捩1/2/3/手捩 main"
+
+    ELBOW_DEAD_ZONE = 0.05
+
+    def _anchors(self, side):
+        return [
+            (0.00, f"ひじ.{side}"),
+            (0.25, f"手捩1.{side}"),
+            (0.50, f"手捩2.{side}"),
+            (0.75, f"手捩3.{side}"),
+            (1.00, f"手捩.{side}"),
+        ]
+
+    def _bracket(self, t, anchors):
+        t = max(0.0, min(1.0, t))
+        for i in range(len(anchors) - 1):
+            t_lo, n_lo = anchors[i]
+            t_hi, n_hi = anchors[i + 1]
+            if t_lo <= t <= t_hi:
+                span = t_hi - t_lo
+                k = (t - t_lo) / span if span > 0 else 0.0
+                return (t_lo, n_lo), (t_hi, n_hi), k
+        return anchors[-2], anchors[-1], 1.0
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'ARMATURE':
+            self.report({'ERROR'}, "请先选中骨架")
+            return {'CANCELLED'}
+
+        meshes = [m for m in bpy.data.objects if m.type == 'MESH'
+                  and any(mod.type == 'ARMATURE' and mod.object == obj for mod in m.modifiers)]
+        if not meshes:
+            self.report({'ERROR'}, "未找到绑定该骨架的 mesh")
+            return {'CANCELLED'}
+
+        total_verts = 0
+        per_slot_add = {}
+        per_slot_verts = {}
+        for side in ("L", "R"):
+            elbow_bone = obj.data.bones.get(f"ひじ.{side}")
+            wrist_bone = obj.data.bones.get(f"手首.{side}")
+            if not elbow_bone or not wrist_bone:
+                continue
+
+            seg_head_w = obj.matrix_world @ elbow_bone.head_local
+            seg_end_w = obj.matrix_world @ wrist_bone.head_local
+            seg = seg_end_w - seg_head_w
+            seg_len_sq = seg.length_squared
+            if seg_len_sq < 1e-9:
+                continue
+
+            anchors = self._anchors(side)
+            source_name = f"ひじ.{side}"
+            all_bone_names = [n for _, n in anchors]
+
+            for m in meshes:
+                src_vg = m.vertex_groups.get(source_name)
+                if not src_vg:
+                    continue
+                vgs = {}
+                for name in all_bone_names:
+                    if name not in m.vertex_groups:
+                        m.vertex_groups.new(name=name)
+                    vgs[name] = m.vertex_groups[name]
+
+                mesh_mw = m.matrix_world
+                plans = []
+                for v in m.data.vertices:
+                    src_w = next((g.weight for g in v.groups if g.group == src_vg.index), 0.0)
+                    if src_w <= 0:
+                        continue
+                    existing = {}
+                    for name, vg in vgs.items():
+                        if name == source_name:
+                            continue
+                        for g in v.groups:
+                            if g.group == vg.index:
+                                existing[name] = g.weight
+                                break
+                    v_world = mesh_mw @ v.co
+                    t = (v_world - seg_head_w).dot(seg) / seg_len_sq
+                    if t < self.ELBOW_DEAD_ZONE:
+                        continue
+                    (t_lo, n_lo), (t_hi, n_hi), k = self._bracket(t, anchors)
+                    plans.append((v.index, n_lo, src_w * (1.0 - k), n_hi, src_w * k, existing))
+
+                for v_idx, n_lo, w_lo, n_hi, w_hi, existing in plans:
+                    if n_lo == source_name:
+                        if w_lo > 0:
+                            vgs[n_lo].add([v_idx], w_lo, 'REPLACE')
+                        else:
+                            src_vg.remove([v_idx])
+                    else:
+                        vgs[n_lo].add([v_idx], existing.get(n_lo, 0.0) + w_lo, 'REPLACE')
+                    if w_hi > 0:
+                        vgs[n_hi].add([v_idx], existing.get(n_hi, 0.0) + w_hi, 'REPLACE')
+                    if n_lo != source_name:
+                        src_vg.remove([v_idx])
+                    if n_lo != source_name and w_lo > 0:
+                        per_slot_add[n_lo] = per_slot_add.get(n_lo, 0.0) + w_lo
+                        per_slot_verts[n_lo] = per_slot_verts.get(n_lo, 0) + 1
+                    if w_hi > 0:
+                        per_slot_add[n_hi] = per_slot_add.get(n_hi, 0.0) + w_hi
+                        per_slot_verts[n_hi] = per_slot_verts.get(n_hi, 0) + 1
+                    total_verts += 1
+
+        for slot in sorted(per_slot_add.keys()):
+            print(f"[CTMMD fore-twist-split] {slot}: +{per_slot_verts[slot]} verts, wsum +{per_slot_add[slot]:.2f}")
+        print(f"[CTMMD fore-twist-split] 处理顶点总数: {total_verts}")
+        self.report({'INFO'}, f"前腕 twist 权重渐变完成: {total_verts} 个顶点已插值分裂")
+        return {'FINISHED'}
