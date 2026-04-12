@@ -29,38 +29,60 @@ To test the addon, open Blender with an armature object selected and use the "Co
 - `bone_utils.py` — low-level bone helpers: `create_or_update_bone()` (works in EDIT mode), `set_roll_values()`, `apply_armature_transforms()`. Also defines `DEFAULT_ROLL_VALUES` for standard MMD bone roll angles.
 
 ### UI
-`ui_panel.py` — single panel `OBJECT_PT_skeleton_hierarchy` drawn in the View3D sidebar. Contains inner layout helper functions (`add_bone_row_with_button`, `add_symmetric_bones_with_buttons`, `add_finger_bones_with_buttons`) that render prop_search fields paired with fill-from-selection buttons. Also contains `OBJECT_OT_load_preset` operator.
+`ui_panel.py` — single panel `OBJECT_PT_skeleton_hierarchy` drawn in the View3D sidebar.
 
 Two tabs via `my_enum`:
-- **骨骼映射** (option1): preset selector, bone mapping fields, import/export, action buttons (rename → complete → add IK → create groups → mmd_tools convert)
+- **骨骼映射** (option1): preset selector, bone mapping fields, import/export, action buttons
 - **骨骼清理** (option2): utility operators for removing unweighted bones and merging single-child bones
 
 ### Operators (`operators/`)
-Each file is a self-contained operator module:
 
-| File | Operators | Key behavior |
+| File | Key operators | Key behavior |
 |------|-----------|--------------|
-| `preset_operator.py` | export/import preset, fill-from-selection, mmd_tools convert | `get_bones_list()` derives the scene property list from `mmd_bone_map` |
-| `bone_operator.py` | rename to MMD, complete missing bones | Rename reads scene props → renames edit bones; complete works in EDIT mode and hard-codes bone hierarchy/positions relative to existing bones |
-| `ik_operator.py` | add MMD IK | Creates 6 IK bones (足IK親, 足ＩＫ, つま先ＩＫ for each side) in EDIT mode, then switches to POSE mode to add IK/rotation-limit/damped-track constraints |
-| `collection_operator.py` | create bone group | Uses `mmd_bone_group` data to create Blender bone collections |
-| `pose_operator.py` | convert to A-pose | Rotates shoulder/arm bones from T-pose to A-pose |
-| `clear_unweighted_bones_operator.py` | clear unweighted bones, merge single-child bones | Cleanup utilities |
+| `bone_operator.py` | rename_to_mmd, complete_missing_bones | 骨骼重命名 + 补全层级 |
+| `twist_operator.py` | complete_twist_bones, split_upper/forearm_twist_weights | 位置识别 twist 候选骨 + VG 交换 + 梯度权重分配 |
+| `leg_operator.py` | complete_d/hip_cancel_bones, assign_weights (5.1-5.8) | D骨 + 腰キャンセル + 统一权重分配 |
+| `pose_operator.py` | align_arms/fingers_to_reference, fix_forearm_bend | rest pose 方向对齐（烘焙到 rest） |
+| `preset_operator.py` | setup_pmx_attributes, use_mmd_tools_convert | fixed_axis + lock_rotation + name_j + mmd_tools convert |
+| `ik_operator.py` | add_mmd_ik | 足IK + つま先IK 创建 + constraints |
+| `collection_operator.py` | create_bone_group | 骨骼集合分组 |
+| `face_operator.py` | cleanup_face_bones | XPS 面部细骨合并到頭 |
+| `physics_operator.py` | setup_physics, extract_physics_template | 物理模板导入导出 |
+| `clear_unweighted_bones_operator.py` | clear_unweighted_bones, merge_single_child | 清理工具 |
 
 ### Presets (`presets/`)
-JSON files mapping property names to bone names for common skeleton formats (Mixamo, VRM, DAZ, XNA, etc.). Loaded by `OBJECT_OT_load_preset` and the preset EnumProperty.
+JSON files mapping property names to bone names for common skeleton formats. `canonical_arm_dirs.json` 存储参考手臂方向用于 fallback 对齐。
 
-### Workflow order
-The intended user workflow matches the UI button numbering:
-1. Select preset or manually map bones in the UI
-2. **1. 重命名为MMD** — rename bones to MMD Japanese names
-3. **2. 补全缺失骨骼** — create/fix hierarchy bones (全ての親, センター, グルーブ, 腰, IK parents, etc.)
-4. **3. 添加MMD IK** — add IK bones and constraints
-5. **4. 创建骨骼集合** — assign bones to named collections
-6. **使用mmdtools转换格式** — call `mmd_tools.convert_to_mmd_model()` (requires separate mmd_tools addon)
+### Workflow order (完整 pipeline)
+```
+可选前置 (rename 之后):
+  fix_forearm_bend → align_arms_to_reference → align_fingers_to_reference
+
+主流程 (UI 按钮顺序):
+  1.  rename_to_mmd              2.  complete_missing_bones
+  2.1 complete_twist_bones       3.  complete_d_bones
+  4.  complete_hip_cancel_bones  4.5 cleanup_face_bones
+  5.  assign_weights (含 5.1-5.8, 包括 twist 梯度分配)
+  6.  add_mmd_ik                 7.  create_bone_group
+  8.  setup_pmx_attributes       使用mmdtools转换格式
+  9.  setup_physics (可选)
+```
 
 ### Mode switching
 Many operators switch Blender modes internally. `complete_missing_bones` and `add_ik` switch to EDIT mode. `add_ik` then switches to POSE mode to add constraints. Be careful when editing these operators that mode transitions happen in the correct order.
+
+## 姿态偏差排查顺序
+
+遇到转换后模型与目标姿态不一致时，严格按以下顺序排查，不要跳步：
+
+1. **方向偏差？** → 查 rest pose bone direction（`bone.matrix_local` Y/Z 轴），用 align 对齐
+2. **旋转行为不对？** → 查 `lock_rotation`、`constraints`，对比目标
+3. **控制范围不对？** → 查 vertex group 顶点数，看是否挂反或缺失
+4. **以上都排除后才考虑权重** → 优先用数学方法（梯度分配），不手动调
+
+**不要轻易切权重**。直接改权重容易引入新问题且难以回退。
+
+注意：`Bone.roll` 只能在 Edit Mode 下访问，Object/Pose Mode 下用 `bone.matrix_local.to_3x3().col[2]`（Z 轴）代替。
 
 ## Debugging rule: rotate parent, watch child follow
 
@@ -71,62 +93,29 @@ Many operators switch Blender modes internally. `complete_missing_bones` and `ad
 1. **bone evaluation chain (constraint / driver)**: 子骨能不能跟随父骨/付与親源骨旋转。这个层是 mmd_tools 创建的 `_shadow_*` / `_dummy_*` 骨 + TRANSFORM constraint 链。如果链断了, **即使权重 100% 正确, mesh 也不动**。
 2. **vertex weight (skinning)**: 哪些 vert 跟哪根骨, 各占多少权重。
 
-权重数据 (`vg.weight`) 的 audit 只验证第 2 层, **看不出第 1 层的故障**。第 1 层的故障表现是"骨的 local rotation 是 0°", 不是"权重错"。
-
 **强制诊断顺序**:
-1. **L4 命名**: bone.name 全扫一遍, 确认 VMD 能找到骨
-2. **L1 几何**: bone.head_local / x_axis 比对 target rest pose
-3. **L2 评估** ← 重点: 在 pose mode 直接旋转父骨, 看子骨是否跟随。不跟随 → constraint 缺失或 driver 没接上
-4. **L3 蒙皮**: 最后才看权重
+1. L4 命名: bone.name 全扫一遍, 确认 VMD 能找到骨
+2. L1 几何: bone.head_local / x_axis 比对 target rest pose
+3. L2 评估: 在 pose mode 直接旋转父骨, 看子骨是否跟随
+4. L3 蒙皮: 最后才看权重
 
-**触发 L2 调试的常见症状** (这些不是 L3 问题, 不要先猜权重):
-- "上臂扭曲" / "肩→肘段 mesh 不跟手臂动"
-- "腕捩.X 在 pose mode 控制的内容跟 target 不一样"
-- "VMD 播放时 twist 没渐变"
-
-**检查 L2 的 Python 一行**:
-```python
-import bpy; arm = bpy.data.objects['CONV_arm']
-print([(c.type, c.subtarget) for c in arm.pose.bones['腕捩1.L'].constraints])
-# target 应该有 [('TRANSFORM', '_shadow_腕捩1.L')]
-# 如果是 [] 就是 L2 故障 — constraint 链没生成
-```
-
-**根因**: `mmd_tools.convert_to_mmd_model()` 只设 mmd_bone 元数据, 不创建 viewport constraint。`mmd_tools.import_model()` 自动调用 `apply_additional_transform`, 但 convert 路径不调用。XPS → MMD 的 pipeline 末尾必须显式调用 `bpy.ops.mmd_tools.apply_additional_transform()` 一次, 不然所有 twist 子骨都是死骨。本项目这一步在 `OBJECT_OT_use_mmd_tools_convert` 末尾完成 (commit `c834b5c`)。
-
-详细原理 + 历史教训见 `doc/twist_debugging_lessons.md`。
+**根因**: `mmd_tools.convert_to_mmd_model()` 只设 mmd_bone 元数据, 不创建 viewport constraint。本项目在 `OBJECT_OT_use_mmd_tools_convert` 末尾显式调用 `apply_additional_transform` (commit `c834b5c`)。
 
 ## Remote Development (AWS + Mac Blender)
 
-本插件可通过 Blender Remote Bridge 进行远程开发和测试：
-
 - **代码位置（AWS）**：`/opt/mywork/mytest/Convert-to-MMD-claude/`
-- **Blender 运行在**：公司内网 Mac 上，插件已安装
-- **开发流程**：
-  1. 在 AWS 上修改插件代码
-  2. 用户在 Mac 上 pull 最新代码
-  3. Blender 中重新加载插件即可生效
-- **远程测试**：通过 Blender Remote Bridge 执行 Python 代码和截图
+- **开发流程**：AWS 修改 → push → Mac pull → Blender reload
+- **远程测试**：
   ```bash
-  cd /opt/mywork/mytest/bl/cli
-  BLENDER_RELAY_API_KEY=mysecretkey python cli.py exec "import bpy; ..."
-  BLENDER_RELAY_API_KEY=mysecretkey python cli.py screenshot
+  cd /opt/mywork/mytest/bl
+  BLENDER_RELAY_API_KEY=mysecretkey python cli/cli.py exec "import bpy; ..."
+  BLENDER_RELAY_API_KEY=mysecretkey python cli/cli.py screenshot
   ```
-- **不需要**从 AWS 推送文件到 Mac，用户自行 pull
 
 ## File sync (Windows 注意事项)
 
 `operators/` 下的文件含有中文字符串（日文骨骼名、中文注释）。在 Windows 上同步到 Blender AppData 时：
 
-**正确做法**：用项目根目录的同步脚本：
+**正确做法**：用项目根目录的同步脚本：`python sync_to_blender.py`
 
-```
-python sync_to_blender.py
-```
-
-这个脚本同步所有 `.py` 和 `presets/*.json`，并自动清除 `__pycache__`。
-
-**禁止用 PowerShell 操作含中文的 UTF-8 文件**：
-- `Add-Content` / `Set-Content` 在中文 Windows 默认用 GBK，会把 UTF-8 文件写坏
-- `Get-Content | Set-Content -Encoding UTF8` 也不行——读取阶段已经用 GBK 解码，写出的是二次损坏的内容
-- 即使加 `-Encoding UTF8`，PowerShell 写出的是带 BOM 的 UTF-8，Python 会报 `SyntaxError: invalid non-printable character U+FEFF`
+**禁止用 PowerShell 操作含中文的 UTF-8 文件**：PowerShell 默认 GBK 编码会损坏 UTF-8 文件。
