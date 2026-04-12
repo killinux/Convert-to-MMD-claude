@@ -60,31 +60,23 @@ FORCED_TARGETS = {
 # 需要 per-vertex 拆分的 unused 骨骼名称关键字。
 # 只有这些骨骼跨越两个区域（臀部+大腿），才需要逐顶点判断分配到哪根骨骼。
 # 其余 unused 骨骼一律使用整骨转移（质心找最近骨骼，全部顶点一起迁移）。
-SPLIT_BONES = {
-    "xtra08",     # 臀部外侧辅助: 跨臀部+大腿, 按顶点位置拆分
-    "xtra08opp",  # 同上, 对称侧
-    "xtra04",     # 胯部/大腿内侧辅助 (parent=thigh.L): 跨胯部+大腿
-    "xtra02",     # 同上, 对称侧 (parent=thigh.R)
-}
+SPLIT_BONES = set()  # 当前无需按顶点拆分的骨骼
 
 # 保留清单: 这些 unused 辅助骨不做 merge, 权重原地保留。
+# XPS 源模型给关节处加的辅助变形骨, 有自己的独特轴方向和权重分布。
+# 原则: 不要轻易切权重 (CLAUDE.md)。保留它们作为额外 deform bone,
+# 通过父链继承旋转, 得到与 XPS 一致的变形效果。
+# 足D 权重占比低 (2.7% vs 目标 15.1%) 是 mesh 密度差异, 不是 bug。
 PRESERVE_HELPER_KEYWORDS = (
+    "xtra04", "xtra02",       # 胯部/大腿内侧辅助 (parent=thigh), 853/850 verts
+    "xtra08", "xtra08opp",    # 臀部/大腿外侧辅助 (parent=pelvis), 1082/1228 verts
     "muscle_elbow",           # 肘部辅助, 权重量极小 (36v 级), 不参与 twist
     # 说明: xtra07/xtra07pp 及 foretwist 系列已被 twist 算法 (complete_twist_bones)
     # 按位置识别 rename 到 腕捩/手捩 系列, 不再出现在 unused 命名空间。
-    # 注: xtra04/xtra02/xtra08/xtra08opp 全部由 SPLIT_BONES 按顶点拆分,
-    # 不再保留为独立骨。胯部以上顶点→下半身, 以下→足.L/足.R。
 )
 
-# per-vertex 拆分时的候选集限制（不在此集合中的骨骼不参与竞争）。
-# 不配置时退回到全部 PHASE2_TARGETS。
-# 这些骨跨越臀部+大腿，顶点只应分给下半身或腿骨，绝不进上半身。
-SPLIT_BONE_TARGETS = {
-    "xtra08":    {"下半身", "足.L", "足.R", "ひざ.L", "ひざ.R"},
-    "xtra08opp": {"下半身", "足.L", "足.R", "ひざ.L", "ひざ.R"},
-    "xtra04":    {"下半身", "足.L", "足.R", "ひざ.L", "ひざ.R"},
-    "xtra02":    {"下半身", "足.L", "足.R", "ひざ.L", "ひざ.R"},
-}
+# per-vertex 拆分时的候选集限制（备用，当前 SPLIT_BONES 为空）。
+SPLIT_BONE_TARGETS = {}
 
 def _point_to_segment_dist(point, seg_head, seg_tail):
     """计算点到线段的最近距离"""
