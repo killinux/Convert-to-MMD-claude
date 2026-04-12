@@ -980,6 +980,44 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
         # 现在 step 5.1 通过 PRESERVE_HELPER_KEYWORDS 保留这些辅助骨不做 merge,
         # 权重原地保留, 从根本解决问题, Phase 7 已移除。
 
+        # ===== Phase 7: 交换腕.L ↔ 腕捩.L 权重 (如果源骨重合) =====
+        # XPS 的 xtra07pp/xtra07 被 twist_operator rename 成腕捩.L/R,
+        # 但这些骨和腕.L/R 完全重合 (head 相同), 它们的权重其实是"上臂"权重,
+        # 不是 MMD 的 twist 窄条权重。结果腕.L 和腕捩.L 的权重和目标恰好反了。
+        # 检测: 如果腕捩.L 和腕.L 的 rest head 距离 < 阈值, 说明是重合的源骨,
+        # 交换两者的 vertex group 名字来纠正映射。
+        print("[CTMMD 5] ===== Phase 7: Swap overlapping twist weights =====")
+        OVERLAP_THRESHOLD = 0.01  # rest head 距离阈值
+        swap_count = 0
+        for side in (".L", ".R"):
+            arm_name = f"腕{side}"
+            twist_name = f"腕捩{side}"
+            arm_bone = obj.data.bones.get(arm_name)
+            twist_bone = obj.data.bones.get(twist_name)
+            if not arm_bone or not twist_bone:
+                continue
+            dist = (arm_bone.head_local - twist_bone.head_local).length
+            if dist > OVERLAP_THRESHOLD:
+                print(f"[CTMMD 5]   {arm_name} <-> {twist_name}: dist={dist:.4f} > {OVERLAP_THRESHOLD}, skip")
+                continue
+            # 交换 vertex group 名字: 用临时名中转
+            for mesh in mesh_objects:
+                vg_arm = mesh.vertex_groups.get(arm_name)
+                vg_twist = mesh.vertex_groups.get(twist_name)
+                if not vg_arm and not vg_twist:
+                    continue
+                tmp_name = f"__swap_tmp_{side}"
+                if vg_arm:
+                    vg_arm.name = tmp_name
+                if vg_twist:
+                    vg_twist.name = arm_name
+                if vg_arm:
+                    vg_arm.name = twist_name
+            swap_count += 1
+            print(f"[CTMMD 5]   Swapped {arm_name} <-> {twist_name} (head dist={dist:.4f})")
+        if swap_count == 0:
+            print("[CTMMD 5]   No overlapping twist bones found, skip")
+
         print("[CTMMD 5] ===== Weight Assignment Complete =====")
         self.report({'INFO'}, f"Weight assignment complete: merged {merged_count} unused bones, fixed {stray_fixed_total} stray verts, removed {total_removed} lower-body verts, migrated {all_parent_migrated} 全ての親 verts")
         return {'FINISHED'}
