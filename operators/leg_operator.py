@@ -61,34 +61,29 @@ FORCED_TARGETS = {
 # 只有这些骨骼跨越两个区域（臀部+大腿），才需要逐顶点判断分配到哪根骨骼。
 # 其余 unused 骨骼一律使用整骨转移（质心找最近骨骼，全部顶点一起迁移）。
 SPLIT_BONES = {
-    "xtra08",     # 左侧：包含臀部(Z>1.05) + 大腿，需拆分给 下半身 + 左足
-    "xtra08opp",  # 右侧：同上
+    "xtra08",     # 臀部外侧辅助: 跨臀部+大腿, 按顶点位置拆分
+    "xtra08opp",  # 同上, 对称侧
+    "xtra04",     # 胯部/大腿内侧辅助 (parent=thigh.L): 跨胯部+大腿
+    "xtra02",     # 同上, 对称侧 (parent=thigh.R)
 }
 
 # 保留清单: 这些 unused 辅助骨不做 merge, 权重原地保留。
-# XPS 源模型常给关节处加辅助变形骨 (crotch helper/muscle_elbow 等), 这些骨骼
-# 有自己的独特轴方向 — 比如 xtra04 是"向上"指的, 专门做胯部变形, merge 到
-# 轴向下的 足.L 会让胯部权重旋转方向错反, 动画时出现剪切变形。
-# 这些骨骼的 XPS parent 已经是对应的主骨 (thigh/elbow 等), merge 反而丢信息。
-# 保留它们, 会作为额外的 deform bone 进入 PMX, 通过父链继承旋转, 得到与 XPS
-# 一致的变形效果。
 PRESERVE_HELPER_KEYWORDS = (
-    # 臀部辅助骨: 跨越臀部+大腿两个区域, 保留由 SPLIT_BONES 按顶点拆分。
-    "xtra08", "xtra08opp",    # 臀部/大腿外侧辅助 (parent=下半身)
     "muscle_elbow",           # 肘部辅助, 权重量极小 (36v 级), 不参与 twist
     # 说明: xtra07/xtra07pp 及 foretwist 系列已被 twist 算法 (complete_twist_bones)
     # 按位置识别 rename 到 腕捩/手捩 系列, 不再出现在 unused 命名空间。
-    # 注: xtra04/xtra02 (胯部/大腿内侧辅助, parent=thigh) 不再保留。
-    # 它们的权重在 5.1 合并到 足.L/足.R, 再由 5.2 转移到 足D.L/足D.R。
-    # 目标 PMX 中这些权重就在 足D 上, merge 后大腿权重比例从 2.7% 恢复到 ~15%。
+    # 注: xtra04/xtra02/xtra08/xtra08opp 全部由 SPLIT_BONES 按顶点拆分,
+    # 不再保留为独立骨。胯部以上顶点→下半身, 以下→足.L/足.R。
 )
 
 # per-vertex 拆分时的候选集限制（不在此集合中的骨骼不参与竞争）。
 # 不配置时退回到全部 PHASE2_TARGETS。
-# xtra08 系列是臀部+大腿辅助骨，顶点只应分给下半身或腿骨，绝不进上半身。
+# 这些骨跨越臀部+大腿，顶点只应分给下半身或腿骨，绝不进上半身。
 SPLIT_BONE_TARGETS = {
     "xtra08":    {"下半身", "足.L", "足.R", "ひざ.L", "ひざ.R"},
     "xtra08opp": {"下半身", "足.L", "足.R", "ひざ.L", "ひざ.R"},
+    "xtra04":    {"下半身", "足.L", "足.R", "ひざ.L", "ひざ.R"},
+    "xtra02":    {"下半身", "足.L", "足.R", "ひざ.L", "ひざ.R"},
 }
 
 def _point_to_segment_dist(point, seg_head, seg_tail):
