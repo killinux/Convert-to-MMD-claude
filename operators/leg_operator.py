@@ -980,6 +980,12 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
         # 现在 step 5.1 通过 PRESERVE_HELPER_KEYWORDS 保留这些辅助骨不做 merge,
         # 权重原地保留, 从根本解决问题, Phase 7 已移除。
 
+        # ===== Phase 7+8: twist 权重梯度分配 =====
+        print("[CTMMD 5] ===== Phase 7: Upper arm twist split =====")
+        bpy.ops.object.split_upper_arm_twist_weights()
+        print("[CTMMD 5] ===== Phase 8: Forearm twist split =====")
+        bpy.ops.object.split_forearm_twist_weights()
+
         print("[CTMMD 5] ===== Weight Assignment Complete =====")
         self.report({'INFO'}, f"Weight assignment complete: merged {merged_count} unused bones, fixed {stray_fixed_total} stray verts, removed {total_removed} lower-body verts, migrated {all_parent_migrated} 全ての親 verts")
         return {'FINISHED'}
