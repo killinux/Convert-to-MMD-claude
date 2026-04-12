@@ -667,7 +667,7 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
                 and obj.data.bones.get(vg.name)
                 and obj.data.bones[vg.name].use_deform
                 and vg.name not in LOWER_BODY_TARGETS
-                and not any(k in vg.name for k in ["足", "ひざ", "腰", "D."])
+                and not any(k in vg.name.lower() for k in ["足", "ひざ", "腰", "d.", "thightwist", "thigh_twist"])
             ]
 
             for vg in mmd_deform_vgs:
@@ -1287,7 +1287,7 @@ class OBJECT_OT_assign_weights_phase4(bpy.types.Operator):
                 and obj.data.bones.get(vg.name)
                 and obj.data.bones[vg.name].use_deform
                 and vg.name not in LOWER_BODY_TARGETS
-                and not any(k in vg.name for k in ["足", "ひざ", "腰", "D."])
+                and not any(k in vg.name.lower() for k in ["足", "ひざ", "腰", "d.", "thightwist", "thigh_twist"])
             ]
 
             for vg in mmd_deform_vgs:

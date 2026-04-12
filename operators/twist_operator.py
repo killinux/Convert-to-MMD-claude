@@ -129,10 +129,18 @@ def _scan_candidates(armature, mesh_objects, segment_name_pair, side):
         return [], seg_from_ws, seg_to_ws
 
     exclude = _mmd_target_names()
+    # 排除手指/脚趾骨: 从手首或足首往下的子骨链不应该是 twist 候选
+    # (DAZ 的 lCarpal1-4 在手首附近，会被误识别为前臂 twist)
+    hand_bones = set()
+    for hand_name in ("手首.L", "手首.R", "lHand", "rHand"):
+        hb = armature.data.bones.get(hand_name)
+        if hb:
+            for child in hb.children_recursive:
+                hand_bones.add(child.name)
     candidates = []
     for bone in armature.data.bones:
         name = bone.name
-        if name in exclude:
+        if name in exclude or name in hand_bones:
             continue
         if name.startswith("_"):
             continue  # skip mmd_tools dummy/shadow bones
