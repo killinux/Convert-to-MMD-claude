@@ -632,6 +632,40 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
                 cleared_bones.add(main_name)
                 print(f"[CTMMD 5]   {main_name} -> {d_name}  {total} verts, source cleared")
 
+        # Phase 2b: DAZ ThighTwist 等非标准残留 deform bone → 足D
+        # 这些骨不以 "unused " 开头，不被 Phase 5.1 处理，但 target PMX 没有它们。
+        # 权重应合并到对应的 D-bone（与 Phase 5.2 的 足→足D 类似）。
+        _STRAY_DEFORM_MERGE = {
+            "lThighTwist": "足D.L",
+            "rThighTwist": "足D.R",
+        }
+        for src_name, dst_name in _STRAY_DEFORM_MERGE.items():
+            src_bone = obj.data.bones.get(src_name)
+            if not src_bone or not src_bone.use_deform:
+                continue
+            if not any(_vg_has_weight(m, src_name) for m in mesh_objects):
+                continue
+            total_moved = 0
+            for mesh in mesh_objects:
+                src_vg = mesh.vertex_groups.get(src_name)
+                if not src_vg:
+                    continue
+                dst_vg = mesh.vertex_groups.get(dst_name) or mesh.vertex_groups.new(name=dst_name)
+                verts_to_clear = []
+                for v in mesh.data.vertices:
+                    src_w = next((g.weight for g in v.groups if g.group == src_vg.index), 0.0)
+                    if src_w <= 0.001:
+                        continue
+                    cur_dst = next((g.weight for g in v.groups if g.group == dst_vg.index), 0.0)
+                    dst_vg.add([v.index], min(cur_dst + src_w, 1.0), 'REPLACE')
+                    verts_to_clear.append(v.index)
+                    total_moved += 1
+                if verts_to_clear:
+                    src_vg.remove(verts_to_clear)
+            if total_moved > 0:
+                src_bone.use_deform = False
+                print(f"[CTMMD 5]   {src_name} -> {dst_name}  {total_moved} verts (stray deform merge)")
+
         print("[CTMMD 5] ===== Phase 3: Clear Hip Cancel Weights =====")
         for side_suffix in [".L", ".R"]:
             cancel_name = "腰キャンセル" + side_suffix
