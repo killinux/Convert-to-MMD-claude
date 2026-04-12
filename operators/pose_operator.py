@@ -178,16 +178,27 @@ class OBJECT_OT_convert_to_apose(bpy.types.Operator):
 
 
 def _find_arm_chain(obj, side):
-    """Return (shoulder_bone, elbow_bone, wrist_bone) name tuple by trying
-    XPS ('arm left/right shoulder 2/elbow/wrist') then MMD (腕/ひじ/手首 .L/.R).
+    """Return (shoulder_bone, elbow_bone, wrist_bone) name tuple.
+    Tries multiple naming conventions: XNA Lara, DAZ Genesis, Mixamo, MMD.
     Returns None if not found."""
     xps_side = "left" if side == "L" else "right"
+    lr = "l" if side == "L" else "r"
     candidates = [
+        # XNA Lara
         (f"arm {xps_side} shoulder 2", f"arm {xps_side} elbow", f"arm {xps_side} wrist"),
+        # DAZ Genesis 8
+        (f"{lr}ShldrBend", f"{lr}ForearmBend", f"{lr}Hand"),
+        # Mixamo
+        (f"mixamorig:{xps_side.capitalize()}Arm", f"mixamorig:{xps_side.capitalize()}ForeArm", f"mixamorig:{xps_side.capitalize()}Hand"),
+        # VRM / Unity humanoid
+        (f"Upper Arm.{side}", f"Lower Arm.{side}", f"Hand.{side}"),
+        (f"UpperArm_{side}", f"LowerArm_{side}", f"Hand_{side}"),
+        # MMD (post-rename)
         (f"腕.{side}", f"ひじ.{side}", f"手首.{side}"),
     ]
+    bones = obj.pose.bones if hasattr(obj, 'pose') and obj.pose else obj.data.bones
     for u, e, w in candidates:
-        if u in obj.pose.bones and e in obj.pose.bones and w in obj.pose.bones:
+        if u in bones and e in bones and w in bones:
             return u, e, w
     return None
 
@@ -195,7 +206,12 @@ def _find_arm_chain(obj, side):
 def _get_wrist_dir(obj, side):
     """Return wrist bone direction (head→tail) as armature-local unit Vector,
     or None if wrist bone not found."""
-    for name in (f"手首.{side}", f"arm {'left' if side == 'L' else 'right'} wrist"):
+    lr = "l" if side == "L" else "r"
+    xps_side = "left" if side == "L" else "right"
+    for name in (f"手首.{side}",
+                 f"arm {xps_side} wrist",
+                 f"{lr}Hand",
+                 f"mixamorig:{xps_side.capitalize()}Hand"):
         b = obj.data.bones.get(name)
         if b:
             d = b.tail_local - b.head_local
@@ -346,9 +362,9 @@ class OBJECT_OT_fix_forearm_bend(bpy.types.Operator):
 
 class OBJECT_OT_align_arms_to_reference(bpy.types.Operator):
     """可选修正: 把 active 骨架的上臂 + 前腕方向对齐到参考方向, 消除因 rest 臂方向
-    与 target 差异导致的 VMD 回放偏移。优先使用 scene 中另一个含 腕.L/R 的 armature
-    (比如导入的 target PMX) 作为参考; 找不到则 fallback 到 bundled 的 canonical
-    rest 方向 (presets/canonical_arm_dirs.json, 来自 Purifier Inase 18)。
+    与 target 差异导致的 VMD 回放偏移。优先使用 scene 中另一个 armature 作为参考;
+    找不到则 fallback 到标准 MMD A-pose (presets/canonical_arm_dirs.json)。
+    支持 XNA Lara / DAZ Genesis / Mixamo / VRM / MMD 等骨骼命名。
     执行后烘焙到 active 骨架的 rest pose。"""
     bl_idname = "object.align_arms_to_reference"
     bl_label = "可选: 对齐手臂到参考骨架"
