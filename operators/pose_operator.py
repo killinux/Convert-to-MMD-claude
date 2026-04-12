@@ -192,6 +192,18 @@ def _find_arm_chain(obj, side):
     return None
 
 
+def _get_wrist_dir(obj, side):
+    """Return wrist bone direction (head→tail) as armature-local unit Vector,
+    or None if wrist bone not found."""
+    for name in (f"手首.{side}", f"arm {'left' if side == 'L' else 'right'} wrist"):
+        b = obj.data.bones.get(name)
+        if b:
+            d = b.tail_local - b.head_local
+            if d.length > 1e-6:
+                return d.normalized()
+    return None
+
+
 def _bake_pose_delta_to_rest(context, obj, plans, log_tag):
     """Apply a list of (bone_name, pivot_world, axis_world, angle_rad) rotations
     to obj in pose mode and bake as new rest pose (mesh follows via duplicated
@@ -345,7 +357,7 @@ class OBJECT_OT_align_arms_to_reference(bpy.types.Operator):
     ANGLE_THRESHOLD_DEG = 0.5
 
     def _find_reference(self, active):
-        """Return (name, {side: (upper_dir, fore_dir) armature-local unit}) or None."""
+        """Return (name, {side: (upper_dir, fore_dir, wrist_dir_or_None)}) or None."""
         for o in bpy.data.objects:
             if o.type != 'ARMATURE' or o is active:
                 continue
@@ -362,18 +374,22 @@ class OBJECT_OT_align_arms_to_reference(bpy.types.Operator):
                     if upper.length < 1e-6 or fore.length < 1e-6:
                         ok = False
                         break
-                    dirs[side] = (upper.normalized(), fore.normalized())
+                    wrist_dir = _get_wrist_dir(o, side)
+                    dirs[side] = (upper.normalized(), fore.normalized(), wrist_dir)
                 if ok:
                     return (f"scene:{o.name}", dirs)
         # fallback: canonical preset
         canon = _load_canonical_arm_dirs()
         if canon:
-            return ("canonical:Purifier Inase 18", canon)
+            # canonical doesn't have wrist_dir, pad with None
+            padded = {s: (u, f, None) for s, (u, f) in canon.items()}
+            return ("canonical:Purifier Inase 18", padded)
         return None
 
-    def _build_plan(self, obj, side, ref_upper_dir, ref_fore_dir):
+    def _build_plan(self, obj, side, ref_upper_dir, ref_fore_dir, ref_wrist_dir=None):
         """Returns list of (bone_name, pivot_world, axis_world, angle_rad)
-        aligning conv upper arm to ref_upper_dir, then forearm to ref_fore_dir.
+        aligning conv upper arm to ref_upper_dir, then forearm to ref_fore_dir,
+        then optionally wrist to ref_wrist_dir.
         ref_*_dir are unit Vectors in armature-local space; we compare against
         conv's armature-local directions (works because active armature has
         transforms applied → matrix_world ≈ identity)."""
@@ -407,12 +423,43 @@ class OBJECT_OT_align_arms_to_reference(bpy.types.Operator):
 
         dir_conv_fore = (conv_w_new - conv_e_new).normalized()
         fore_angle = dir_conv_fore.angle(ref_fore_dir)
-        if fore_angle >= math.radians(self.ANGLE_THRESHOLD_DEG):
+        fore_axis = None
+        fore_angle_valid = fore_angle >= math.radians(self.ANGLE_THRESHOLD_DEG)
+        if fore_angle_valid:
             fore_axis = dir_conv_fore.cross(ref_fore_dir)
             if fore_axis.length > 1e-6:
                 fore_axis.normalize()
                 plans.append((e, conv_e_new.copy(), fore_axis, fore_angle))
                 print(f"[CTMMD align-ref] {side}: forearm {e} 旋转 {math.degrees(fore_angle):.2f}°")
+            else:
+                fore_angle_valid = False
+
+        # wrist direction alignment (hand orientation)
+        if ref_wrist_dir is not None:
+            conv_wrist_dir = _get_wrist_dir(obj, side)
+            if conv_wrist_dir is not None:
+                # predict wrist dir after previous rotations
+                if fore_angle_valid:
+                    R2 = Matrix.Rotation(fore_angle, 3, fore_axis)
+                    conv_wrist_dir = (R2 @ conv_wrist_dir).normalized()
+                if upper_angle_valid:
+                    R1 = Matrix.Rotation(upper_angle, 3, upper_axis)
+                    conv_wrist_dir = (R1 @ conv_wrist_dir).normalized()
+                # predict conv_w after both rotations
+                if fore_angle_valid:
+                    R2 = Matrix.Rotation(fore_angle, 3, fore_axis)
+                    conv_w_final = conv_e_new + R2 @ (conv_w_new - conv_e_new)
+                else:
+                    conv_w_final = conv_w_new
+
+                wrist_angle = conv_wrist_dir.angle(ref_wrist_dir)
+                if wrist_angle >= math.radians(self.ANGLE_THRESHOLD_DEG):
+                    wrist_axis = conv_wrist_dir.cross(ref_wrist_dir)
+                    if wrist_axis.length > 1e-6:
+                        wrist_axis.normalize()
+                        plans.append((w, conv_w_final.copy(), wrist_axis, wrist_angle))
+                        print(f"[CTMMD align-ref] {side}: wrist {w} 旋转 {math.degrees(wrist_angle):.2f}°")
+
         return plans
 
     def execute(self, context):
@@ -438,8 +485,8 @@ class OBJECT_OT_align_arms_to_reference(bpy.types.Operator):
                 continue
             if side not in ref_dirs:
                 continue
-            ref_upper, ref_fore = ref_dirs[side]
-            all_plans.extend(self._build_plan(obj, side, ref_upper, ref_fore))
+            ref_upper, ref_fore, ref_wrist = ref_dirs[side]
+            all_plans.extend(self._build_plan(obj, side, ref_upper, ref_fore, ref_wrist))
 
         if not all_plans:
             self.report({'INFO'}, f"已接近参考 (<{self.ANGLE_THRESHOLD_DEG}°), 无需修正")
