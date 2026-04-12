@@ -260,45 +260,66 @@ class OBJECT_OT_setup_pmx_attributes(bpy.types.Operator):
 
         print(f"[CTMMD 8] Set additional_transform for {at_count} bones")
 
-        # 设置 name_e (英文名): MMD 标准骨骼 → 英文名映射
-        NAME_E_MAP = {
-            "全ての親": "root", "操作中心": "view cnt", "センター": "center",
-            "グルーブ": "groove", "腰": "waist",
+        # 设置 name_e (英文名): 完整映射表，含 .L/.R 的全名直接映射
+        # 身体骨用 l/r 前缀 (XPS 风格), 控制骨用 _L/_R 后缀
+        # 目标 PMX 中 name_e 为空的骨不设置 (グルーブ, センター, 両目, 肩C, 腰キャンセル, twist 子骨, IK 骨等)
+        NAME_E_FULL = {
+            # 中心骨
+            "全ての親": "root", "操作中心": "view cnt", "腰": "waist",
             "上半身": "abdomenLower", "上半身1": "abdomenUpper",
             "上半身2": "chestLower", "上半身3": "chestUpper",
             "下半身": "hip", "首": "neckLower", "首1": "neckUpper", "頭": "head",
-            "両目": "eyes", "目": "eye",
-            "肩": "shoulder", "肩P": "shoulderP", "肩C": "shoulderC",
-            "腕": "arm", "腕捩": "arm twist",
-            "ひじ": "elbow", "手捩": "wrist twist",
-            "手首": "hand", "ダミー": "dummy",
-            "親指０": "thumb0", "親指１": "thumb1", "親指２": "thumb2",
-            "人指０": "fore0", "人指１": "fore1", "人指２": "fore2", "人指３": "fore3",
-            "中指０": "middle0", "中指１": "middle1", "中指２": "middle2", "中指３": "middle3",
-            "薬指０": "third0", "薬指１": "third1", "薬指２": "third2", "薬指３": "third3",
-            "小指０": "little0", "小指１": "little1", "小指２": "little2", "小指３": "little3",
-            "足": "leg", "ひざ": "knee", "足首": "ankle", "つま先": "toe",
-            "足D": "legD", "ひざD": "kneeD", "足首D": "ankleD", "足先EX": "toe2",
-            "足IK親": "leg IKP", "足ＩＫ": "leg IK", "つま先ＩＫ": "toe IK",
-            "腰キャンセル": "waist cancel",
-            "腕捩1": "arm twist1", "腕捩2": "arm twist2", "腕捩3": "arm twist3",
-            "手捩1": "wrist twist1", "手捩2": "wrist twist2", "手捩3": "wrist twist3",
-            "乳奶": "breast",
+            # 肩/腕 (l/r 前缀)
+            "肩.L": "lCollar", "肩.R": "rCollar",
+            "肩P.L": "shoulderP_L", "肩P.R": "shoulderP_R",
+            "腕.L": "lShldrBend", "腕.R": "rShldrBend",
+            "腕捩.L": "arm twist_L", "腕捩.R": "arm twist_R",
+            "ひじ.L": "lForearmBend", "ひじ.R": "rForearmBend",
+            "手捩.L": "wrist twist_L", "手捩.R": "wrist twist_R",
+            "手首.L": "lHand", "手首.R": "rHand",
+            "ダミー.L": "dummy_L", "ダミー.R": "dummy_R",
+            # 目
+            "目.L": "lEye", "目.R": "rEye",
+            # 指 (l/r 前缀)
+            "親指０.L": "lThumb1", "親指０.R": "rThumb1",
+            "親指１.L": "lThumb2", "親指１.R": "rThumb2",
+            "親指２.L": "lThumb3", "親指２.R": "rThumb3",
+            "人指０.L": "lCarpal1", "人指０.R": "rCarpal1",
+            "人指１.L": "lIndex1", "人指１.R": "rIndex1",
+            "人指２.L": "lIndex2", "人指２.R": "rIndex2",
+            "人指３.L": "lIndex3", "人指３.R": "rIndex3",
+            "中指０.L": "lCarpal2", "中指０.R": "rCarpal2",
+            "中指１.L": "lMid1", "中指１.R": "rMid1",
+            "中指２.L": "lMid2", "中指２.R": "rMid2",
+            "中指３.L": "lMid3", "中指３.R": "rMid3",
+            "薬指０.L": "lCarpal3", "薬指０.R": "rCarpal3",
+            "薬指１.L": "lRing1", "薬指１.R": "rRing1",
+            "薬指２.L": "lRing2", "薬指２.R": "rRing2",
+            "薬指３.L": "lRing3", "薬指３.R": "rRing3",
+            "小指０.L": "lCarpal4", "小指０.R": "rCarpal4",
+            "小指１.L": "lPinky1", "小指１.R": "rPinky1",
+            "小指２.L": "lPinky2", "小指２.R": "rPinky2",
+            "小指３.L": "lPinky3", "小指３.R": "rPinky3",
+            # 足 (l/r 前缀)
+            "足.L": "lThighBend", "足.R": "rThighBend",
+            "ひざ.L": "lShin", "ひざ.R": "rShin",
+            "足首.L": "lFoot", "足首.R": "rFoot",
+            "つま先.L": "lToe", "つま先.R": "rToe",
+            # D 骨
+            "足D.L": "lThighBendD", "足D.R": "rThighBendD",
+            "ひざD.L": "lShinD", "ひざD.R": "rShinD",
+            "足首D.L": "lFootD", "足首D.R": "rFootD",
+            "足先EX.L": "toe2_L", "足先EX.R": "toe2_R",
+            # IK 親
+            "足IK親.L": "leg IKP_L", "足IK親.R": "leg IKP_R",
+            # 乳
+            "乳奶.L": "lPectoral", "乳奶.R": "rPectoral",
         }
         name_e_count = 0
         for pb in obj.pose.bones:
             if pb.name.startswith('_dummy_') or pb.name.startswith('_shadow_'):
                 continue
-            name = pb.name
-            name_e = ""
-            if name.endswith('.L') or name.endswith('.R'):
-                base = name[:-2]
-                suffix = name[-2:]
-                mapped = NAME_E_MAP.get(base, "")
-                if mapped:
-                    name_e = f"{mapped}{suffix}"
-            else:
-                name_e = NAME_E_MAP.get(name, "")
+            name_e = NAME_E_FULL.get(pb.name, "")
             if name_e and pb.mmd_bone.name_e != name_e:
                 pb.mmd_bone.name_e = name_e
                 name_e_count += 1
