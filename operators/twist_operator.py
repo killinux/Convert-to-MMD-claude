@@ -361,6 +361,40 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
 
         bpy.ops.object.mode_set(mode='OBJECT')
 
+        # ===== 交换腕.L ↔ 腕捩.L 的 vertex group =====
+        # xtra07pp/xtra07 被 rename 成 腕捩.L/R, 但它们和 腕.L/R 位置完全重合,
+        # 所以 xtra07pp 的 vertex group (现在叫"腕捩.L") 实际覆盖的是上臂区域,
+        # 和目标 PMX 的 腕.L 权重分布一致。同时原 腕.L (XPS arm shoulder 2)
+        # 的权重反而更像目标的 腕捩.L。交换两者的 vertex group 名字来纠正。
+        mesh_objects = [
+            o for o in bpy.data.objects
+            if o.type == 'MESH' and any(
+                m.type == 'ARMATURE' and m.object == obj
+                for m in o.modifiers
+            )
+        ]
+        twist_swap_pairs = [("腕捩", "腕")]  # 只交换腕捩 (上臂 twist), 手捩不需要
+        for base_twist, base_arm in twist_swap_pairs:
+            for side in ("L", "R"):
+                twist_name = _side_name(base_twist, side_fmt, side)
+                arm_name = _side_name(base_arm, side_fmt, side)
+                # 只在 twist main 是从 rename 候选来的情况下才交换
+                if not any(f"-> {twist_name}" in r for r in renamed):
+                    continue
+                for mesh in mesh_objects:
+                    vg_arm = mesh.vertex_groups.get(arm_name)
+                    vg_twist = mesh.vertex_groups.get(twist_name)
+                    if not vg_arm and not vg_twist:
+                        continue
+                    tmp_name = f"__swap_tmp_{side}"
+                    if vg_arm:
+                        vg_arm.name = tmp_name
+                    if vg_twist:
+                        vg_twist.name = arm_name
+                    if vg_arm:
+                        vg_arm.name = twist_name
+                print(f"[CTMMD 2.1]   Swap VG: {arm_name} <-> {twist_name}")
+
         # 设置 hide 标志 + layer: MMD 惯例
         #   main (腕捩/手捩): hide=False (用户可见可操作)
         #   sub  (腕捩1/2/3 / 手捩1/2/3): hide=True (付与親 自动驱动, 不应直接操作)
