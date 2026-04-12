@@ -322,7 +322,7 @@ class OBJECT_OT_use_mmd_tools_convert(bpy.types.Operator):
         for base in ("腕捩", "手捩"):
             for suffix in (".L", ".R"):
                 name = base + suffix
-                pb = arm_obj.pose.bones.get(name)
+                pb = obj.pose.bones.get(name)
                 if pb and pb.mmd_bone.enabled_fixed_axis:
                     pb.lock_rotation[0] = True
                     pb.lock_rotation[2] = True
