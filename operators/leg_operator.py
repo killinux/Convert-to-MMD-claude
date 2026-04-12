@@ -73,14 +73,14 @@ SPLIT_BONES = {
 # 保留它们, 会作为额外的 deform bone 进入 PMX, 通过父链继承旋转, 得到与 XPS
 # 一致的变形效果。
 PRESERVE_HELPER_KEYWORDS = (
-    # 下半身/腿部辅助骨: 保留不做 merge, 权重原地生效。
-    # 这些骨在各自区域有独特的轴向 — merge 到标准 MMD 骨后轴向不对,
-    # 动画时会出现剪切/翻转。保留它们作为额外 deform 骨, 父链继承旋转。
-    "xtra04", "xtra02",       # 胯部/大腿内侧辅助 (parent=thigh)
-    "xtra08", "xtra08opp",    # 臀部/大腿外侧辅助 (parent=thigh or pelvis)
+    # 臀部辅助骨: 跨越臀部+大腿两个区域, 保留由 SPLIT_BONES 按顶点拆分。
+    "xtra08", "xtra08opp",    # 臀部/大腿外侧辅助 (parent=下半身)
     "muscle_elbow",           # 肘部辅助, 权重量极小 (36v 级), 不参与 twist
     # 说明: xtra07/xtra07pp 及 foretwist 系列已被 twist 算法 (complete_twist_bones)
     # 按位置识别 rename 到 腕捩/手捩 系列, 不再出现在 unused 命名空间。
+    # 注: xtra04/xtra02 (胯部/大腿内侧辅助, parent=thigh) 不再保留。
+    # 它们的权重在 5.1 合并到 足.L/足.R, 再由 5.2 转移到 足D.L/足D.R。
+    # 目标 PMX 中这些权重就在 足D 上, merge 后大腿权重比例从 2.7% 恢复到 ~15%。
 )
 
 # per-vertex 拆分时的候选集限制（不在此集合中的骨骼不参与竞争）。
