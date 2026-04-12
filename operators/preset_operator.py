@@ -221,6 +221,38 @@ class OBJECT_OT_setup_pmx_attributes(bpy.types.Operator):
                 tip_count += 1
         print(f"[CTMMD 8] Set is_tip for {tip_count} bones")
 
+        # transform_order: D 骨设为 1（在付与親源骨之后计算）
+        D_ORDER_BONES = ["足D", "ひざD", "足首D", "足先EX"]
+        order_count = 0
+        for base in D_ORDER_BONES:
+            for suffix in (".L", ".R"):
+                pb = obj.pose.bones.get(base + suffix)
+                if pb:
+                    pb.mmd_bone.transform_order = 1
+                    order_count += 1
+        print(f"[CTMMD 8] Set transform_order=1 for {order_count} D-bones")
+
+        # lock_location: 控制骨 + twist 骨 + 辅助骨锁定位移
+        LOCK_LOC_BASES_LR = [
+            "肩P", "肩C", "腰キャンセル",
+            "腕捩", "腕捩1", "腕捩2", "腕捩3",
+            "手捩", "手捩1", "手捩2", "手捩3",
+            "足先EX", "乳奶",
+        ]
+        lock_count = 0
+        for name in ("腰", "両目", "目.L", "目.R"):
+            pb = obj.pose.bones.get(name)
+            if pb:
+                pb.lock_location = [True, True, True]
+                lock_count += 1
+        for base in LOCK_LOC_BASES_LR:
+            for suffix in (".L", ".R"):
+                pb = obj.pose.bones.get(base + suffix)
+                if pb:
+                    pb.lock_location = [True, True, True]
+                    lock_count += 1
+        print(f"[CTMMD 8] Set lock_location for {lock_count} bones")
+
         print(f"[CTMMD 8] Set additional_transform for {at_count} bones")
         self.report({'INFO'}, f"PMX attributes set: {name_j_count} name_j, {at_count} additional_transform, twist {twist_main}+{twist_sub}")
         return {'FINISHED'}
