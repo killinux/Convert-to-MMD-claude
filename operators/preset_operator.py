@@ -259,7 +259,59 @@ class OBJECT_OT_setup_pmx_attributes(bpy.types.Operator):
         print(f"[CTMMD 8] Set lock_location for {lock_count} bones")
 
         print(f"[CTMMD 8] Set additional_transform for {at_count} bones")
-        self.report({'INFO'}, f"PMX attributes set: {name_j_count} name_j, {at_count} additional_transform, twist {twist_main}+{twist_sub}")
+
+        # 设置 name_e (英文名): MMD 标准骨骼 → 英文名映射
+        NAME_E_MAP = {
+            "全ての親": "root", "操作中心": "view cnt", "センター": "center",
+            "グルーブ": "groove", "腰": "waist",
+            "上半身": "abdomenLower", "上半身1": "abdomenUpper",
+            "上半身2": "chestLower", "上半身3": "chestUpper",
+            "下半身": "hip", "首": "neckLower", "首1": "neckUpper", "頭": "head",
+            "両目": "eyes", "目": "eye",
+            "肩": "shoulder", "肩P": "shoulderP", "肩C": "shoulderC",
+            "腕": "arm", "腕捩": "arm twist",
+            "ひじ": "elbow", "手捩": "wrist twist",
+            "手首": "hand", "ダミー": "dummy",
+            "親指０": "thumb0", "親指１": "thumb1", "親指２": "thumb2",
+            "人指０": "fore0", "人指１": "fore1", "人指２": "fore2", "人指３": "fore3",
+            "中指０": "middle0", "中指１": "middle1", "中指２": "middle2", "中指３": "middle3",
+            "薬指０": "third0", "薬指１": "third1", "薬指２": "third2", "薬指３": "third3",
+            "小指０": "little0", "小指１": "little1", "小指２": "little2", "小指３": "little3",
+            "足": "leg", "ひざ": "knee", "足首": "ankle", "つま先": "toe",
+            "足D": "legD", "ひざD": "kneeD", "足首D": "ankleD", "足先EX": "toe2",
+            "足IK親": "leg IKP", "足ＩＫ": "leg IK", "つま先ＩＫ": "toe IK",
+            "腰キャンセル": "waist cancel",
+            "腕捩1": "arm twist1", "腕捩2": "arm twist2", "腕捩3": "arm twist3",
+            "手捩1": "wrist twist1", "手捩2": "wrist twist2", "手捩3": "wrist twist3",
+            "乳奶": "breast",
+        }
+        name_e_count = 0
+        for pb in obj.pose.bones:
+            if pb.name.startswith('_dummy_') or pb.name.startswith('_shadow_'):
+                continue
+            name = pb.name
+            name_e = ""
+            if name.endswith('.L') or name.endswith('.R'):
+                base = name[:-2]
+                suffix = name[-2:]
+                mapped = NAME_E_MAP.get(base, "")
+                if mapped:
+                    name_e = f"{mapped}{suffix}"
+            else:
+                name_e = NAME_E_MAP.get(name, "")
+            if name_e and pb.mmd_bone.name_e != name_e:
+                pb.mmd_bone.name_e = name_e
+                name_e_count += 1
+        print(f"[CTMMD 8] Set name_e for {name_e_count} bones")
+
+        # 已知未修复差异 log（供调试参考）
+        print("[CTMMD 8] Known remaining diffs vs target PMX:")
+        print("[CTMMD 8]   - 位置/长度/方向: 两模型体型不同, 非 pipeline bug")
+        print("[CTMMD 8]   - 腕捩 fixed_axis Z 轴差 ~0.003: 手臂对齐浮点误差, 不影响效果")
+        print("[CTMMD 8]   - 脚趾细分骨 (BigToe/SmallToe): XPS 源无此骨, TODO")
+        print("[CTMMD 8]   - name_e 未映射的骨骼保持为空 (hair/unused 等非标准骨)")
+
+        self.report({'INFO'}, f"PMX attributes set: {name_j_count} name_j, {name_e_count} name_e, {at_count} additional_transform, twist {twist_main}+{twist_sub}")
         return {'FINISHED'}
 
 

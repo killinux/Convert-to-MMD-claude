@@ -77,13 +77,13 @@ class OBJECT_OT_add_ik(bpy.types.Operator):
         # IK骨骼属性定义
         IKbone_properties = {
             "足IK親.L": {"head": Vector((edit_bones["ひざ.L"].tail.x, edit_bones["ひざ.L"].tail.y, 0)),
-                       "tail": edit_bones["ひざ.L"].tail, "parent": None, "use_connect": False},
+                       "tail": edit_bones["ひざ.L"].tail, "parent": "全ての親", "use_connect": False},
             "足ＩＫ.L": {"head": edit_bones["ひざ.L"].tail,
                       "tail": edit_bones["ひざ.L"].tail + Vector((0, 0.1, 0)), "parent": "足IK親.L", "use_connect": False},
             "つま先ＩＫ.L": {"head": edit_bones["足首.L"].tail,
                          "tail": edit_bones["足首.L"].tail + Vector((0, 0, -0.05)), "parent": "足ＩＫ.L", "use_connect": False},
             "足IK親.R": {"head": Vector((edit_bones["ひざ.R"].tail.x, edit_bones["ひざ.R"].tail.y, 0)),
-                       "tail": edit_bones["ひざ.R"].tail, "parent": None, "use_connect": False},
+                       "tail": edit_bones["ひざ.R"].tail, "parent": "全ての親", "use_connect": False},
             "足ＩＫ.R": {"head": edit_bones["ひざ.R"].tail,
                       "tail": edit_bones["ひざ.R"].tail + Vector((0, 0.1, 0)), "parent": "足IK親.R", "use_connect": False},
             "つま先ＩＫ.R": {"head": edit_bones["足首.R"].tail,
