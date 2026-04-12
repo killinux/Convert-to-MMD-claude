@@ -232,6 +232,12 @@ class OBJECT_OT_complete_d_bones(bpy.types.Operator):
 
         bpy.ops.object.mode_set(mode='OBJECT')
 
+        # D 骨 is_tip (显示为末端点)
+        for name in created:
+            pb = obj.pose.bones.get(name)
+            if pb:
+                pb.mmd_bone.is_tip = True
+
         print(f"[CTMMD 3] D-bone creation complete: created {len(created)}, skipped {len(skipped)}")
         for s in skipped:
             print(f"[CTMMD 3]   Skipped: {s}")
@@ -290,6 +296,14 @@ class OBJECT_OT_complete_hip_cancel_bones(bpy.types.Operator):
             created += 1
 
         bpy.ops.object.mode_set(mode='OBJECT')
+
+        # 腰キャンセル: is_tip + hide (控制骨, 用户不直接操作)
+        for side in (".L", ".R"):
+            name = f"腰キャンセル{side}"
+            b = obj.data.bones.get(name)
+            if b:
+                b.hide = True
+                obj.pose.bones[name].mmd_bone.is_tip = True
 
         print("[CTMMD 4] Hip cancel summary:")
         for name, note in log:

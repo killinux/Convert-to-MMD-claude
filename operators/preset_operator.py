@@ -203,15 +203,15 @@ class OBJECT_OT_setup_pmx_attributes(bpy.types.Operator):
             print(f"[CTMMD 8] Twist system: {twist_main} main (fixed_axis from bone Y.xzy), {twist_sub} sub (付与親)")
 
         # is_tip 标志: PMX 显示为"末端点"而非箭头骨。
-        # 注意: main twist (腕捩.L/R/手捩.L/R) 故意不设 is_tip, 因为 mmd_tools
-        # PMX exporter 对 is_tip 骨将 displayConnection 写成 -1, 导出时丢失 tail
-        # 的精确位置, reimport 时长度被归一到 1.0 PMX 单位, 导致 rest tail 无法
-        # 对齐到子关节 head (ひじ/手首)。sub twist 和 肩P/肩C 仍然 is_tip。
+        # is_tip: 显示为末端点。main twist 也设 is_tip (和目标一致),
+        # tail 位置丢失对 twist 骨无影响 (它们用 fixed_axis 决定旋转轴)。
+        # 且 mmd_tools importer 需要 is_tip + fixed_axis 组合才会自动设 lock_rotation。
         TIP_BONES = set()
         for base in ("腕捩", "手捩"):
             for suffix in (".L", ".R"):
+                TIP_BONES.add(f"{base}{suffix}")  # main
                 for i in (1, 2, 3):
-                    TIP_BONES.add(f"{base}{i}{suffix}")
+                    TIP_BONES.add(f"{base}{i}{suffix}")  # sub
         TIP_BONES.update({"肩P.L", "肩P.R", "肩C.L", "肩C.R"})
         tip_count = 0
         for name in TIP_BONES:
@@ -243,6 +243,11 @@ class OBJECT_OT_setup_pmx_attributes(bpy.types.Operator):
         for name in ("腰", "両目", "目.L", "目.R"):
             pb = obj.pose.bones.get(name)
             if pb:
+                pb.lock_location = [True, True, True]
+                lock_count += 1
+        # hair 骨: 按名前缀匹配 (目标 PMX 的 hair 骨全部 lock_location)
+        for pb in obj.pose.bones:
+            if pb.name.startswith("hair ") or pb.name.startswith("head hair"):
                 pb.lock_location = [True, True, True]
                 lock_count += 1
         for base in LOCK_LOC_BASES_LR:
@@ -312,6 +317,16 @@ class OBJECT_OT_use_mmd_tools_convert(bpy.types.Operator):
                     b.hide = True
                     h += 1
             print(f"[CTMMD convert] Re-applied hide flags: {v} visible, {h} hidden")
+
+        # convert 会清掉 lock_rotation, 重新设置 twist main 骨的旋转锁定
+        for base in ("腕捩", "手捩"):
+            for suffix in (".L", ".R"):
+                name = base + suffix
+                pb = arm_obj.pose.bones.get(name)
+                if pb and pb.mmd_bone.enabled_fixed_axis:
+                    pb.lock_rotation[0] = True
+                    pb.lock_rotation[2] = True
+        print("[CTMMD convert] Re-applied lock_rotation on twist bones")
 
         # 把 mmd_bone 元数据 (additional_transform / fixed_axis) 物化为 Blender bone
         # constraint 链。convert_to_mmd_model() 只设属性, 不创建 viewport constraint;
