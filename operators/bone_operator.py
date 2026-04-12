@@ -487,6 +487,26 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
                 actual_parent2 = head_eb.parent.name if head_eb.parent else "None"
                 print(f"[CTMMD 2]   Reparent: 頭 -> {actual_parent2}")
 
+        # DAZ 等模型的胯部辅助骨 (Vagina/Rectum/Labia 等) 原 parent=pelvis(下半身),
+        # 大腿弯曲时胯部顶点跟不上导致撕裂。reparent 到 腰 让它们和足D 同级,
+        # 通过腰キャンセル机制跟随下半身旋转的同时保持与腿部的联动。
+        waist_eb = edit_bones.get("腰")
+        lower_eb = edit_bones.get("下半身")
+        if waist_eb and lower_eb:
+            reparent_count = 0
+            for eb in list(lower_eb.children):
+                # 跳过已被 pipeline 使用的标准骨
+                if any(k in eb.name for k in ["足", "ひざ", "腰キャンセル", "足首"]):
+                    continue
+                # 跳过 MMD 标准骨名
+                if eb.name in ("上半身", "下半身"):
+                    continue
+                # 非标准子骨 reparent 到 腰
+                eb.parent = waist_eb
+                reparent_count += 1
+            if reparent_count > 0:
+                print(f"[CTMMD 2]   Reparent: {reparent_count} pelvis helper bones -> 腰")
+
         # 调用函数设置 roll 値
         bone_utils.set_roll_values(edit_bones, bone_utils.DEFAULT_ROLL_VALUES)
         print(f"[CTMMD 2] Done: created {len(created_bones)}, updated {len(updated_bones)}")
