@@ -7,6 +7,7 @@ mmd_bone_map = {
     "upper_body1_bone": "上半身1",
     "upper_body2_bone": "上半身2",
     "upper_body3_bone": "上半身3",
+    "neck1_bone": "首1",
     "neck_bone": "首",
     "head_bone": "頭",
     "left_shoulder_bone": "肩.L",

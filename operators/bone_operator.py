@@ -180,6 +180,9 @@ class OBJECT_OT_rename_to_mmd(bpy.types.Operator):
             "boob right 1": "乳奶.R",
             "breast left 1": "乳奶.L",
             "breast right 1": "乳奶.R",
+            # DAZ Genesis 8 胸部
+            "lPectoral": "乳奶.L",
+            "rPectoral": "乳奶.R",
         }
         for src, dst in UNUSED_RENAME_MAP.items():
             src_bone = obj.pose.bones.get(src)
