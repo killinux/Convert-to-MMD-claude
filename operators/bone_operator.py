@@ -185,6 +185,14 @@ class OBJECT_OT_rename_to_mmd(bpy.types.Operator):
             src_bone = obj.pose.bones.get(src)
             if src_bone and not obj.pose.bones.get(dst):
                 src_bone.name = dst
+                # XPS importer 把 unused 骨放到 layer 1 (不可见层),
+                # rename 后必须拉回 layer 0, 否则 PMX exporter 会把
+                # visible 设为 False (bone.layers ∩ arm.layers == ∅)
+                data_bone = obj.data.bones.get(dst)
+                if data_bone and not data_bone.layers[0]:
+                    layers = [False] * len(data_bone.layers)
+                    layers[0] = True
+                    data_bone.layers = layers
                 renamed.append(f"{src} -> {dst} (auto XPS helper)")
 
         for r in renamed:

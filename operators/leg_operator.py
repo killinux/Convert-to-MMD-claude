@@ -233,7 +233,10 @@ class OBJECT_OT_complete_d_bones(bpy.types.Operator):
         bpy.ops.object.mode_set(mode='OBJECT')
 
         # D 骨 is_tip (显示为末端点)
+        # 足先EX 不设 is_tip (目标 PMX 中 足先EX.is_tip=False)
         for name in created:
+            if name.startswith("足先EX"):
+                continue
             pb = obj.pose.bones.get(name)
             if pb:
                 pb.mmd_bone.is_tip = True
