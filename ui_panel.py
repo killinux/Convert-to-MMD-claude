@@ -322,14 +322,6 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             row.operator("object.setup_physics", text="9. 加载物理模板 (刚体+Joint)", icon='PHYSICS')
             row.operator("object.extract_physics_template", text="", icon='EXPORT')
             row.operator("object.toggle_rigid_visibility", text="", icon='HIDE_OFF')
-
-            # PMXEditor 后续操作提示
-            box = layout.box()
-            col = box.column(align=True)
-            col.label(text="转换后在 PMXEditor 里完成：", icon='INFO')
-            col.label(text="• 腕捩/手捩 → 捩ボーン設定")
-            col.label(text="• 腰キャンセル → 付与親 -下半身 (−1.0)")
-            col.label(text="• 物理演算 → 刚体/Joint（头发/裙摆）")
         # 骨骼清理选项卡
         elif scene.my_enum == 'option2':
             row = layout.row()
