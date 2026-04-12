@@ -493,6 +493,7 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
         waist_eb = edit_bones.get("腰")
         lower_eb = edit_bones.get("下半身")
         if waist_eb and lower_eb:
+            hip_z = lower_eb.head.z
             reparent_count = 0
             for eb in list(lower_eb.children):
                 # 跳过已被 pipeline 使用的标准骨
@@ -501,7 +502,10 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
                 # 跳过 MMD 标准骨名
                 if eb.name in ("上半身", "下半身"):
                     continue
-                # 非标准子骨 reparent 到 腰
+                # 只 reparent Z 位置低于下半身 head 的骨（胯部区域）
+                # 跳过胸部骨 (boob 等, Z 高于下半身)
+                if eb.head.z > hip_z:
+                    continue
                 eb.parent = waist_eb
                 reparent_count += 1
             if reparent_count > 0:
