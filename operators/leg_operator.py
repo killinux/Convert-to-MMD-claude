@@ -712,10 +712,10 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
         print(f"[CTMMD 5] Phase 4 complete: fixed {stray_fixed_total} stray verts")
 
         print("[CTMMD 5] ===== Phase 5: Lower Body Cleanup =====")
-        # 只在 D 骨权重占主导时才删 下半身 权重。
-        # 旧逻辑 "D 权重 > 0" 会误伤胯部：一个 下半身=0.95 + 足D.L=0.005 (stray) 的顶点
-        # 会被整个删掉 下半身, 只剩 0.01 总权重, 表现为权重不协调、顶点几乎不动。
-        D_DOMINANT_MIN = 0.1  # D 骨权重 >= 0.1 才认为这个顶点"真正属于腿部"
+        # 只在 D 骨权重严格大于 下半身权重 时才删 下半身 权重。
+        # 保留胯部自然过渡区 (下半身=0.6 + 足D=0.3 类型的顶点),
+        # 对应"不切权重"原则: 保留 XPS 原始的权重分布, 不因 D 骨有权重就删下半身。
+        # 绝对阈值 (>= 0.1) 已移除: 之前会误删 Reika 胯部顶点 3510 个导致臀部变形错误。
         d_bone_names = [d_base + s for _, d_base in D_BONE_PAIRS for s, _ in SIDES]
         total_removed = 0
         for mesh in mesh_objects:
@@ -729,8 +729,8 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
                 if lower_w <= 0:
                     continue
                 max_d_w = max((g.weight for g in v.groups if g.group in d_vg_indices), default=0.0)
-                # D 骨明显主导 (>= 0.1) 或 D 骨权重大于 下半身 权重 → 删 下半身
-                if max_d_w >= D_DOMINANT_MIN or max_d_w > lower_w:
+                # D 骨权重严格大于 下半身权重 → 删 下半身
+                if max_d_w > lower_w:
                     verts_to_remove.append(v.index)
             if verts_to_remove:
                 lower_vg.remove(verts_to_remove)
