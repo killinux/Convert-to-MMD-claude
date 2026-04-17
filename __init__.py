@@ -105,7 +105,14 @@ def register():
             ('option2', "骨骼清理", "进行骨骼清理")
         ],
         default='option1'
-    )    
+    )
+    bpy.types.Scene.ctmmd_show_preprocessing = bpy.props.BoolProperty(
+        name="显示预处理", default=False
+    )
+    bpy.types.Scene.ctmmd_show_advanced = bpy.props.BoolProperty(
+        name="显示高级/调试", default=False
+    )
+
 def _safe_unregister(cls):
     try:
         bpy.utils.unregister_class(cls)
@@ -148,6 +155,10 @@ def unregister():
     _safe_unregister(physics_operator.OBJECT_OT_toggle_rigid_visibility)
     _safe_unregister(face_operator.OBJECT_OT_cleanup_face_bones)
     del bpy.types.Scene.my_enum
+    if hasattr(bpy.types.Scene, "ctmmd_show_preprocessing"):
+        del bpy.types.Scene.ctmmd_show_preprocessing
+    if hasattr(bpy.types.Scene, "ctmmd_show_advanced"):
+        del bpy.types.Scene.ctmmd_show_advanced
     # 注销动态属性
     bones = preset_operator.get_bones_list()
     unregister_properties(bones)

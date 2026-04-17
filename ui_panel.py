@@ -260,70 +260,73 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             row.operator("object.import_preset", text="导入预设")
             row.operator("object.export_preset", text="导出预设")
 
-            # 可选预处理 (不属于标准流程). 顺序: 先 align 手臂/手指 到参考或 canonical,
-            # 最后 fix_forearm 在已对齐的 rest pose 上 straighten elbow kink。倒序会导致
-            # fix_forearm 烘焙到错误方向, 后续 align 再旋转, 最终前腕方向偏移。
-            layout.label(text="可选预处理:", icon='MODIFIER')
-            layout.operator("object.align_arms_to_reference", text="⚙ 对齐手臂到参考骨架 (烘焙rest)")
-            layout.operator("object.align_fingers_to_reference", text="⚙ 对齐手指到参考骨架 (烘焙rest)")
-            layout.operator("object.fix_forearm_bend", text="⚙ 修正前腕弯曲 (烘焙rest)")
+            # 可选预处理 (折叠, 默认收起)
+            pre_box = layout.box()
+            row = pre_box.row()
+            row.prop(scene, "ctmmd_show_preprocessing", text="",
+                     icon='TRIA_DOWN' if scene.ctmmd_show_preprocessing else 'TRIA_RIGHT',
+                     emboss=False)
+            row.label(text="可选预处理 (rest pose 烘焙)", icon='MODIFIER')
+            if scene.ctmmd_show_preprocessing:
+                pre_box.operator("object.align_arms_to_reference", text="对齐手臂 (→参考或canonical)")
+                pre_box.operator("object.align_fingers_to_reference", text="对齐手指 (→参考或canonical)")
+                pre_box.operator("object.fix_forearm_bend", text="修正前腕弯曲")
 
-            # 添加T-Pose到A-Pose转换按钮
-            layout.operator("object.convert_to_apose", text="转换为A-Pose")
+            # 阶段 ①: 骨骼结构
+            struct_box = layout.box()
+            struct_box.label(text="① 骨骼结构", icon='ARMATURE_DATA')
+            struct_box.operator("object.rename_to_mmd", text="1. 重命名为MMD")
+            struct_box.operator("object.complete_missing_bones", text="2. 补全缺失骨骼")
+            struct_box.operator("object.complete_twist_bones", text="2.1 补全扭转骨")
+            struct_box.operator("object.complete_d_bones", text="3. 补全D骨")
+            struct_box.operator("object.complete_hip_cancel_bones", text="4. 补全腰キャンセル")
 
-            # 操作步骤按钮（按执行顺序排列）
-            row = layout.row()
-            row.operator("object.rename_to_mmd", text="1. 重命名为MMD")
-            row = layout.row()
-            row.operator("object.complete_missing_bones", text="2. 补全缺失骨骼")
-            row = layout.row()
-            row.operator("object.complete_twist_bones", text="2.1 补全扭转骨")
-            row = layout.row()
-            row.operator("object.complete_d_bones", text="3. 补全D骨")
-            row = layout.row()
-            row.operator("object.complete_hip_cancel_bones", text="4. 补全腰キャンセル")
+            # 阶段 ②: 清理 + 权重
+            weight_box = layout.box()
+            weight_box.label(text="② 清理+权重", icon='MOD_VERTEX_WEIGHT')
+            weight_box.operator("object.cleanup_face_bones", text="4.5 清理面部细骨", icon='MESH_MONKEY')
+            weight_box.operator("object.assign_weights", text="5. 分配权重 (一键)")
+            weight_box.operator("object.split_upper_arm_twist_weights", text="5.7 上臂 twist 渐变")
+            weight_box.operator("object.split_forearm_twist_weights", text="5.8 前腕 twist 渐变")
 
-            row = layout.row()
-            row.operator("object.cleanup_face_bones", text="4.5 清理 XPS 面部细骨 (合并到 頭)", icon='MESH_MONKEY')
+            # 阶段 ③: IK + 属性
+            attr_box = layout.box()
+            attr_box.label(text="③ IK+属性", icon='CON_KINEMATIC')
+            attr_box.operator("object.add_mmd_ik", text="6. 添加MMD IK")
+            attr_box.operator("object.create_bone_group", text="7. 创建骨骼集合")
+            attr_box.operator("object.setup_pmx_attributes", text="8. 设置PMX属性")
 
-            # 权重分配：可一键全执行或逐步调试
-            row = layout.row()
-            row.operator("object.assign_weights", text="5. 分配权重（一键全执行）")
-            layout.label(text="或逐步执行：", icon='INFO')
-            grid = layout.grid_flow(row_major=True, columns=3, even_columns=True)
-            grid.operator("object.assign_weights_phase2", text="5.1 Unused→主骨")
-            grid.operator("object.assign_weights_phase1", text="5.2 主骨→D骨")
-            grid.operator("object.assign_weights_phase3", text="5.3 腰キャン清空")
-            grid.operator("object.assign_weights_phase4", text="5.4 迷路修复")
-            grid.operator("object.assign_weights_phase5", text="5.5 下半身清理")
-            grid.operator("object.assign_weights_phase6", text="5.6 未处理诊断")
-
-            row = layout.row()
-            row.operator("object.split_upper_arm_twist_weights", text="5.7 可选: 上臂 twist 权重渐变")
-            row = layout.row()
-            row.operator("object.split_forearm_twist_weights", text="5.8 可选: 前腕 twist 权重渐变")
-
-            row = layout.row()
-            row.operator("object.add_mmd_ik", text="6. 添加MMD IK")
-            row = layout.row()
-            row.operator("object.create_bone_group", text="7. 创建骨骼集合")
-
-            row = layout.row()
-            row.operator("object.setup_pmx_attributes", text="8. 设置PMX属性(name_j/付与親)")
-
-            # 骨骼命名互转
-            row = layout.row(align=True)
-            row.operator("object.convert_names_to_jp", text=".L/.R → 左/右", icon='ARROW_LEFTRIGHT')
-            row.operator("object.convert_names_to_lr", text="左/右 → .L/.R", icon='ARROW_LEFTRIGHT')
-
-            # 添加"使用mmdtools转换格式"按钮到最下方
-            layout.operator("object.use_mmd_tools_convert", text="使用mmdtools转换格式")
-
-            # 9. 物理 (转换后加载 rigid body + joint 模板)
-            row = layout.row(align=True)
-            row.operator("object.setup_physics", text="9. 加载物理模板 (刚体+Joint)", icon='PHYSICS')
+            # 阶段 ④: 转换 + 物理
+            final_box = layout.box()
+            final_box.label(text="④ 转换+物理", icon='EXPORT')
+            final_box.operator("object.use_mmd_tools_convert", text="9. 使用mmd_tools转换")
+            row = final_box.row(align=True)
+            row.operator("object.setup_physics", text="10. 加载物理模板", icon='PHYSICS')
             row.operator("object.extract_physics_template", text="", icon='EXPORT')
             row.operator("object.toggle_rigid_visibility", text="", icon='HIDE_OFF')
+
+            # 高级 / 调试 (折叠, 默认收起)
+            adv_box = layout.box()
+            row = adv_box.row()
+            row.prop(scene, "ctmmd_show_advanced", text="",
+                     icon='TRIA_DOWN' if scene.ctmmd_show_advanced else 'TRIA_RIGHT',
+                     emboss=False)
+            row.label(text="高级 / 调试", icon='TOOL_SETTINGS')
+            if scene.ctmmd_show_advanced:
+                adv_box.label(text="权重分阶段 (调试用):")
+                grid = adv_box.grid_flow(row_major=True, columns=3, even_columns=True)
+                grid.operator("object.assign_weights_phase2", text="5.1 Unused→主骨")
+                grid.operator("object.assign_weights_phase1", text="5.2 主骨→D骨")
+                grid.operator("object.assign_weights_phase3", text="5.3 腰キャン清空")
+                grid.operator("object.assign_weights_phase4", text="5.4 迷路修复")
+                grid.operator("object.assign_weights_phase5", text="5.5 下半身清理")
+                grid.operator("object.assign_weights_phase6", text="5.6 未处理诊断")
+                adv_box.separator()
+                adv_box.label(text="骨骼命名互转:")
+                row = adv_box.row(align=True)
+                row.operator("object.convert_names_to_jp", text=".L/.R → 左/右", icon='ARROW_LEFTRIGHT')
+                row.operator("object.convert_names_to_lr", text="左/右 → .L/.R", icon='ARROW_LEFTRIGHT')
+                adv_box.operator("object.convert_to_apose", text="T-Pose → A-Pose")
         # 骨骼清理选项卡
         elif scene.my_enum == 'option2':
             row = layout.row()
