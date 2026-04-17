@@ -434,3 +434,71 @@ class OBJECT_OT_use_mmd_tools_convert(bpy.types.Operator):
             text="Open Documentation",
             icon='HELP'
         ).url = "https://mmd-blender.fandom.com/wiki/MMD_Tools_Documentation"
+
+
+class OBJECT_OT_one_click_convert(bpy.types.Operator):
+    """一键运行主转换流程 (step 1→11). 前提: 已选中 XPS armature 并加载 preset."""
+    bl_idname = "object.one_click_convert"
+    bl_label = "一键转换 (1→11)"
+    bl_description = "按顺序跑主流程: 预处理/重命名/补骨/权重/IK/PMX属性/mmd_tools转换"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    run_preprocessing: bpy.props.BoolProperty(
+        name="运行预处理",
+        description="先跑对齐手臂/手指/修正前腕 (rest pose 烘焙)",
+        default=True,
+    )
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=320)
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'ARMATURE':
+            self.report({'ERROR'}, "请先选中 XPS armature")
+            return {'CANCELLED'}
+
+        pipeline = []
+        if self.run_preprocessing:
+            pipeline += [
+                ('align_arms_to_reference', False),
+                ('align_fingers_to_reference', False),
+                ('fix_forearm_bend', False),
+            ]
+        pipeline += [
+            ('rename_to_mmd', True),
+            ('complete_missing_bones', True),
+            ('complete_twist_bones', True),
+            ('complete_d_bones', True),
+            ('complete_hip_cancel_bones', True),
+            ('cleanup_face_bones', False),  # may CANCEL for DAZ (no XPS face bones)
+            ('assign_weights', True),
+            ('add_mmd_ik', True),
+            ('create_bone_group', True),
+            ('setup_pmx_attributes', True),
+            ('use_mmd_tools_convert', True),
+        ]
+
+        for step_name, required in pipeline:
+            op = getattr(bpy.ops.object, step_name, None)
+            if op is None:
+                self.report({'ERROR'}, f"operator 不存在: object.{step_name}")
+                return {'CANCELLED'}
+            print(f'[CTMMD one-click] -> {step_name}')
+            try:
+                ret = op()
+            except Exception as e:
+                msg = f'step {step_name} 抛异常: {e}'
+                print(f'[CTMMD one-click] {msg}')
+                self.report({'ERROR'}, msg)
+                return {'CANCELLED'}
+            if 'FINISHED' not in ret:
+                if required:
+                    msg = f'step {step_name} 返回 {ret} (必需步骤, 中止)'
+                    print(f'[CTMMD one-click] {msg}')
+                    self.report({'ERROR'}, msg)
+                    return {'CANCELLED'}
+                print(f'[CTMMD one-click] {step_name}: {ret} (可选, 继续)')
+
+        self.report({'INFO'}, "一键转换完成 (step 1→11)")
+        return {'FINISHED'}

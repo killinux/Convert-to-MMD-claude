@@ -260,6 +260,11 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             row.operator("object.import_preset", text="导入预设")
             row.operator("object.export_preset", text="导出预设")
 
+            # 一键转换 (跑完 step 1→11)
+            row = layout.row()
+            row.scale_y = 1.4
+            row.operator("object.one_click_convert", text="🚀 一键转换 (1→11)", icon='PLAY')
+
             # 可选预处理 (折叠, 默认收起)
             pre_box = layout.box()
             row = pre_box.row()
