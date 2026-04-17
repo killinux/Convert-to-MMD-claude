@@ -7,6 +7,7 @@ from ..bone_utils import apply_armature_transforms
 
 
 _CANONICAL_CACHE = None
+_CANONICAL_FINGER_CACHE = None
 
 
 def _load_canonical_arm_dirs():
@@ -31,6 +32,27 @@ def _load_canonical_arm_dirs():
         return result
     except Exception as e:
         print(f"[CTMMD canonical] 读取 {path} 失败: {e}")
+        return None
+
+
+def _load_canonical_finger_dirs():
+    """Read bundled presets/canonical_finger_dirs.json and return
+    {side: {root_bone_name: Vector}} with unit Vectors in armature-local space."""
+    global _CANONICAL_FINGER_CACHE
+    if _CANONICAL_FINGER_CACHE is not None:
+        return _CANONICAL_FINGER_CACHE
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    path = os.path.join(here, "presets", "canonical_finger_dirs.json")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        result = {}
+        for side in ("L", "R"):
+            result[side] = {name: Vector(v).normalized() for name, v in data["fingers"][side].items()}
+        _CANONICAL_FINGER_CACHE = result
+        return result
+    except Exception as e:
+        print(f"[CTMMD canonical-finger] 读取 {path} 失败: {e}")
         return None
 # 新增的T-Pose到A-Pose转换操作符
 class OBJECT_OT_convert_to_apose(bpy.types.Operator):
@@ -555,10 +577,16 @@ class OBJECT_OT_align_fingers_to_reference(bpy.types.Operator):
         bpy.ops.object.mode_set(mode='OBJECT')
 
         ref = self._find_ref_armature(obj)
-        if not ref:
-            self.report({'ERROR'}, "未找到含手指骨的参考骨架")
-            return {'CANCELLED'}
-        print(f"[CTMMD align-fingers] active={obj.name}  reference={ref.name}")
+        canonical = None
+        if ref:
+            ref_name = f"scene:{ref.name}"
+        else:
+            canonical = _load_canonical_finger_dirs()
+            if not canonical:
+                self.report({'ERROR'}, "未找到参考骨架, 且 canonical fallback 读取失败")
+                return {'CANCELLED'}
+            ref_name = "canonical:MMD standard A-pose"
+        print(f"[CTMMD align-fingers] active={obj.name}  reference={ref_name}")
 
         plans = []
         for side in ("L", "R"):
@@ -569,18 +597,26 @@ class OBJECT_OT_align_fingers_to_reference(bpy.types.Operator):
 
                 conv_root = obj.data.bones.get(root_name)
                 conv_tip = obj.data.bones.get(tip_name)
-                ref_root = ref.data.bones.get(root_name)
-                ref_tip = ref.data.bones.get(tip_name)
-
-                if not all([conv_root, conv_tip, ref_root, ref_tip]):
+                if not conv_root or not conv_tip:
                     continue
-
                 conv_dir = (conv_tip.head_local - conv_root.head_local)
-                ref_dir = (ref_tip.head_local - ref_root.head_local)
-                if conv_dir.length < 1e-6 or ref_dir.length < 1e-6:
+                if conv_dir.length < 1e-6:
                     continue
                 conv_dir = conv_dir.normalized()
-                ref_dir = ref_dir.normalized()
+
+                if ref:
+                    ref_root = ref.data.bones.get(root_name)
+                    ref_tip = ref.data.bones.get(tip_name)
+                    if not ref_root or not ref_tip:
+                        continue
+                    ref_dir = (ref_tip.head_local - ref_root.head_local)
+                    if ref_dir.length < 1e-6:
+                        continue
+                    ref_dir = ref_dir.normalized()
+                else:
+                    ref_dir = canonical.get(side, {}).get(chain[0])
+                    if ref_dir is None:
+                        continue
 
                 angle = conv_dir.angle(ref_dir)
                 if angle < math.radians(self.ANGLE_THRESHOLD_DEG):

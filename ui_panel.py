@@ -260,11 +260,13 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             row.operator("object.import_preset", text="导入预设")
             row.operator("object.export_preset", text="导出预设")
 
-            # 可选预处理 (不属于标准流程):
+            # 可选预处理 (不属于标准流程). 顺序: 先 align 手臂/手指 到参考或 canonical,
+            # 最后 fix_forearm 在已对齐的 rest pose 上 straighten elbow kink。倒序会导致
+            # fix_forearm 烘焙到错误方向, 后续 align 再旋转, 最终前腕方向偏移。
             layout.label(text="可选预处理:", icon='MODIFIER')
-            layout.operator("object.fix_forearm_bend", text="⚙ 修正前腕弯曲 (烘焙rest)")
             layout.operator("object.align_arms_to_reference", text="⚙ 对齐手臂到参考骨架 (烘焙rest)")
             layout.operator("object.align_fingers_to_reference", text="⚙ 对齐手指到参考骨架 (烘焙rest)")
+            layout.operator("object.fix_forearm_bend", text="⚙ 修正前腕弯曲 (烘焙rest)")
 
             # 添加T-Pose到A-Pose转换按钮
             layout.operator("object.convert_to_apose", text="转换为A-Pose")
