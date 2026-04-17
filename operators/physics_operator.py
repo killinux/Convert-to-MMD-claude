@@ -400,6 +400,221 @@ def apply_physics(dst_root, data, *, rescale_by_bone_length=True, fit_to_mesh=Tr
     return len(rigid_idx_to_obj), n_joints, skipped
 
 
+def apply_breast_physics(dst_root, data, *, rescale_by_bone_length=True,
+                         fit_to_mesh=True, fit_pad=1.10):
+    """Apply ONLY 乳奶.L / 乳奶.R rigids + their joints from a physics template.
+
+    Joints need a torso-side anchor rigid (typically 上半身2 in the standard
+    MMD template). If the target model already has a rigid on that anchor
+    bone (from a prior setup_physics run), reuse it. Otherwise the joint is
+    skipped and the missing anchor bone is returned for caller to report.
+
+    Returns (n_rigids_created, n_joints_created, skipped_breast_bones,
+             missing_anchor_bones).
+    """
+    dst_model = _get_model(dst_root)
+    dst_arm = dst_model.armature()
+    dst_bone_names = set(dst_arm.data.bones.keys())
+
+    existing_by_bone = {}
+    for r in dst_model.rigidBodies():
+        bname = r.mmd_rigid.bone
+        if bname:
+            existing_by_bone[bname] = r
+
+    src_body_height = data.get('body_height_m') or 1.0
+    dst_body_height = _body_height(dst_arm) or src_body_height
+    global_scale = dst_body_height / src_body_height if src_body_height > 1e-6 else 1.0
+
+    def _is_breast(bname):
+        return bname.startswith('乳奶')
+
+    rigid_idx_to_obj = {}
+    skipped = []
+    for entry in data['rigids']:
+        if entry is None or not _is_breast(entry['bone']):
+            continue
+        bname = entry['bone']
+        if bname not in dst_bone_names:
+            skipped.append(bname)
+            continue
+        # Avoid duplicate if target already has a rigid on this bone
+        if bname in existing_by_bone:
+            rigid_idx_to_obj[entry['idx']] = existing_by_bone[bname]
+            continue
+        db_mat = _bone_world_rest(dst_arm, bname)
+        new_mat = db_mat @ Matrix(entry['local_matrix'])
+        dbl = dst_arm.data.bones[bname].length
+        src_size = entry['size']
+        if rescale_by_bone_length:
+            if entry['shape'] == 'CAPSULE':
+                new_size = (src_size[0] * global_scale, dbl, 0.0)
+            else:
+                new_size = tuple(s * global_scale for s in src_size)
+        else:
+            new_size = tuple(src_size)
+        nr = dst_model.createRigidBody(
+            shape_type=SHAPE_IDX[entry['shape']],
+            location=new_mat.to_translation(),
+            rotation=new_mat.to_euler(),
+            size=new_size,
+            dynamics_type=int(entry['type']),
+            name=entry['name_j'],
+            name_e=entry.get('name_e'),
+            bone=bname,
+            friction=entry.get('friction'),
+            mass=entry.get('mass'),
+            angular_damping=entry.get('angular_damping'),
+            linear_damping=entry.get('linear_damping'),
+            bounce=entry.get('bounce'),
+            collision_group_number=entry.get('collision_group_number'),
+            collision_group_mask=entry.get('collision_group_mask'),
+        )
+        rigid_idx_to_obj[entry['idx']] = nr
+
+    # Build idx -> bone lookup for anchor resolution
+    idx_to_bone = {r['idx']: r['bone'] for r in data['rigids'] if r is not None}
+
+    n_joints = 0
+    missing_anchors = []
+    for j in data['joints']:
+        ai, bi = j['rigid_a_idx'], j['rigid_b_idx']
+        # Only process joints that involve a breast rigid
+        a_bone = idx_to_bone.get(ai, '')
+        b_bone = idx_to_bone.get(bi, '')
+        if not (_is_breast(a_bone) or _is_breast(b_bone)):
+            continue
+
+        def _resolve(idx, bone):
+            if idx in rigid_idx_to_obj:
+                return rigid_idx_to_obj[idx]
+            return existing_by_bone.get(bone)
+
+        na = _resolve(ai, a_bone)
+        nb = _resolve(bi, b_bone)
+        if na is None or nb is None:
+            miss = a_bone if na is None else b_bone
+            if miss and miss not in missing_anchors:
+                missing_anchors.append(miss)
+            continue
+        joint_local_mat = Matrix(j['local_matrix_in_a'])
+        new_jmat = na.matrix_world @ joint_local_mat
+        dst_model.createJoint(
+            name=j['name_j'],
+            name_e=j.get('name_e'),
+            location=new_jmat.to_translation(),
+            rotation=new_jmat.to_euler(),
+            rigid_a=na,
+            rigid_b=nb,
+            maximum_location=tuple(j['maximum_location']),
+            minimum_location=tuple(j['minimum_location']),
+            maximum_rotation=tuple(j['maximum_rotation']),
+            minimum_rotation=tuple(j['minimum_rotation']),
+            spring_angular=tuple(j['spring_angular']),
+            spring_linear=tuple(j['spring_linear']),
+        )
+        n_joints += 1
+
+    # fit_to_mesh for newly created breast rigids
+    if fit_to_mesh:
+        body_mesh = _find_body_mesh(dst_root)
+        if body_mesh is not None:
+            for entry in data['rigids']:
+                if entry is None or not _is_breast(entry['bone']):
+                    continue
+                if entry['idx'] not in rigid_idx_to_obj:
+                    continue
+                nr = rigid_idx_to_obj[entry['idx']]
+                # skip if it's a reused existing rigid (don't mutate user's rigid)
+                if existing_by_bone.get(entry['bone']) is nr:
+                    continue
+                _fit_rigid_to_bone_verts(nr, dst_arm, body_mesh, entry['bone'],
+                                         entry['shape'], pad=fit_pad)
+
+    return len(rigid_idx_to_obj), n_joints, skipped, missing_anchors
+
+
+class OBJECT_OT_apply_breast_physics(bpy.types.Operator):
+    """仅应用胸部物理 (乳奶.L/R) 从物理模板。需要目标模型已有胸部骨(乳奶.L/R)
+    和 joint 锚点骨(如 上半身2) 的对应 rigid (或先跑一次 setup_physics)。"""
+    bl_idname = "object.apply_breast_physics"
+    bl_label = "应用胸部物理 (乳奶.L/R)"
+    bl_description = "从物理模板抽取胸部 2 个 rigid + 对应 joint, 应用到当前 MMD 模型"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    template: EnumProperty(
+        name="模板",
+        description="从哪个物理模板抽取胸部数据",
+        items=_list_physics_templates,
+    )
+    build_rig: BoolProperty(
+        name="应用后 build_rig",
+        default=True,
+    )
+    fit_to_mesh: BoolProperty(
+        name="贴合 mesh 实际粗细",
+        default=True,
+    )
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=320)
+
+    def execute(self, context):
+        if self.template == '__empty__':
+            self.report({'ERROR'}, "presets/physics/ 下没有模板 JSON")
+            return {'CANCELLED'}
+        active = context.active_object
+        if active is None:
+            self.report({'ERROR'}, "没有 active object")
+            return {'CANCELLED'}
+        root = _find_mmd_root(active)
+        if root is None:
+            self.report({'ERROR'}, "active 不在任何 mmd_root 下 (先跑 use_mmd_tools_convert)")
+            return {'CANCELLED'}
+
+        template_path = os.path.join(_presets_physics_dir(), self.template + '.json')
+        try:
+            with open(template_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except Exception as e:
+            self.report({'ERROR'}, f"读取模板失败: {e}")
+            return {'CANCELLED'}
+
+        # Pre-check: does target have 乳奶.L / 乳奶.R bones?
+        model = _get_model(root)
+        arm = model.armature()
+        missing_bones = [b for b in ('乳奶.L', '乳奶.R') if b not in arm.data.bones]
+        if missing_bones:
+            self.report({'ERROR'}, f"目标模型缺少骨: {', '.join(missing_bones)}")
+            return {'CANCELLED'}
+
+        try:
+            n_r, n_j, skipped, missing_anchors = apply_breast_physics(
+                root, data, fit_to_mesh=self.fit_to_mesh)
+        except Exception as e:
+            self.report({'ERROR'}, f"应用胸部物理失败: {e}")
+            return {'CANCELLED'}
+
+        msg_parts = [f"胸部 rigid: {n_r}, joint: {n_j}"]
+        if skipped:
+            msg_parts.append(f"skipped bones: {skipped}")
+        if missing_anchors:
+            msg_parts.append(f"缺 joint 锚点: {missing_anchors} (建议先跑一次 setup_physics)")
+        msg = '; '.join(msg_parts)
+        print(f"[CTMMD 12] {msg}")
+        self.report({'INFO'}, msg)
+
+        if self.build_rig:
+            for o in bpy.data.objects: o.select_set(False)
+            root.select_set(True)
+            context.view_layer.objects.active = root
+            try:
+                bpy.ops.mmd_tools.build_rig()
+            except Exception as e:
+                self.report({'WARNING'}, f"build_rig 失败: {e}")
+        return {'FINISHED'}
+
+
 class OBJECT_OT_setup_physics(bpy.types.Operator):
     """Apply a physics template (rigid bodies + joints) to the active MMD model."""
     bl_idname = "object.setup_physics"

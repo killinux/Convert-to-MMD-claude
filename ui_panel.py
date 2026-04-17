@@ -301,7 +301,6 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             row = final_box.row(align=True)
             row.operator("object.setup_physics", text="12. 加载物理模板", icon='PHYSICS')
             row.operator("object.extract_physics_template", text="", icon='EXPORT')
-            row.operator("object.toggle_rigid_visibility", text="", icon='HIDE_OFF')
 
             # 高级 / 调试 (折叠, 默认收起)
             adv_box = layout.box()
@@ -328,8 +327,24 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
                 row.operator("object.convert_names_to_jp", text=".L/.R → 左/右", icon='ARROW_LEFTRIGHT')
                 row.operator("object.convert_names_to_lr", text="左/右 → .L/.R", icon='ARROW_LEFTRIGHT')
                 adv_box.operator("object.convert_to_apose", text="T-Pose → A-Pose")
-        # 物理 + 表情 选项卡 (TODO: 刚体/胸部物理、morph 编辑)
+        # 物理 + 表情 选项卡
         elif scene.my_enum == 'option2':
-            layout.label(text="刚体编辑 (TODO)", icon='PHYSICS')
-            layout.label(text="胸部物理 (TODO)", icon='MOD_SOFT')
-            layout.label(text="表情 Morph (TODO)", icon='SHAPEKEY_DATA')
+            # 胸部物理
+            breast_box = layout.box()
+            breast_box.label(text="胸部物理", icon='MOD_SOFT')
+            breast_box.operator("object.apply_breast_physics", text="应用胸部 rigid (乳奶.L/R)")
+            breast_box.label(text="需先跑过 12. 加载物理模板 (获得锚点 上半身2)",
+                             icon='INFO')
+
+            # 刚体编辑
+            rigid_box = layout.box()
+            rigid_box.label(text="刚体编辑", icon='PHYSICS')
+            rigid_box.operator("object.toggle_rigid_visibility", text="显示/隐藏所有刚体", icon='HIDE_OFF')
+            rigid_box.label(text="单个 rigid 属性: 选中刚体后", icon='INFO')
+            rigid_box.label(text="   N面板 → MMD → Rigid Body")
+
+            # 表情 Morph
+            morph_box = layout.box()
+            morph_box.label(text="表情 Morph", icon='SHAPEKEY_DATA')
+            morph_box.label(text="使用 mmd_tools 自带编辑器:", icon='INFO')
+            morph_box.label(text="   N面板 → MMD → Morph Tools")
