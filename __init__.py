@@ -20,7 +20,6 @@ from .operators import bone_operator
 from .operators import collection_operator
 from .operators import ik_operator
 from .operators import pose_operator
-from .operators import clear_unweighted_bones_operator
 from .operators import leg_operator
 from .operators import twist_operator
 from .operators import physics_operator
@@ -67,8 +66,6 @@ def register():
     _safe_register(pose_operator.OBJECT_OT_align_fingers_to_reference)
     _safe_register(ik_operator.OBJECT_OT_add_ik)
     _safe_register(collection_operator.OBJECT_OT_create_bone_group)
-    _safe_register(clear_unweighted_bones_operator.OBJECT_OT_clear_unweighted_bones)
-    _safe_register(clear_unweighted_bones_operator.OBJECT_OT_merge_single_child_bones)
     _safe_register(twist_operator.OBJECT_OT_complete_twist_bones)
     _safe_register(twist_operator.OBJECT_OT_split_upper_arm_twist_weights)
     _safe_register(twist_operator.OBJECT_OT_split_forearm_twist_weights)
@@ -101,8 +98,8 @@ def register():
         name="模式",
         description="选择操作模式",
         items=[
-            ('option1', "骨骼映射", "进行骨骼映射"),
-            ('option2', "骨骼清理", "进行骨骼清理")
+            ('option1', "骨骼映射", "主转换流程 (骨骼重命名/权重/IK/导出)"),
+            ('option2', "物理+表情", "刚体/胸部物理、表情 morph 编辑")
         ],
         default='option1'
     )
@@ -135,8 +132,6 @@ def unregister():
     _safe_unregister(pose_operator.OBJECT_OT_align_fingers_to_reference)
     _safe_unregister(ik_operator.OBJECT_OT_add_ik)
     _safe_unregister(collection_operator.OBJECT_OT_create_bone_group)
-    _safe_unregister(clear_unweighted_bones_operator.OBJECT_OT_clear_unweighted_bones)
-    _safe_unregister(clear_unweighted_bones_operator.OBJECT_OT_merge_single_child_bones)
     _safe_unregister(leg_operator.OBJECT_OT_complete_d_bones)
     _safe_unregister(leg_operator.OBJECT_OT_complete_hip_cancel_bones)
     _safe_unregister(leg_operator.OBJECT_OT_assign_weights)

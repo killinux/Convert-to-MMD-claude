@@ -328,8 +328,8 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
                 row.operator("object.convert_names_to_jp", text=".L/.R → 左/右", icon='ARROW_LEFTRIGHT')
                 row.operator("object.convert_names_to_lr", text="左/右 → .L/.R", icon='ARROW_LEFTRIGHT')
                 adv_box.operator("object.convert_to_apose", text="T-Pose → A-Pose")
-        # 骨骼清理选项卡
+        # 物理 + 表情 选项卡 (TODO: 刚体/胸部物理、morph 编辑)
         elif scene.my_enum == 'option2':
-            row = layout.row()
-            row.operator("object.clear_unweighted_bones", text="清理无权重骨骼", icon='X')
-            row.operator("object.merge_single_child_bones", text="合并单子级骨骼", icon='CONSTRAINT_BONE')            
+            layout.label(text="刚体编辑 (TODO)", icon='PHYSICS')
+            layout.label(text="胸部物理 (TODO)", icon='MOD_SOFT')
+            layout.label(text="表情 Morph (TODO)", icon='SHAPEKEY_DATA')
