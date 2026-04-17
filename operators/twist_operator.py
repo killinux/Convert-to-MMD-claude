@@ -233,9 +233,9 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
             )
         ]
 
-        print("[CTMMD 2.1] ===== Step 2.1: Twist System (position-based) =====")
+        print("[CTMMD 3] ===== Step 3: Twist System (position-based) =====")
         side_fmt = _detect_side_format(obj)
-        print(f"[CTMMD 2.1]   Naming mode: {'prefix(左/右)' if side_fmt=='prefix' else 'suffix(.L/.R)'}")
+        print(f"[CTMMD 3]   Naming mode: {'prefix(左/右)' if side_fmt=='prefix' else 'suffix(.L/.R)'}")
 
         # Plan: 先在 OBJECT 模式扫描候选 (只读), 构建 (seg, side) -> candidates
         plans = []  # list of dicts per (seg, side)
@@ -282,12 +282,12 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
             plan["assignment"] = _assign_candidates_to_slots(
                 plan["candidates"], plan["main_t"], plan["sub_ts"]
             )
-            print(f"[CTMMD 2.1] -- {plan['main_base']} {plan['side']}: {len(plan['candidates'])} candidates --")
+            print(f"[CTMMD 3] -- {plan['main_base']} {plan['side']}: {len(plan['candidates'])} candidates --")
             for c in plan["candidates"]:
-                print(f"[CTMMD 2.1]     cand: {c[0]:<38s} t_head={c[1]:+.2f} t_w={c[2]:+.2f} w={c[3]}")
+                print(f"[CTMMD 3]     cand: {c[0]:<38s} t_head={c[1]:+.2f} t_w={c[2]:+.2f} w={c[3]}")
             for slot_idx, bone_name in plan["assignment"].items():
                 slot_name = plan["main_base"] if slot_idx == 0 else f"{plan['main_base']}{slot_idx}"
-                print(f"[CTMMD 2.1]     assign slot {slot_name:<8s} <- {bone_name}")
+                print(f"[CTMMD 3]     assign slot {slot_name:<8s} <- {bone_name}")
 
         # Apply in EDIT mode
         bpy.ops.object.mode_set(mode='EDIT')
@@ -378,7 +378,7 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
                 child_eb.parent = main_eb
                 child_eb.head = saved_head
                 child_eb.tail = saved_tail
-                print(f"[CTMMD 2.1]   Chain: {child_name} parent -> {main_name}")
+                print(f"[CTMMD 3]   Chain: {child_name} parent -> {main_name}")
 
         bpy.ops.object.mode_set(mode='OBJECT')
 
@@ -414,7 +414,7 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
                         vg_twist.name = arm_name
                     if vg_arm:
                         vg_arm.name = twist_name
-                print(f"[CTMMD 2.1]   Swap VG: {arm_name} <-> {twist_name}")
+                print(f"[CTMMD 3]   Swap VG: {arm_name} <-> {twist_name}")
 
         # 设置 hide 标志 + layer: MMD 惯例
         #   main (腕捩/手捩): hide=False (用户可见可操作)
@@ -444,11 +444,11 @@ class OBJECT_OT_complete_twist_bones(bpy.types.Operator):
                     _reset_layer(sb)
                     sb.hide = True
 
-        print(f"[CTMMD 2.1] Done: renamed {len(renamed)}, created {len(created)}")
+        print(f"[CTMMD 3] Done: renamed {len(renamed)}, created {len(created)}")
         for r in renamed:
-            print(f"[CTMMD 2.1]   Renamed: {r}")
+            print(f"[CTMMD 3]   Renamed: {r}")
         for c in created:
-            print(f"[CTMMD 2.1]   Created (empty): {c}")
+            print(f"[CTMMD 3]   Created (empty): {c}")
 
         self.report({"INFO"}, f"Twist system complete: renamed {len(renamed)}, created {len(created)}")
         return {'FINISHED'}

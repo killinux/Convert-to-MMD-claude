@@ -154,7 +154,7 @@ class OBJECT_OT_complete_d_bones(bpy.types.Operator):
         created = []
         skipped = []
 
-        print("[CTMMD 3] ===== Step 3: Create D-Bones =====")
+        print("[CTMMD 4] ===== Step 4: Create D-Bones =====")
         bpy.ops.object.mode_set(mode='EDIT')
         edit_bones = obj.data.edit_bones
 
@@ -173,7 +173,7 @@ class OBJECT_OT_complete_d_bones(bpy.types.Operator):
                 main_eb = edit_bones[main_name]
                 cancel_name = "腰キャンセル" + side_suffix
                 if not edit_bones.get(cancel_name):
-                    print(f"[CTMMD 3]   WARNING: {cancel_name} not found, D-bone parent will use 下半身. Run Step 2 first.")
+                    print(f"[CTMMD 4]   WARNING: {cancel_name} not found, D-bone parent will use 下半身. Run Step 2 first.")
                 parent_name = cancel_name if edit_bones.get(cancel_name) else "下半身"
 
                 parent_d = None
@@ -201,7 +201,7 @@ class OBJECT_OT_complete_d_bones(bpy.types.Operator):
                 )
                 eb = edit_bones[d_name]
                 head_str = f"({eb.head.x:.3f},{eb.head.y:.3f},{eb.head.z:.3f})"
-                print(f"[CTMMD 3]   Created: {d_name:<12} head={head_str}  parent={actual_parent}  source={main_name}")
+                print(f"[CTMMD 4]   Created: {d_name:<12} head={head_str}  parent={actual_parent}  source={main_name}")
                 created.append(d_name)
 
         # 足先EX: D骨系つま先延伸，parent=足首D
@@ -226,7 +226,7 @@ class OBJECT_OT_complete_d_bones(bpy.types.Operator):
                 ex_tail = ex_head + Vector((0, -_body_height(obj) * 0.037, 0))
             bone_utils.create_or_update_bone(edit_bones, ex_name, ex_head, ex_tail,
                 use_connect=False, parent_name=ankle_d_name, use_deform=True)
-            print(f"[CTMMD 3]   Created: {ex_name:<12} parent={ankle_d_name}")
+            print(f"[CTMMD 4]   Created: {ex_name:<12} parent={ankle_d_name}")
             created.append(ex_name)
 
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -240,10 +240,10 @@ class OBJECT_OT_complete_d_bones(bpy.types.Operator):
             if pb:
                 pb.mmd_bone.is_tip = True
 
-        print(f"[CTMMD 3] D-bone creation complete: created {len(created)}, skipped {len(skipped)}")
+        print(f"[CTMMD 4] D-bone creation complete: created {len(created)}, skipped {len(skipped)}")
         for s in skipped:
-            print(f"[CTMMD 3]   Skipped: {s}")
-        self.report({"INFO"}, f"Created {len(created)} D-bones. Run Step 2.5 for weight assignment.")
+            print(f"[CTMMD 4]   Skipped: {s}")
+        self.report({"INFO"}, f"Created {len(created)} D-bones. Run Step 7 for weight assignment.")
         return {'FINISHED'}
 
 
@@ -269,7 +269,7 @@ class OBJECT_OT_complete_hip_cancel_bones(bpy.types.Operator):
 
 
         body_h = _body_height(obj)
-        print("[CTMMD 4] ===== Step 4: Create Hip Cancel Bones =====")
+        print("[CTMMD 5] ===== Step 5: Create Hip Cancel Bones =====")
         created = 0
         log = []
         for side_suffix in [".L", ".R"]:
@@ -309,9 +309,9 @@ class OBJECT_OT_complete_hip_cancel_bones(bpy.types.Operator):
                 b.hide = True
                 obj.pose.bones[name].mmd_bone.is_tip = True
 
-        print("[CTMMD 4] Hip cancel summary:")
+        print("[CTMMD 5] Hip cancel summary:")
         for name, note in log:
-            print(f"[CTMMD 4]   {name}  {note}")
+            print(f"[CTMMD 5]   {name}  {note}")
 
         self.report({"INFO"}, f"Hip cancel bones: created {created}, existing {len(log)-created}")
         return {'FINISHED'}
@@ -414,10 +414,10 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
         # 计算体高，用于将所有距离阈值改为比例值（通用化）
         body_h = _body_height(obj)
 
-        print("[CTMMD 5] ===== Step 5: Unified Weight Assignment =====")
-        print("[CTMMD 5] -- 5.1: unused -> main bones --")
+        print("[CTMMD 7] ===== Step 7: Unified Weight Assignment =====")
+        print("[CTMMD 7] -- 7.1: unused -> main bones --")
 
-        print("[CTMMD 5] ===== 5.1: unused bones -> target bones (per-vertex) =====")
+        print("[CTMMD 7] ===== 7.1: unused bones -> target bones (per-vertex) =====")
         all_unused_names = {b.name for b in obj.data.bones if b.name.startswith("unused ")}
 
         # 保留辅助骨: 匹配 PRESERVE_HELPER_KEYWORDS 的 unused 骨骼不做 merge,
@@ -428,9 +428,9 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
             and any(kw in b.name.lower() for kw in PRESERVE_HELPER_KEYWORDS)
         ]
         if preserved_bones:
-            print(f"[CTMMD 5] Preserved {len(preserved_bones)} helper bones (no merge):")
+            print(f"[CTMMD 7] Preserved {len(preserved_bones)} helper bones (no merge):")
             for n in preserved_bones:
-                print(f"[CTMMD 5]   [KEEP] {n}")
+                print(f"[CTMMD 7]   [KEEP] {n}")
 
         unused_bones = [
             b for b in obj.data.bones
@@ -439,7 +439,7 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
             and any(_vg_has_weight(m, b.name) for m in mesh_objects)
         ]
 
-        cleared_bones = set()  # Phase 5.2 完成后填充，此处初始化供 Phase 5.1 候选过滤使用
+        cleared_bones = set()  # Phase 7.2 完成后填充，此处初始化供 Phase 7.1 候选过滤使用
         target_candidates = []
         for candidate in obj.data.bones:
             if candidate.name in all_unused_names or not candidate.use_deform:
@@ -479,7 +479,7 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
                     if verts_to_clear:
                         src_vg.remove(verts_to_clear)
                 obj.data.bones[bone.name].use_deform = False
-                print(f"[CTMMD 5] [FORCED] {bone.name:<30} -> {forced_target} ({total_moved} verts)")
+                print(f"[CTMMD 7] [FORCED] {bone.name:<30} -> {forced_target} ({total_moved} verts)")
                 merged_count += 1
                 continue
 
@@ -492,7 +492,7 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
                     best_name = cname
 
             if not best_name:
-                print(f"[CTMMD 5] [WARN] {bone.name:<30} no candidate, skipped")
+                print(f"[CTMMD 7] [WARN] {bone.name:<30} no candidate, skipped")
                 skipped_count += 1
                 continue
             src_side = _guess_side(bone, mesh_objects, body_h)
@@ -505,7 +505,7 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
                        g.group == mesh.vertex_groups[bone.name].index and g.weight > 0.01
                 )
                 fallback_warnings.append((bone.name, best_dist, best_name, src_pos.z, vcount))
-                print(f"[CTMMD 5] [SKIP] {bone.name:<30} dist {best_dist:.3f}m > threshold, Z={src_pos.z:.3f}, nearest={best_name}, {vcount} verts — 需人工处理")
+                print(f"[CTMMD 7] [SKIP] {bone.name:<30} dist {best_dist:.3f}m > threshold, Z={src_pos.z:.3f}, nearest={best_name}, {vcount} verts — 需人工处理")
                 skipped_count += 1
                 continue
             # ── 判断是否需要 per-vertex 拆分 ──
@@ -596,24 +596,24 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
             mode_str = "SPLIT" if needs_split else "WHOLE"
             dist_str = f"质心距{best_dist:.3f}m"
             dst_str = "  ".join(f"{n}({c}v)" for n, c in sorted(dst_counts.items(), key=lambda x: -x[1]))
-            print(f"[CTMMD 5] [{mode_str}] {bone.name:<30} -> {dst_str}  [{dist_str}, {total_verts} verts]")
+            print(f"[CTMMD 7] [{mode_str}] {bone.name:<30} -> {dst_str}  [{dist_str}, {total_verts} verts]")
             merged_count += 1
 
-        print(f"[CTMMD 5] Phase 2 summary: merged {merged_count}, skipped {skipped_count}")
+        print(f"[CTMMD 7] Phase 2 summary: merged {merged_count}, skipped {skipped_count}")
         if fallback_warnings:
-            print(f"[CTMMD 5] ⚠️  以下 {len(fallback_warnings)} 根骨骼距离超阈值，已跳过，需人工处理：")
+            print(f"[CTMMD 7] ⚠️  以下 {len(fallback_warnings)} 根骨骼距离超阈值，已跳过，需人工处理：")
             for bname, dist, nearest, bz, vcount in fallback_warnings:
-                print(f"[CTMMD 5]   ✗ {bname:<35} dist={dist:.3f}m  Z={bz:.3f}  最近候选={nearest}  顶点数={vcount}")
-            print(f"[CTMMD 5]   → 可加入 FORCED_TARGETS 指定目标，或手动在权重绘制里处理")
+                print(f"[CTMMD 7]   ✗ {bname:<35} dist={dist:.3f}m  Z={bz:.3f}  最近候选={nearest}  顶点数={vcount}")
+            print(f"[CTMMD 7]   → 可加入 FORCED_TARGETS 指定目标，或手动在权重绘制里处理")
 
-        print("[CTMMD 5] ===== 5.2: main bones -> D-bones =====")
+        print("[CTMMD 7] ===== 7.2: main bones -> D-bones =====")
         cleared_bones = set()
         for base, d_base in D_BONE_PAIRS:
             for side_suffix, side_prefix in SIDES:
                 d_name = d_base + side_suffix
                 main_name = _get_main_bone_name(obj, base, side_suffix, side_prefix)
                 if not main_name:
-                    print(f"[CTMMD 5]   {d_name}: source bone not found, skipped")
+                    print(f"[CTMMD 7]   {d_name}: source bone not found, skipped")
                     continue
                 total = 0
                 for mesh in mesh_objects:
@@ -630,9 +630,9 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
                     if d_verts:
                         main_vg.remove(d_verts)
                 cleared_bones.add(main_name)
-                print(f"[CTMMD 5]   {main_name} -> {d_name}  {total} verts, source cleared")
+                print(f"[CTMMD 7]   {main_name} -> {d_name}  {total} verts, source cleared")
 
-        print("[CTMMD 5] ===== Phase 3: Clear Hip Cancel Weights =====")
+        print("[CTMMD 7] ===== Phase 3: Clear Hip Cancel Weights =====")
         for side_suffix in [".L", ".R"]:
             cancel_name = "腰キャンセル" + side_suffix
             cleared = 0
@@ -646,9 +646,9 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
                     if all_verts:
                         cancel_vg.remove(all_verts)
                         cleared += len(all_verts)
-            print(f"[CTMMD 5]   {cancel_name}: cleared {cleared} vertex weights (constraint-driven bone)")
+            print(f"[CTMMD 7]   {cancel_name}: cleared {cleared} vertex weights (constraint-driven bone)")
 
-        print("[CTMMD 5] ===== Phase 4: Fix Stray Weights =====")
+        print("[CTMMD 7] ===== Phase 4: Fix Stray Weights =====")
         stray_threshold = body_h * 0.185
         stray_fixed_total = 0
 
@@ -705,13 +705,13 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
                     vg.add([v.index], 0.0, 'REPLACE')
                     fixed_count += 1
 
-                print(f"[CTMMD 5]   {vg.name:<30} -> moved {len(stray_verts):>4} stray verts to nearest target")
+                print(f"[CTMMD 7]   {vg.name:<30} -> moved {len(stray_verts):>4} stray verts to nearest target")
 
             stray_fixed_total += fixed_count
 
-        print(f"[CTMMD 5] Phase 4 complete: fixed {stray_fixed_total} stray verts")
+        print(f"[CTMMD 7] Phase 4 complete: fixed {stray_fixed_total} stray verts")
 
-        print("[CTMMD 5] ===== Phase 5: Lower Body Cleanup =====")
+        print("[CTMMD 7] ===== Phase 5: Lower Body Cleanup =====")
         # 只在 D 骨权重严格大于 下半身权重 时才删 下半身 权重。
         # 保留胯部自然过渡区 (下半身=0.6 + 足D=0.3 类型的顶点),
         # 对应"不切权重"原则: 保留 XPS 原始的权重分布, 不因 D 骨有权重就删下半身。
@@ -735,7 +735,7 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
             if verts_to_remove:
                 lower_vg.remove(verts_to_remove)
                 total_removed += len(verts_to_remove)
-                print(f"[CTMMD 5]   {mesh.name}: removed {len(verts_to_remove)} D-bone-dominant lower-body verts")
+                print(f"[CTMMD 7]   {mesh.name}: removed {len(verts_to_remove)} D-bone-dominant lower-body verts")
 
         # ===== Phase 6: 把 全ての親 上的权重 RENAME 到 頭 =====
         # XPS 源模型常把部分顶点（通常是头发末梢/发饰）挂在 root ground 上,
@@ -749,7 +749,7 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
         # 改用 RENAME 策略: 直接把每个 mesh 的 全ての親 顶点组重命名为 頭。
         # XPS 的 root weights 几乎总是头发/发饰这种"应该跟着头动"的部件,
         # rename 一步到位, 不需要任何空间计算。
-        print("[CTMMD 5] ===== Phase 6: Rename 全ての親 -> 頭 =====")
+        print("[CTMMD 7] ===== Phase 6: Rename 全ての親 -> 頭 =====")
         all_parent_migrated = 0
         if obj.data.bones.get("頭"):
             for mesh in mesh_objects:
@@ -777,9 +777,9 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
                     # 没有 頭 顶点组, 直接 rename
                     root_vg.name = "頭"
                 all_parent_migrated += affected
-                print(f"[CTMMD 5]   {mesh.name}: renamed/merged 全ての親 -> 頭 ({affected} verts)")
+                print(f"[CTMMD 7]   {mesh.name}: renamed/merged 全ての親 -> 頭 ({affected} verts)")
         else:
-            print("[CTMMD 5]   skipped (頭 bone not found)")
+            print("[CTMMD 7]   skipped (頭 bone not found)")
 
         # 注: 之前有 Phase 7 vertex_group_smooth 胯部/腿部权重平滑, 是
         # "unused xtra04 被 merge 到 足.L 后轴向错反导致剪切" 的 workaround。
@@ -787,12 +787,12 @@ class OBJECT_OT_assign_weights(bpy.types.Operator):
         # 权重原地保留, 从根本解决问题, Phase 7 已移除。
 
         # ===== Phase 7+8: twist 权重梯度分配 =====
-        print("[CTMMD 5] ===== Phase 7: Upper arm twist split =====")
+        print("[CTMMD 7] ===== Phase 7: Upper arm twist split =====")
         bpy.ops.object.split_upper_arm_twist_weights()
-        print("[CTMMD 5] ===== Phase 8: Forearm twist split =====")
+        print("[CTMMD 7] ===== Phase 8: Forearm twist split =====")
         bpy.ops.object.split_forearm_twist_weights()
 
-        print("[CTMMD 5] ===== Weight Assignment Complete =====")
+        print("[CTMMD 7] ===== Weight Assignment Complete =====")
         self.report({'INFO'}, f"Weight assignment complete: merged {merged_count} unused bones, fixed {stray_fixed_total} stray verts, removed {total_removed} lower-body verts, migrated {all_parent_migrated} 全ての親 verts")
         return {'FINISHED'}
 
@@ -965,14 +965,14 @@ class OBJECT_OT_assign_weights_phase1(bpy.types.Operator):
             self.report({'ERROR'}, "No skinned mesh objects found")
             return {'CANCELLED'}
 
-        print("[CTMMD 5.2] ===== Phase 1: D-bones <- Main Bones =====")
+        print("[CTMMD 7.2] ===== Phase 1: D-bones <- Main Bones =====")
 
         for base, d_base in D_BONE_PAIRS:
             for side_suffix, side_prefix in SIDES:
                 d_name = d_base + side_suffix
                 main_name = _get_main_bone_name(obj, base, side_suffix, side_prefix)
                 if not main_name:
-                    print(f"[CTMMD 5.2]   {d_name}: source bone not found, skipped")
+                    print(f"[CTMMD 7.2]   {d_name}: source bone not found, skipped")
                     continue
                 total = 0
                 for mesh in mesh_objects:
@@ -987,9 +987,9 @@ class OBJECT_OT_assign_weights_phase1(bpy.types.Operator):
                                for g in v.groups if g.group == d_vg.index and g.weight > 0]
                     if d_verts:
                         main_vg.remove(d_verts)
-                print(f"[CTMMD 5.2]   {d_name} <- {main_name}  {total} verts, source cleared")
+                print(f"[CTMMD 7.2]   {d_name} <- {main_name}  {total} verts, source cleared")
 
-        print("[CTMMD 5.2] ===== Phase 1 Complete =====")
+        print("[CTMMD 7.2] ===== Phase 1 Complete =====")
         self.report({'INFO'}, "Phase 1 complete: D-bone weights copied. Check the result in Weight Paint.")
         return {'FINISHED'}
 
@@ -1022,7 +1022,7 @@ class OBJECT_OT_assign_weights_phase2(bpy.types.Operator):
 
 
         body_h = _body_height(obj)
-        print("[CTMMD 5.1] ===== Phase 2: unused bones -> target bones (per-vertex) =====")
+        print("[CTMMD 7.1] ===== Phase 2: unused bones -> target bones (per-vertex) =====")
         all_unused_names = {b.name for b in obj.data.bones if b.name.startswith("unused ")}
         unused_bones = [
             b for b in obj.data.bones
@@ -1067,7 +1067,7 @@ class OBJECT_OT_assign_weights_phase2(bpy.types.Operator):
                     if verts_to_clear:
                         src_vg.remove(verts_to_clear)
                 obj.data.bones[bone.name].use_deform = False
-                print(f"[CTMMD 5.1] [FORCED] {bone.name:<30} -> {forced_target} ({total_moved} verts)")
+                print(f"[CTMMD 7.1] [FORCED] {bone.name:<30} -> {forced_target} ({total_moved} verts)")
                 merged_count += 1
                 continue
 
@@ -1078,7 +1078,7 @@ class OBJECT_OT_assign_weights_phase2(bpy.types.Operator):
                 if d < best_dist:
                     best_dist = d; best_name = cname
             if not best_name:
-                print(f"[CTMMD 5.1] [WARN] {bone.name:<30} no candidate, skipped")
+                print(f"[CTMMD 7.1] [WARN] {bone.name:<30} no candidate, skipped")
                 skipped_count += 1
                 continue
             src_side = _guess_side(bone, mesh_objects, body_h)
@@ -1093,7 +1093,7 @@ class OBJECT_OT_assign_weights_phase2(bpy.types.Operator):
                        g.group == mesh.vertex_groups[bone.name].index and g.weight > 0.01
                 )
                 fallback_warnings.append((bone.name, best_dist, best_name, src_pos.z, vcount))
-                print(f"[CTMMD 5.1] [SKIP] {bone.name:<30} dist {best_dist:.3f}m > threshold, Z={src_pos.z:.3f}, nearest={best_name}, {vcount} verts — 需人工处理")
+                print(f"[CTMMD 7.1] [SKIP] {bone.name:<30} dist {best_dist:.3f}m > threshold, Z={src_pos.z:.3f}, nearest={best_name}, {vcount} verts — 需人工处理")
                 skipped_count += 1
                 continue
 
@@ -1186,15 +1186,15 @@ class OBJECT_OT_assign_weights_phase2(bpy.types.Operator):
             mode_str = "SPLIT" if needs_split else "WHOLE"
             dist_str = f"质心距{best_dist:.3f}m"
             dst_str = "  ".join(f"{n}({c}v)" for n, c in sorted(dst_counts.items(), key=lambda x: -x[1]))
-            print(f"[CTMMD 5.1] [{mode_str}] {bone.name:<30} -> {dst_str}  [{dist_str}, {total_verts} verts]")
+            print(f"[CTMMD 7.1] [{mode_str}] {bone.name:<30} -> {dst_str}  [{dist_str}, {total_verts} verts]")
             merged_count += 1
 
-        print(f"[CTMMD 5.1] ===== Phase 2 Complete: merged {merged_count}, skipped {skipped_count} =====")
+        print(f"[CTMMD 7.1] ===== Phase 2 Complete: merged {merged_count}, skipped {skipped_count} =====")
         if fallback_warnings:
-            print(f"[CTMMD 5.1] ⚠️  以下 {len(fallback_warnings)} 根骨骼距离超阈值，已跳过，需人工处理：")
+            print(f"[CTMMD 7.1] ⚠️  以下 {len(fallback_warnings)} 根骨骼距离超阈值，已跳过，需人工处理：")
             for bname, dist, nearest, bz, vcount in fallback_warnings:
-                print(f"[CTMMD 5.1]   ✗ {bname:<35} dist={dist:.3f}m  Z={bz:.3f}  最近候选={nearest}  顶点数={vcount}")
-            print(f"[CTMMD 5.1]   → 可加入 FORCED_TARGETS 指定目标，或手动在权重绘制里处理")
+                print(f"[CTMMD 7.1]   ✗ {bname:<35} dist={dist:.3f}m  Z={bz:.3f}  最近候选={nearest}  顶点数={vcount}")
+            print(f"[CTMMD 7.1]   → 可加入 FORCED_TARGETS 指定目标，或手动在权重绘制里处理")
         self.report({'INFO'}, f"Phase 2: merged {merged_count}, skipped {skipped_count}" +
                     (f", ⚠️ {len(fallback_warnings)} need manual fix" if fallback_warnings else ""))
         return {'FINISHED'}
@@ -1224,7 +1224,7 @@ class OBJECT_OT_assign_weights_phase3(bpy.types.Operator):
             self.report({'ERROR'}, "No skinned mesh objects found")
             return {'CANCELLED'}
 
-        print("[CTMMD 5.3] ===== Phase 3: Clear Hip Cancel Weights =====")
+        print("[CTMMD 7.3] ===== Phase 3: Clear Hip Cancel Weights =====")
         for side_suffix in [".L", ".R"]:
             cancel_name = "腰キャンセル" + side_suffix
             cleared = 0
@@ -1236,9 +1236,9 @@ class OBJECT_OT_assign_weights_phase3(bpy.types.Operator):
                     if all_verts:
                         cancel_vg.remove(all_verts)
                         cleared += len(all_verts)
-            print(f"[CTMMD 5.3]   {cancel_name}: cleared {cleared} vertex weights")
+            print(f"[CTMMD 7.3]   {cancel_name}: cleared {cleared} vertex weights")
 
-        print("[CTMMD 5.3] ===== Phase 3 Complete =====")
+        print("[CTMMD 7.3] ===== Phase 3 Complete =====")
         self.report({'INFO'}, "Phase 3 complete: hip cancel weights cleared")
         return {'FINISHED'}
 
@@ -1269,7 +1269,7 @@ class OBJECT_OT_assign_weights_phase4(bpy.types.Operator):
             self.report({'ERROR'}, "No skinned mesh objects found")
             return {'CANCELLED'}
 
-        print("[CTMMD 5.4] ===== Phase 4: Fix Stray Weights =====")
+        print("[CTMMD 7.4] ===== Phase 4: Fix Stray Weights =====")
 
         target_bones_ws = []
         for candidate in obj.data.bones:
@@ -1341,7 +1341,7 @@ class OBJECT_OT_assign_weights_phase4(bpy.types.Operator):
                     f"{n}({c}v Z={dst_z_ranges[n][0]:.2f}~{dst_z_ranges[n][1]:.2f})"
                     for n, c in sorted(dst_counts.items(), key=lambda x: -x[1])
                 )
-                print(f"[CTMMD 5.4]   ✗ {vg.name:<25} {len(stray_verts):>4}v "
+                print(f"[CTMMD 7.4]   ✗ {vg.name:<25} {len(stray_verts):>4}v "
                       f"dist={dist_min:.2f}~{dist_max:.2f}m  "
                       f"Z={src_z_min:.2f}~{src_z_max:.2f}  "
                       f"→ {dst_str}")
@@ -1349,8 +1349,8 @@ class OBJECT_OT_assign_weights_phase4(bpy.types.Operator):
             stray_fixed_total += fixed_count
 
         if stray_fixed_total == 0:
-            print(f"[CTMMD 5.4] ✓ 无迷路权重（所有顶点距所属骨骼均在 {self.STRAY_THRESHOLD}m 以内）")
-        print(f"[CTMMD 5.4] ===== Phase 4 Complete: fixed {stray_fixed_total} stray verts =====")
+            print(f"[CTMMD 7.4] ✓ 无迷路权重（所有顶点距所属骨骼均在 {self.STRAY_THRESHOLD}m 以内）")
+        print(f"[CTMMD 7.4] ===== Phase 4 Complete: fixed {stray_fixed_total} stray verts =====")
         self.report({'INFO'}, f"Phase 4 complete: fixed {stray_fixed_total} stray verts")
         return {'FINISHED'}
 
@@ -1379,7 +1379,7 @@ class OBJECT_OT_assign_weights_phase5(bpy.types.Operator):
             self.report({'ERROR'}, "No skinned mesh objects found")
             return {'CANCELLED'}
 
-        print("[CTMMD 5.5] ===== Phase 5: Lower Body Cleanup =====")
+        print("[CTMMD 7.5] ===== Phase 5: Lower Body Cleanup =====")
         d_bone_names = [d_base + s for _, d_base in D_BONE_PAIRS for s, _ in SIDES]
         total_removed = 0
         for mesh in mesh_objects:
@@ -1394,9 +1394,9 @@ class OBJECT_OT_assign_weights_phase5(bpy.types.Operator):
             if verts_to_remove:
                 lower_vg.remove(verts_to_remove)
                 total_removed += len(verts_to_remove)
-                print(f"[CTMMD 5.5]   {mesh.name}: removed {len(verts_to_remove)} D-bone-covered lower-body verts")
+                print(f"[CTMMD 7.5]   {mesh.name}: removed {len(verts_to_remove)} D-bone-covered lower-body verts")
 
-        print(f"[CTMMD 5.5] ===== Phase 5 Complete: removed {total_removed} verts =====")
+        print(f"[CTMMD 7.5] ===== Phase 5 Complete: removed {total_removed} verts =====")
         self.report({'INFO'}, f"Phase 5 complete: removed {total_removed} lower-body verts")
         return {'FINISHED'}
 
@@ -1427,7 +1427,7 @@ class OBJECT_OT_assign_weights_phase6(bpy.types.Operator):
             self.report({'ERROR'}, "No skinned mesh objects found")
             return {'CANCELLED'}
 
-        print("[CTMMD 5.6] ===== Phase 6: Unprocessed Vertex Group Diagnostic =====")
+        print("[CTMMD 7.6] ===== Phase 6: Unprocessed Vertex Group Diagnostic =====")
 
         # 收集仍有权重的 unused 骨骼（use_deform=True + verts>0）
         all_unused_names = {b.name for b in obj.data.bones if b.name.startswith("unused ")}
@@ -1446,7 +1446,7 @@ class OBJECT_OT_assign_weights_phase6(bpy.types.Operator):
                 remaining.append((b, vcount))
 
         if not remaining:
-            print("[CTMMD 5.6] OK: all unused bones processed, no remaining weights")
+            print("[CTMMD 7.6] OK: all unused bones processed, no remaining weights")
             self.report({'INFO'}, "5.6: no remaining unused bones")
             return {'FINISHED'}
 
@@ -1461,7 +1461,7 @@ class OBJECT_OT_assign_weights_phase6(bpy.types.Operator):
             ct = obj.matrix_world @ candidate.tail_local
             target_candidates.append((candidate.name, ch, ct))
 
-        print(f"[CTMMD 5.6] found {len(remaining)} unused bones with remaining weights:")
+        print(f"[CTMMD 7.6] found {len(remaining)} unused bones with remaining weights:")
 
         forced_list = []
         would_skip = []
@@ -1475,7 +1475,7 @@ class OBJECT_OT_assign_weights_phase6(bpy.types.Operator):
                     break
             if forced_target:
                 forced_list.append((bone.name, vcount, forced_target))
-                print(f"[CTMMD 5.6]   FORCED  {bone.name:<35} {vcount:>5}v  -> {forced_target}")
+                print(f"[CTMMD 7.6]   FORCED  {bone.name:<35} {vcount:>5}v  -> {forced_target}")
                 continue
 
             src_pos = _vertex_centroid(bone.name, mesh_objects) or (obj.matrix_world @ bone.head_local)
@@ -1487,7 +1487,7 @@ class OBJECT_OT_assign_weights_phase6(bpy.types.Operator):
                     best_name = cname
 
             if not best_name:
-                print(f"[CTMMD 5.6]   WARN    {bone.name:<35} {vcount:>5}v  -> no candidate found")
+                print(f"[CTMMD 7.6]   WARN    {bone.name:<35} {vcount:>5}v  -> no candidate found")
                 continue
 
             needs_split = any(kw in bone.name.lower() for kw in SPLIT_BONES)
@@ -1495,21 +1495,21 @@ class OBJECT_OT_assign_weights_phase6(bpy.types.Operator):
 
             if best_dist >= self.DISTANCE_THRESHOLD:
                 would_skip.append((bone.name, vcount, best_name, best_dist, src_pos.z))
-                print(f"[CTMMD 5.6]   SKIP    {bone.name:<35} {vcount:>5}v  dist={best_dist:.3f}m  Z={src_pos.z:.3f}  nearest={best_name}")
+                print(f"[CTMMD 7.6]   SKIP    {bone.name:<35} {vcount:>5}v  dist={best_dist:.3f}m  Z={src_pos.z:.3f}  nearest={best_name}")
             else:
                 would_process.append((bone.name, vcount, best_name, best_dist, mode))
-                print(f"[CTMMD 5.6]   {mode:<6}  {bone.name:<35} {vcount:>5}v  dist={best_dist:.3f}m  -> {best_name}")
+                print(f"[CTMMD 7.6]   {mode:<6}  {bone.name:<35} {vcount:>5}v  dist={best_dist:.3f}m  -> {best_name}")
 
-        print(f"[CTMMD 5.6] ---------------------------------------------------------")
-        print(f"[CTMMD 5.6] summary: FORCED={len(forced_list)}  auto={len(would_process)}  manual={len(would_skip)}")
+        print(f"[CTMMD 7.6] ---------------------------------------------------------")
+        print(f"[CTMMD 7.6] summary: FORCED={len(forced_list)}  auto={len(would_process)}  manual={len(would_skip)}")
         if would_skip:
-            print(f"[CTMMD 5.6] WARNING: {len(would_skip)} bones exceed distance threshold, need manual fix:")
+            print(f"[CTMMD 7.6] WARNING: {len(would_skip)} bones exceed distance threshold, need manual fix:")
             for bname, vc, nearest, dist, bz in would_skip:
-                print(f"[CTMMD 5.6]   SKIP  {bname:<35} {vc:>4}v  dist={dist:.3f}m  Z={bz:.3f}  suggested={nearest}")
+                print(f"[CTMMD 7.6]   SKIP  {bname:<35} {vc:>4}v  dist={dist:.3f}m  Z={bz:.3f}  suggested={nearest}")
         if would_process:
-            print(f"[CTMMD 5.6] INFO: {len(would_process)} bones can still be processed by step 5.1:")
+            print(f"[CTMMD 7.6] INFO: {len(would_process)} bones can still be processed by step 7.1:")
             for bname, vc, nearest, dist, mode in would_process:
-                print(f"[CTMMD 5.6]   {mode:<6}  {bname:<35} {vc:>4}v  dist={dist:.3f}m  -> {nearest}")
+                print(f"[CTMMD 7.6]   {mode:<6}  {bname:<35} {vc:>4}v  dist={dist:.3f}m  -> {nearest}")
 
         self.report({'INFO'}, f"5.6: {len(remaining)} remaining ({len(would_skip)} manual, {len(would_process)} auto, {len(forced_list)} forced)")
         return {'FINISHED'}
