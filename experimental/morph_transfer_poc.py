@@ -1011,7 +1011,7 @@ INASE_MORPH_SPECS = {
     'びっくり': (1.0, 5.0,  20),
     'じと目':  (1.0, 6.0,  20),
     '困る':    (5.0, 15.0, 20),
-    '怒り':    (5.0, 15.0, 20),
+    '怒り':    (4.0, 15.0, 20),
     '真面目':  (5.0, 12.0, 20),
     '上':     (8.0, 20.0, 20),
     '下':     (8.0, 20.0, 20),
@@ -1056,6 +1056,108 @@ def verify_all_morphs(meshes, specs=None):
     n_ok = sum(1 for v in results.values() if v[0])
     print(f"\n[verify-B] {n_ok}/{len(results)} pass spec")
     return results
+
+
+# ---------- P0 Tool A: interactive UI modal verification ----------
+
+_verify_meshes_cache = []  # module-level stash for operator invoke
+
+
+def start_verify_modal(meshes):
+    """Stash meshes for the modal operator and invoke it. Call this from a
+    cli.py exec; keyboard control then happens in the Blender window.
+
+    Keys (focus the 3D viewport):
+      O = OK, X = Issue, N = Skip/Next, ESC = Quit
+    """
+    global _verify_meshes_cache
+    _verify_meshes_cache = list(meshes)
+    bpy.ops.morph.verify_modal('INVOKE_DEFAULT')
+
+
+class MORPH_OT_verify_modal(bpy.types.Operator):
+    bl_idname = "morph.verify_modal"
+    bl_label = "Verify Morphs (Interactive)"
+    bl_description = "Cycle through every baked morph and record OK/Issue via keyboard"
+
+    def invoke(self, context, event):
+        if not _verify_meshes_cache:
+            self.report({'ERROR'}, "Call start_verify_modal(meshes) first")
+            return {'CANCELLED'}
+        self.meshes = _verify_meshes_cache
+        face = self.meshes[0]
+        if face.data.shape_keys is None:
+            self.report({'ERROR'}, "Face mesh has no shape keys")
+            return {'CANCELLED'}
+        self.morph_names = [k.name for k in face.data.shape_keys.key_blocks if k.name != 'Basis']
+        if not self.morph_names:
+            self.report({'ERROR'}, "No non-basis shape keys found")
+            return {'CANCELLED'}
+        self.idx = 0
+        self.results = {}
+        self._apply_current()
+        self._draw_status(context)
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
+    def _apply_current(self):
+        set_morph_synced(self.meshes, self.morph_names[self.idx], 1.0)
+
+    def _draw_status(self, context):
+        if self.idx < len(self.morph_names):
+            name = self.morph_names[self.idx]
+            msg = f"[Verify] {self.idx+1}/{len(self.morph_names)} '{name}'  —  O=OK  X=Issue  N=Skip  ESC=Quit"
+        else:
+            n_ok = sum(1 for v in self.results.values() if v == 'OK')
+            n_issue = sum(1 for v in self.results.values() if v == 'ISSUE')
+            msg = f"[Verify] done: {n_ok} OK, {n_issue} issue. ESC to exit."
+        context.workspace.status_text_set(msg)
+
+    def modal(self, context, event):
+        if event.type == 'ESC' and event.value == 'PRESS':
+            self._finish(context)
+            return {'CANCELLED'}
+        if event.value != 'PRESS':
+            return {'PASS_THROUGH'}
+        if event.type in {'O', 'X', 'N'} and self.idx < len(self.morph_names):
+            label = {'O': 'OK', 'X': 'ISSUE', 'N': 'SKIPPED'}[event.type]
+            self.results[self.morph_names[self.idx]] = label
+            self.idx += 1
+            if self.idx < len(self.morph_names):
+                self._apply_current()
+            self._draw_status(context)
+            if self.idx >= len(self.morph_names):
+                self._finish(context)
+                return {'FINISHED'}
+            return {'RUNNING_MODAL'}
+        return {'PASS_THROUGH'}
+
+    def _finish(self, context):
+        set_morph_synced(self.meshes, '__reset__', 0.0)
+        context.workspace.status_text_set(None)
+        print("\n[Verify-A] results:")
+        for name in self.morph_names:
+            v = self.results.get(name, '(not reviewed)')
+            print(f"  {v:10s} {name}")
+        n_ok = sum(1 for v in self.results.values() if v == 'OK')
+        n_issue = sum(1 for v in self.results.values() if v == 'ISSUE')
+        n_skip = sum(1 for v in self.results.values() if v == 'SKIPPED')
+        print(f"[Verify-A] {n_ok} OK, {n_issue} issue, {n_skip} skipped")
+
+
+def register_verify_ops():
+    try:
+        bpy.utils.register_class(MORPH_OT_verify_modal)
+    except ValueError:
+        bpy.utils.unregister_class(MORPH_OT_verify_modal)
+        bpy.utils.register_class(MORPH_OT_verify_modal)
+
+
+def unregister_verify_ops():
+    try:
+        bpy.utils.unregister_class(MORPH_OT_verify_modal)
+    except Exception:
+        pass
 
 
 # ---------- Batch: bake + transfer all bone_morphs ----------
