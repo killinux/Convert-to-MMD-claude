@@ -152,6 +152,18 @@ Path D (程序化合成,现在的 ④ 按钮) **完全不走这条路** — 不�
 
 ---
 
+## 基础设施
+
+### ❌ blender-mcp server 断开后 cli.py exec 全部失败 (2026-04-18)
+
+- **表现**: AWS `cli.py exec/screenshot` 超时或 connection refused,Blender 侧 `blendermcp_server_running=False`
+- **根因**: blender-mcp 插件的 MCP server 是"按钮启动"模式,意外断开后不会自动恢复。用户每次开 Blender 都要手动点 "Connect to MCP server"
+- **修复** (blender-mcp commit `c102fa3`):
+  1. 在 addon `register()` 里注册 `_auto_ensure_server` 定时器 `first_interval=1.0s`,之后每 30s 巡检一次;server 死了自动拉起
+  2. 加 `Scene.blendermcp_autostart` 开关(默认 True),UI N 面板一个勾选框
+  3. "Stop" 按钮按下时设 `autostart=False`,尊重用户显式断连,watchdog 不乱插手
+- **部署**: Mac `/Users/bytedance/work/mytest/blender-mcp` git pull,然后 `cp addon.py ~/Library/Application Support/Blender/3.6/scripts/addons/addon.py`,重启 addon
+
 ## 怎么维护这份文档
 
 - 每次发现新的"做错了"的方案(无论是算法、UI、API 用法),**当场追加到这里**
