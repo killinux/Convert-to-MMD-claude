@@ -1173,8 +1173,8 @@ def find_inase_meshes():
             brow = o
         elif has_eyelid and not has_lip and not has_brow:
             lashes.append(o)
-        elif has_wink and not has_lip and not has_eyelid and not has_brow:
-            eyeball = o
+        elif has_wink and not has_lip and not has_eyelid and not has_brow and len(vg_names) < 10:
+            eyeball = o  # sub-10-vg filter rules out YYB/other template meshes
     if face and len(lashes) == 2 and brow and eyeball:
         return [face, lashes[0], lashes[1], brow, eyeball]
     return None
