@@ -316,22 +316,22 @@ def align_template_to_source(tpl_root, tpl_lms, src_lms, use_first_n=5):
     t_spread = np.linalg.norm(t - tc, axis=1).mean()
     s_spread = np.linalg.norm(s - sc, axis=1).mean()
     scale = s_spread / t_spread
-    # world: tpl_w -> (tpl_w - tc) * scale + sc
-    # tpl_root scale + location combined with mesh local coords to produce world.
-    # Simpler: reset root to world-scale-and-translate.
-    # But root may have existing transform; easier to set it directly.
-    from mathutils import Matrix
-    M_align = (
-        Matrix.Translation(sc)
-        @ Matrix.Diagonal((scale, scale, scale, 1.0))
-        @ Matrix.Translation(-tc)
-    )
-    # Current world matrix of root
-    M_current = tpl_root.matrix_world.copy()
-    # We want: new_world = M_align @ M_current
-    tpl_root.matrix_world = M_align @ M_current
+    # world: tpl_w_new = (tpl_w_old - tc) * scale + sc
+    # Assumes tpl_root has identity rotation + unit scale + zero location initially.
+    # For each tpl landmark (currently at world L), after scaling root by `scale` and
+    # setting root.location = dL, new world L' = (L - 0) * scale + dL.
+    # We want L' = (L - tc) * scale + sc, i.e. dL = sc - scale * tc.
+    # If root already has a scale/location we should compose; here we assume caller
+    # resets root to identity before calling.
+    from mathutils import Vector
+    tpl_root.scale = (float(scale), float(scale), float(scale))
+    tpl_root.location = Vector((
+        float(sc[0] - scale * tc[0]),
+        float(sc[1] - scale * tc[1]),
+        float(sc[2] - scale * tc[2]),
+    ))
     bpy.context.view_layer.update()
-    print(f"[align] scale={scale:.3f}  translation=({sc[0]-scale*tc[0]:+.3f},{sc[1]-scale*tc[1]:+.3f},{sc[2]-scale*tc[2]:+.3f})")
+    print(f"[align] scale={scale:.3f}  location=({tpl_root.location.x:+.3f},{tpl_root.location.y:+.3f},{tpl_root.location.z:+.3f})")
     return scale
 
 
