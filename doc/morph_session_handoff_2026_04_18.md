@@ -351,17 +351,9 @@ Reika XPS vg 命名**完全不同** (e.g. `lBrowInner` vs Inase `head eyebrow le
 `bake_eyeball_morphs_for_wink` 自动查表。Inase 眼球 mesh 天然以 x=0 对称分割 (232+252 verts, 无共享)。
 视觉验证: 单眼 wink 时睁着那只眼球前凸饱满,不再后陷。
 
-### P5: 眼球 morph 细节遗留 (2026-04-18, 回头再调)
+### ~~P5: 眼球 morph 细节遗留~~ ✅ 解决 (2026-04-18)
 
-P4 单眼 wink 主要问题已修,但 user 报告"眼球还是有问题"。未具体定位。待 P0 工具做好后系统性回看。
-
-可能方向(下次排查参考):
-- **笑い**: 当前 `back_mm=6.0` 和 まばたき 一样,crescent smile-eyes 可能希望 recede 量更小(只露月牙状眼球不要太后陷)
-- **びっくり**: eyelid 上下各 ±3/-2mm,可能视觉不够惊讶,考虑 ×1.5
-- **じと目**: eyelid 上 -5mm / 下 +2mm,narrow 效果 OK 但对比 target 参考图可能还要调
-- **眼皮 shape** 本身(不是眼球): face mesh / 睫毛的 `まばたき` upper -8 / lower +9mm 是否最佳
-
-修复入口: `experimental/morph_transfer_poc.py` `INASE_RECIPES` 的 eye 类条目 + `bake_eyeball_morphs_for_wink` 的 `back_mm`。
+User 2026-04-18 稍后确认"眼球问题现在没问题了" — P4 单眼 wink 修复 + 其他眼皮 morph 截图过后视觉 OK。未做额外改动。若未来再出问题,修复入口: `INASE_RECIPES` eye 类条目 + `bake_eyeball_morphs_for_wink` 的 `back_mm`。
 
 ---
 
