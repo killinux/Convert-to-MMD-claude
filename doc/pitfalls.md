@@ -134,6 +134,12 @@ Path D (程序化合成,现在的 ④ 按钮) **完全不走这条路** — 不�
 - **表现**: `find_inase_meshes` 把 YYB 整个脸 mesh 认成 eyeball,因为它有 まばたき shape key + 无 Inase 脸 vg
 - **修复** (commit `bc08499`): 加 `len(vg_names) < 10` 过滤,template 通常 vg 上百个
 
+### ❌ 牙齿 mesh 被误判成 face
+
+- **表现**: 干净重测时 `find_inase_meshes` 把 `24_0005` (tooth) 当成 face → 19 条 morph 全烘在牙齿上,真 face (`24_0002`) 没 shape key。视觉上脸完全不动
+- **根因**: 牙齿 mesh 为了跟着嘴唇动,也 rig 了 `head lip*` vg。旧检测 `if has_lip: face = o` 把牙齿当 face,且迭代顺序让 24_0005 覆盖 24_0002
+- **修复** (2026-04-18): face 要求**同时有 lip + eyelid + eyebrow** 三类 vg。只有真 face mesh 三者全含,牙齿 / 睫毛 / 眉都只占其一
+
 ### ❌ 一键转换后 ④ 合成 morph 找不到 mesh
 
 - **表现**: 干净 Blender → 导 XPS → 一键转换 (1→11) → 切 option2 点 ④ → `find_inase_meshes` 返回 NONE,报"未找到 Inase 5 个脸部 mesh"

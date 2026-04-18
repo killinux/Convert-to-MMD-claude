@@ -1153,11 +1153,14 @@ def find_inase_meshes():
     Returns list of 5 objects, or None if any slot missing.
 
     Priority (most specific first):
-      face   = has 'head lip *' vg
+      face   = has ALL THREE: lip + eyelid + eyebrow vgs (only real face mesh has all)
       brow   = has 'head eyebrow *' vg but NO lip vg
       lash   = has 'head eyelid *' vg but NO lip NOR brow vg
       eyeball= has '目.L'/'目.R' (or XPS original 'head eyeball *') vg, small vg count,
                NOT any face detail vg (rules out template meshes)
+
+    Why three-vg face check: tooth mesh (24_0005) rigs to `head lip` too but
+    has no eyelid/eyebrow, so a lone has_lip check picks teeth as face.
 
     Note: Must run BEFORE the addon's step-6 cleanup_face_bones which deletes
     the head lip/eyelid/eyebrow vgs by merging them into 頭.
@@ -1174,7 +1177,7 @@ def find_inase_meshes():
         has_eyelid = any(n.startswith('head eyelid') for n in vg_names)
         has_brow = any(n.startswith('head eyebrow') for n in vg_names)
         has_eye_bone = any(n in vg_names for n in EYE_BONE_VG_NAMES)
-        if has_lip:
+        if has_lip and has_eyelid and has_brow:
             face = o
         elif has_brow and not has_lip:
             brow = o
