@@ -624,6 +624,12 @@ CORNER_L  = ('head mouth corner left',)
 CORNER_R  = ('head mouth corner right',)
 CORNER_BOTH = CORNER_L + CORNER_R
 
+# Eyelid groups. L/R follow mesh vg naming (model-centric).
+EYELID_UPPER_L = ('head eyelid upper left',)
+EYELID_UPPER_R = ('head eyelid upper right',)
+EYELID_LOWER_L = ('head eyelid lower left',)
+EYELID_LOWER_R = ('head eyelid lower right',)
+
 INASE_RECIPES = {
     'あ': {  # mouth wide open
         JAW:         (0,  1, -3),
@@ -655,6 +661,21 @@ INASE_RECIPES = {
         CORNER_L:    (-3, -2.5, -1.5),
         CORNER_R:    (+3, -2.5, -1.5),
         JAW:         (0,  0.5, -3),
+    },
+    # --- Eyelids ---
+    'まばたき': {  # both eyes closed
+        EYELID_UPPER_L: (0, 0, -4),
+        EYELID_UPPER_R: (0, 0, -4),
+        EYELID_LOWER_L: (0, 0, +3),
+        EYELID_LOWER_R: (0, 0, +3),
+    },
+    'ウィンク': {  # model-left eye wink (viewer's right)
+        EYELID_UPPER_L: (0, 0, -4),
+        EYELID_LOWER_L: (0, 0, +3),
+    },
+    'ウィンク右': {  # model-right eye wink (viewer's left)
+        EYELID_UPPER_R: (0, 0, -4),
+        EYELID_LOWER_R: (0, 0, +3),
     },
 }
 
