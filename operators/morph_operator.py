@@ -28,13 +28,24 @@ GROUP_MORPH_FIELDS = ('name', 'morph_type', 'factor')
 MORPH_META_FIELDS = ('name', 'name_e', 'category')
 
 
-def _copy_fields(src, dst, fields):
+def _copy_fields(src, dst, fields, log_errors=False):
     for f in fields:
-        if hasattr(src, f) and hasattr(dst, f):
-            try:
-                setattr(dst, f, getattr(src, f))
-            except (TypeError, AttributeError):
-                pass
+        if not hasattr(src, f) or not hasattr(dst, f):
+            continue
+        val = getattr(src, f)
+        # FloatVectorProperty / bpy_prop_array — copy as list to avoid reference issues
+        try:
+            val = list(val)  # works for vectors, iterable strings stay iterable
+            # preserve strings as-is (don't list-ify a str into chars)
+            if isinstance(getattr(src, f), str):
+                val = getattr(src, f)
+        except TypeError:
+            pass
+        try:
+            setattr(dst, f, val)
+        except Exception as e:
+            if log_errors:
+                print(f'[CTMMD 13] _copy_fields skip {f}: {e}')
 
 
 def _get_model(root_obj):
