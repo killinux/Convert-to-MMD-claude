@@ -81,3 +81,22 @@ print(len(dst.mmd_root.bone_morphs),
 - target 0 morph：日志 `target has 0 morphs, nothing to clone`，正常退出
 - dst 骨骼全缺：整条 morph 丢弃，日志列 skipped
 - 重复跑：`clear_existing=True` 总数稳定
+
+## 已知限制 (2026-04-18 实测)
+
+### Inase 实测结果
+- **Smoke test** (target PMX 导两次): 19/19 bone_morphs 全部克隆成功, 骨名/bone_id/rotation/location 全对
+- **真实 Inase 转换后**: 0/19 bone_morphs 成功, 19/19 因骨缺失被 dropped
+  - skipped bones: `Jaw Bone, QQ1-51` — 这些都是 target PMX 的面部表情驱动骨
+  - 根因: 我们的 `cleanup_face_bones` (Step 6) 删除了 XPS 源的面部细骨并把权重合并到 `頭`，而 target 的 bone morphs 用它自己的一套面部骨 (Jaw Bone/QQ*)，两边 rig 结构不兼容
+
+### 解决路径 (TODO)
+要让 bone_morph 在 Inase 上实用，需要先解决"converted 模型补 MMD 面部表情骨"：
+- **方案 A**: 在 `cleanup_face_bones` 之前/之后，从 target 克隆表情骨到转换 armature (新建骨 + parent=頭)，然后 clone_morphs 的时候骨名就匹配上了
+- **方案 B**: 放弃 bone_morph，直接做 vertex_morph (proximity-based shape key transfer)
+- **方案 C**: 不删 XPS 面部骨，保留它们 (但那样 target 的 Jaw Bone 名字和 XPS 的 `head jaw` 不匹配，仍需重命名映射)
+
+### 技术踩坑记录
+1. **Operator 不能用 `PointerProperty(type=bpy.types.Object)` 传参** — Blender 报 `keyword unrecognized`，改 `StringProperty` + `prop_search`
+2. **`BoneMorphData.bone` / `MaterialMorphData.material` 是 virtual StringProperty**：getter/setter 通过 `FnModel(prop.id_data).armature()` 查 bone_id/material_id，operator 执行 context 下 setter 会静默失败 (只能从 operator 外面手动赋值才成功)。Fix: bypass RNA setter，预先用 `FnBone(pose_bone).bone_id` / `FnMaterial(mat).material_id` 查好，直接 `dst_off["bone_id"] = N` / `dst_off["material_id"] = N` dict-style 写
+3. **`addon_disable + addon_enable` 不会从磁盘 reload 模块** — 必须 `del sys.modules['Convert_to_MMD_claude.*']` 后再 enable

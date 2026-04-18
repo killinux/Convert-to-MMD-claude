@@ -63,12 +63,16 @@
 
 ## P3 — 表情 / morph
 
-- **bone / material / group morph 克隆**（方案 3）— **已实现 2026-04-18**
+- **bone / material / group morph 克隆 operator**（方案 3）— **已实现 2026-04-18**
   - `operators/morph_operator.py` `clone_morphs_from_target`
   - UI: option2「物理+表情」tab → 表情 Morph → 从 target 克隆
-  - 设计文档: `doc/morph_clone_plan.md`
-  - 克隆 topology-safe 的 bone / material / group morph
-  - 缺失骨/材质的 offset 自动跳过, 整条空的 morph 整体丢弃
+  - 设计文档 + 踩坑记录: `doc/morph_clone_plan.md`
+  - Smoke test 通过 (target PMX 导两次, 19/19 bone morph 克隆)
+- **Inase 上实际 0/19 克隆** — 前置条件缺失
+  - Target PMX 的 bone morph 全部引用 `Jaw Bone / QQ*1-51` 等面部驱动骨
+  - Step 6 `cleanup_face_bones` 已把 XPS 面部细骨删除合并到 `頭`
+  - 所以 converted 模型没有 target 需要的面部骨 → 整条 morph 被 drop
+  - **解决路径**: 从 target clone 面部骨 (parent=頭) 到 converted armature, 再跑 clone_morphs
 - **vertex morph 生成**（方案 2，仍 TODO）
   - 识别「眼睛」/「嘴」顶点
   - 利用 XPS 面部细骨驱动 shape key 录制
