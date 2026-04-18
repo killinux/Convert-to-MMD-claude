@@ -676,10 +676,10 @@ INASE_RECIPES = {
         JAW:         (0,  0.5, -3),
     },
     'ん': {  # close-mouth hum — lips press together, corners drawn in slightly
-        LIP_LOWER:   (0, 0, +0.5),
-        LIP_UPPER:   (0, 0, -0.5),
-        CORNER_L:    (-0.5, 0, 0),
-        CORNER_R:    (+0.5, 0, 0),
+        LIP_LOWER:   (0, 0, +1.5),
+        LIP_UPPER:   (0, 0, -1.5),
+        CORNER_L:    (-1.5, 0, 0),
+        CORNER_R:    (+1.5, 0, 0),
     },
     # --- Eyelids ---
     'まばたき': {  # both eyes closed
