@@ -90,11 +90,17 @@ print(len(dst.mmd_root.bone_morphs),
   - skipped bones: `Jaw Bone, QQ1-51` — 这些都是 target PMX 的面部表情驱动骨
   - 根因: 我们的 `cleanup_face_bones` (Step 6) 删除了 XPS 源的面部细骨并把权重合并到 `頭`，而 target 的 bone morphs 用它自己的一套面部骨 (Jaw Bone/QQ*)，两边 rig 结构不兼容
 
-### 解决路径 (TODO)
-要让 bone_morph 在 Inase 上实用，需要先解决"converted 模型补 MMD 面部表情骨"：
-- **方案 A**: 在 `cleanup_face_bones` 之前/之后，从 target 克隆表情骨到转换 armature (新建骨 + parent=頭)，然后 clone_morphs 的时候骨名就匹配上了
-- **方案 B**: 放弃 bone_morph，直接做 vertex_morph (proximity-based shape key transfer)
-- **方案 C**: 不删 XPS 面部骨，保留它们 (但那样 target 的 Jaw Bone 名字和 XPS 的 `head jaw` 不匹配，仍需重命名映射)
+### 解决路径
+
+- **方案 A**: 在 `cleanup_face_bones` 之后，从 target 克隆表情骨到 converted armature (保父链, 相对偏移放置)，然后 clone_morphs 骨名就匹配上了 — **已实现 2026-04-18**
+  - 实现: `operators/face_operator.py` `clone_face_bones_from_target`
+  - 流程: DFS 找缺的骨 + 父链 → edit mode 创建骨 (head/tail = 相对 parent 的 offset，roll = align_roll(target Z)) → 拷 mmd_bone 元数据
+  - 局限: 补了骨但 converted mesh 没权重绑这些骨 (Step 6 已合并到 頭)，morph 旋转骨但不驱动顶点变形
+- **方案 B**: vertex_morph proximity-based transfer (TODO)
+  - target mesh 有 morph shape key, 每个顶点有 offset
+  - 对 source mesh 每个顶点: 找 target mesh 最近点 (by 位置 + normal), 继承 offset
+  - 不依赖骨, 真正有视觉表情
+- **方案 C**: 不删 XPS 面部骨, 改成 rename 映射 (跳过) — 实现复杂, preset 要加 XPS→target 面部骨对照表，放弃
 
 ### 技术踩坑记录
 1. **Operator 不能用 `PointerProperty(type=bpy.types.Object)` 传参** — Blender 报 `keyword unrecognized`，改 `StringProperty` + `prop_search`

@@ -76,6 +76,7 @@ def register():
     _safe_register(physics_operator.OBJECT_OT_toggle_rigid_visibility)
     _safe_register(physics_operator.OBJECT_OT_apply_breast_physics)
     _safe_register(face_operator.OBJECT_OT_cleanup_face_bones)
+    _safe_register(face_operator.OBJECT_OT_clone_face_bones_from_target)
     _safe_register(morph_operator.OBJECT_OT_clone_morphs_from_target)
     _safe_register(leg_operator.OBJECT_OT_complete_d_bones)
     _safe_register(leg_operator.OBJECT_OT_complete_hip_cancel_bones)
@@ -155,6 +156,7 @@ def unregister():
     _safe_unregister(physics_operator.OBJECT_OT_toggle_rigid_visibility)
     _safe_unregister(physics_operator.OBJECT_OT_apply_breast_physics)
     _safe_unregister(face_operator.OBJECT_OT_cleanup_face_bones)
+    _safe_unregister(face_operator.OBJECT_OT_clone_face_bones_from_target)
     _safe_unregister(morph_operator.OBJECT_OT_clone_morphs_from_target)
     del bpy.types.Scene.my_enum
     if hasattr(bpy.types.Scene, "ctmmd_show_preprocessing"):

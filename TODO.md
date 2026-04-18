@@ -68,11 +68,16 @@
   - UI: option2「物理+表情」tab → 表情 Morph → 从 target 克隆
   - 设计文档 + 踩坑记录: `doc/morph_clone_plan.md`
   - Smoke test 通过 (target PMX 导两次, 19/19 bone morph 克隆)
-- **Inase 上实际 0/19 克隆** — 前置条件缺失
-  - Target PMX 的 bone morph 全部引用 `Jaw Bone / QQ*1-51` 等面部驱动骨
-  - Step 6 `cleanup_face_bones` 已把 XPS 面部细骨删除合并到 `頭`
-  - 所以 converted 模型没有 target 需要的面部骨 → 整条 morph 被 drop
-  - **解决路径**: 从 target clone 面部骨 (parent=頭) 到 converted armature, 再跑 clone_morphs
+- **方案 A: 补面部驱动骨 operator** — **已实现 2026-04-18**
+  - `operators/face_operator.py` `clone_face_bones_from_target` (`OBJECT_OT_clone_face_bones_from_target`)
+  - 枚举 target bone_morphs 引用的骨, 过滤出 source 缺失的, 用 DFS 收集完整父链 (topological order)
+  - Edit mode 下创建骨: 头尾用相对父骨的偏移复制, roll 用 `align_roll(target.matrix_local.col[2])`
+  - 拷 mmd_bone 字段: name_j, name_e, is_tip, transform_order, is_controllable, local_axes, fixed_axis
+  - UI: option2「物理+表情」tab → ① 补面部驱动骨, 先跑 ① 再跑 ②
+- **视觉 morph 仍不工作** (方案 A 已知局限)
+  - 补了骨但 converted mesh 没权重绑这些骨 (因为 Step 6 已合并到 頭)
+  - Morph 数据能正确导出 PMX 并 reimport, VMD 表情轨道能驱动骨旋转, 但骨旋转驱动不了任何顶点
+  - 要真正有视觉表情, 需要方案 B (vertex morph proximity transfer) 或权重回迁
 - **vertex morph 生成**（方案 2，仍 TODO）
   - 识别「眼睛」/「嘴」顶点
   - 利用 XPS 面部细骨驱动 shape key 录制

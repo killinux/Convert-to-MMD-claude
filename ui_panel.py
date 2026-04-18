@@ -350,11 +350,14 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
 
             # 表情 Morph
             morph_box = layout.box()
-            morph_box.label(text="表情 Morph", icon='SHAPEKEY_DATA')
+            morph_box.label(text="表情 Morph (先①后②)", icon='SHAPEKEY_DATA')
+            morph_box.operator("object.clone_face_bones_from_target",
+                               text="① 补面部驱动骨 (Jaw Bone / QQ*)",
+                               icon='BONE_DATA')
             morph_box.operator("object.clone_morphs_from_target",
-                               text="从 target 克隆表情 (bone/material/group)",
+                               text="② 克隆 morph (bone/material/group)",
                                icon='DUPLICATE')
-            morph_box.label(text="运行后: N面板 → MMD → Morph Tools 查看/编辑",
+            morph_box.label(text="然后: N面板 → MMD → Morph Tools 查看/编辑",
                             icon='INFO')
-            morph_box.label(text="(vertex/uv morph 因 topology 不同暂不克隆, 见 TODO P3)",
+            morph_box.label(text="(vertex/uv morph 未克隆, 见 TODO P3)",
                             icon='INFO')

@@ -1,22 +1,21 @@
-"""Face bone cleanup operator.
+"""Face bone cleanup + face-morph-bone cloning operators.
 
-XPS source models commonly ship with ~28 face-detail bones
-(``head eyebrow/eyelid/lip/mouth/nose/tongue/cheek/jaw *``) used by the
-original XPS rig for eyebrow raises, blinks, mouth shapes, jaw drop, etc.
-After conversion to MMD these bones would need to become vertex morphs
-(まばたき / あ / い …) but that requires an authoring pipeline we don't
-have yet.
+Two operators live here:
 
-As a first, safe step this operator:
-  1. Finds every face-detail bone by prefix
-  2. Merges each one's vertex-group weights into the head bone
-  3. Deletes the now-unused face bones
-  4. Removes the emptied vertex groups
+* ``cleanup_face_bones`` (step 6 in the main pipeline)
+  Removes XPS face-detail bones (``head eyebrow/eyelid/.../jaw *``) after
+  merging their weights into the head bone. After this step the converted
+  model has a clean MMD-style head rig but no face driver bones.
 
-Effect: face mesh still follows head motion (rigidly), no expressions,
-but the bone list is ~28 bones smaller and closer to a clean MMD rig.
+* ``clone_face_bones_from_target``
+  Inverse/companion: brings back the face driver bones *from the target
+  PMX* (e.g. ``Jaw Bone`` / ``QQ*``) so that ``clone_morphs_from_target``
+  can clone bone morphs that reference them. Morph data will export to
+  PMX correctly; visual deformation still requires either weight transfer
+  or vertex morphs (see TODO P3).
 """
 import bpy
+from bpy.props import StringProperty
 
 
 FACE_BONE_PREFIXES = (
@@ -161,4 +160,212 @@ class OBJECT_OT_cleanup_face_bones(bpy.types.Operator):
                f" across {affected_meshes} meshes into {head_name}")
         print(f'[CTMMD 6] {msg}')
         self.report({'INFO'}, msg)
+        return {'FINISHED'}
+
+
+# ---------------------------------------------------------------------------
+# Clone face bones from target (prerequisite for clone_morphs_from_target)
+# ---------------------------------------------------------------------------
+
+
+def _resolve_mmd_root(name):
+    obj = bpy.data.objects.get(name)
+    if obj is None:
+        return None
+    cur = obj
+    while cur is not None:
+        if getattr(cur, 'mmd_type', '') == 'ROOT':
+            return cur
+        cur = cur.parent
+    return None
+
+
+def _collect_morph_referenced_bones(tgt_root):
+    names = set()
+    for m in tgt_root.mmd_root.bone_morphs:
+        for off in m.data:
+            if off.bone:
+                names.add(off.bone)
+    return names
+
+
+MMD_BONE_COPY_FIELDS = (
+    'name_j', 'name_e', 'is_tip', 'transform_order', 'is_controllable',
+    'enabled_local_axes', 'local_axis_x', 'local_axis_z',
+    'enabled_fixed_axis', 'fixed_axis',
+)
+
+
+def _clone_missing_face_bones(src_root, tgt_root):
+    """Create bones in src_root's armature for every bone referenced by
+    target's bone_morphs that is missing from src. Parents are cloned
+    first (topological order); head/tail positions are preserved as
+    offsets from parent so they attach correctly under src's existing
+    rig (typically under 頭)."""
+    from mmd_tools.core.model import Model as MMDModel
+    from mmd_tools.core.bone import FnBone
+
+    src_model = MMDModel(src_root)
+    tgt_model = MMDModel(tgt_root)
+    src_arm = src_model.armature()
+    tgt_arm = tgt_model.armature()
+    if src_arm is None or tgt_arm is None:
+        return [], [], 'missing armature'
+
+    referenced = _collect_morph_referenced_bones(tgt_root)
+    src_names = set(src_arm.data.bones.keys())
+    missing = referenced - src_names
+    if not missing:
+        return [], [], None
+
+    # DFS → topological order (parents first)
+    ordered = []
+    seen = set()
+    unreachable = []
+
+    def walk(bname):
+        if bname in src_names or bname in seen:
+            return bname
+        tbone = tgt_arm.data.bones.get(bname)
+        if tbone is None:
+            unreachable.append(bname)
+            return None
+        if tbone.parent is not None:
+            walk(tbone.parent.name)
+        seen.add(bname)
+        # parent in src or in seen — compute attach name
+        if tbone.parent is None:
+            pname = None
+        elif tbone.parent.name in src_names or tbone.parent.name in seen:
+            pname = tbone.parent.name
+        else:
+            pname = None
+        ordered.append((bname, pname))
+        return bname
+
+    for bname in missing:
+        walk(bname)
+
+    if not ordered:
+        return [], unreachable, None
+
+    # Edit mode on src_arm to create bones
+    prev_active = bpy.context.view_layer.objects.active
+    if bpy.context.object is not None and bpy.context.object.mode != 'OBJECT':
+        try:
+            bpy.ops.object.mode_set(mode='OBJECT')
+        except RuntimeError:
+            pass
+    for o in bpy.data.objects:
+        o.select_set(False)
+    src_arm.select_set(True)
+    bpy.context.view_layer.objects.active = src_arm
+    bpy.ops.object.mode_set(mode='EDIT')
+    created = []
+    try:
+        ebones = src_arm.data.edit_bones
+        for bname, pname in ordered:
+            if bname in ebones:
+                continue
+            tbone = tgt_arm.data.bones[bname]
+            eb = ebones.new(bname)
+            # Position: offset from parent in target, applied to src parent head
+            if tbone.parent is not None:
+                t_parent_head = tbone.parent.head_local
+                off_head = tbone.head_local - t_parent_head
+                off_tail = tbone.tail_local - t_parent_head
+                if pname and pname in ebones:
+                    s_parent_head = ebones[pname].head.copy()
+                else:
+                    s_parent_head = tbone.parent.head_local.copy()
+                eb.head = s_parent_head + off_head
+                eb.tail = s_parent_head + off_tail
+            else:
+                eb.head = tbone.head_local.copy()
+                eb.tail = tbone.tail_local.copy()
+            target_z = tbone.matrix_local.to_3x3().col[2]
+            try:
+                eb.align_roll(target_z)
+            except Exception:
+                pass
+            eb.use_deform = tbone.use_deform
+            if pname and pname in ebones:
+                eb.parent = ebones[pname]
+            created.append(bname)
+    finally:
+        bpy.ops.object.mode_set(mode='OBJECT')
+        if prev_active is not None:
+            bpy.context.view_layer.objects.active = prev_active
+
+    # Copy mmd_bone metadata + trigger bone_id assignment
+    for bname in created:
+        tpb = tgt_arm.pose.bones.get(bname)
+        spb = src_arm.pose.bones.get(bname)
+        if tpb is None or spb is None:
+            continue
+        _ = FnBone(spb).bone_id
+        tmb, smb = tpb.mmd_bone, spb.mmd_bone
+        for fld in MMD_BONE_COPY_FIELDS:
+            if hasattr(tmb, fld) and hasattr(smb, fld):
+                try:
+                    setattr(smb, fld, getattr(tmb, fld))
+                except Exception:
+                    pass
+
+    return created, unreachable, None
+
+
+class OBJECT_OT_clone_face_bones_from_target(bpy.types.Operator):
+    """从 target PMX 把被 bone_morph 引用但 source 缺失的面部驱动骨克隆过来。
+    作为 clone_morphs_from_target 的前置步骤。"""
+    bl_idname = "object.clone_face_bones_from_target"
+    bl_label = "从 target 补面部驱动骨 (给 morph 用)"
+    bl_description = (
+        "把 target 里被 bone_morph 引用 (如 Jaw Bone / QQ*) 但 source 缺失的面部骨克隆过来,"
+        " 自动处理父链; 之后 clone_morphs_from_target 就能成功克隆面部表情 morph"
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    source_name: StringProperty(
+        name="Source (目的地)",
+        description="接收骨的转换后 mmd_root 对象名",
+        default="",
+    )
+    target_name: StringProperty(
+        name="Target (来源)",
+        description="提供骨的参考 PMX mmd_root 对象名",
+        default="",
+    )
+
+    def invoke(self, context, event):
+        if not self.source_name:
+            active = context.active_object
+            root = _resolve_mmd_root(active.name) if active else None
+            if root:
+                self.source_name = root.name
+        return context.window_manager.invoke_props_dialog(self, width=380)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop_search(self, 'source_name', bpy.data, 'objects', text='Source')
+        layout.prop_search(self, 'target_name', bpy.data, 'objects', text='Target')
+        layout.label(text="会把 target 里 bone_morph 引用但 source 缺的骨补进来", icon='INFO')
+
+    def execute(self, context):
+        src_root = _resolve_mmd_root(self.source_name)
+        tgt_root = _resolve_mmd_root(self.target_name)
+        if src_root is None or tgt_root is None or src_root == tgt_root:
+            self.report({'ERROR'}, "source/target 必须是两个不同的 mmd_root")
+            return {'CANCELLED'}
+
+        created, unreachable, err = _clone_missing_face_bones(src_root, tgt_root)
+        if err:
+            self.report({'ERROR'}, err)
+            return {'CANCELLED'}
+        print(f'[CTMMD 14] Cloned {len(created)} face bones from target: '
+              f'{created[:10]}{"..." if len(created) > 10 else ""}')
+        if unreachable:
+            print(f'[CTMMD 14] Could not resolve in target: {unreachable[:10]}'
+                  f'{"..." if len(unreachable) > 10 else ""}')
+        self.report({'INFO'}, f"补了 {len(created)} 根面部驱动骨")
         return {'FINISHED'}
