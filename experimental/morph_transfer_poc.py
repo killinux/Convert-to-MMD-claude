@@ -1145,6 +1145,9 @@ class MORPH_OT_verify_modal(bpy.types.Operator):
         print(f"[Verify-A] {n_ok} OK, {n_issue} issue, {n_skip} skipped")
 
 
+EYE_BONE_VG_NAMES = ('目.L', '目.R', 'head eyeball left', 'head eyeball right')
+
+
 def find_inase_meshes():
     """Auto-detect [face, lash1, lash2, brow, eyeball] from scene by vg probes.
     Returns list of 5 objects, or None if any slot missing.
@@ -1153,28 +1156,32 @@ def find_inase_meshes():
       face   = has 'head lip *' vg
       brow   = has 'head eyebrow *' vg but NO lip vg
       lash   = has 'head eyelid *' vg but NO lip NOR brow vg
-      eyeball= has 'まばたき' shape key but NO lip/eyelid/brow vgs
+      eyeball= has '目.L'/'目.R' (or XPS original 'head eyeball *') vg, small vg count,
+               NOT any face detail vg (rules out template meshes)
+
+    Note: Must run BEFORE the addon's step-6 cleanup_face_bones which deletes
+    the head lip/eyelid/eyebrow vgs by merging them into 頭.
     """
     face = None
     lashes = []
     brow = None
     eyeball = None
     for o in bpy.data.objects:
-        if o.type != 'MESH' or o.data.shape_keys is None:
+        if o.type != 'MESH':
             continue
         vg_names = {vg.name for vg in o.vertex_groups}
         has_lip = any(n.startswith('head lip') for n in vg_names)
         has_eyelid = any(n.startswith('head eyelid') for n in vg_names)
         has_brow = any(n.startswith('head eyebrow') for n in vg_names)
-        has_wink = 'まばたき' in [k.name for k in o.data.shape_keys.key_blocks]
+        has_eye_bone = any(n in vg_names for n in EYE_BONE_VG_NAMES)
         if has_lip:
             face = o
         elif has_brow and not has_lip:
             brow = o
         elif has_eyelid and not has_lip and not has_brow:
             lashes.append(o)
-        elif has_wink and not has_lip and not has_eyelid and not has_brow and len(vg_names) < 10:
-            eyeball = o  # sub-10-vg filter rules out YYB/other template meshes
+        elif has_eye_bone and not has_lip and not has_eyelid and not has_brow and len(vg_names) < 10:
+            eyeball = o
     if face and len(lashes) == 2 and brow and eyeball:
         return [face, lashes[0], lashes[1], brow, eyeball]
     return None

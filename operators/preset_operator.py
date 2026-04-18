@@ -471,6 +471,10 @@ class OBJECT_OT_one_click_convert(bpy.types.Operator):
             ('complete_twist_bones', True),
             ('complete_d_bones', True),
             ('complete_hip_cancel_bones', True),
+            # Morph synth MUST run before cleanup_face_bones — the recipe
+            # reads head lip*/eyelid*/eyebrow* vgs which step-6 destroys.
+            # CANCEL is OK for models without those vgs (e.g., DAZ).
+            ('synth_vertex_morphs', False),
             ('cleanup_face_bones', False),  # may CANCEL for DAZ (no XPS face bones)
             ('assign_weights', True),
             ('add_mmd_ik', True),

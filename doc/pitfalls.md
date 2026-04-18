@@ -134,6 +134,16 @@ Path D (程序化合成,现在的 ④ 按钮) **完全不走这条路** — 不�
 - **表现**: `find_inase_meshes` 把 YYB 整个脸 mesh 认成 eyeball,因为它有 まばたき shape key + 无 Inase 脸 vg
 - **修复** (commit `bc08499`): 加 `len(vg_names) < 10` 过滤,template 通常 vg 上百个
 
+### ❌ 一键转换后 ④ 合成 morph 找不到 mesh
+
+- **表现**: 干净 Blender → 导 XPS → 一键转换 (1→11) → 切 option2 点 ④ → `find_inase_meshes` 返回 NONE,报"未找到 Inase 5 个脸部 mesh"
+- **根因**: step 6 `cleanup_face_bones` **把 `head lip*`/`head eyelid*`/`head eyebrow*` vg 合并到 頭 + 删除源骨** → Path D recipe 依赖的 vg 全没了
+- **次要根因**: 旧版 `find_inase_meshes` 用 `まばたき` shape key 探测 eyeball,但新 scene 还没 bake 过 morph,探测必然失败
+- **修复** (2026-04-18 后续):
+  1. `find_inase_meshes` 改用**眼骨 vg** (`目.L`/`目.R` 或 XPS 原名 `head eyeball *`) 探测 eyeball,不依赖 shape key
+  2. `one_click_convert` 的 pipeline **在 step 5 和 step 6 之间插入 `synth_vertex_morphs`**,保证 face vgs 还在时完成 bake
+- **规则**: Path D 合成 morph 必须**在 cleanup_face_bones 之前**运行。若用户自己拆步骤跑,注意这个顺序
+
 ---
 
 ## 怎么维护这份文档
