@@ -675,6 +675,12 @@ INASE_RECIPES = {
         CORNER_R:    (+3, -2.5, -1.5),
         JAW:         (0,  0.5, -3),
     },
+    'ん': {  # close-mouth hum — lips press together, corners drawn in slightly
+        LIP_LOWER:   (0, 0, +0.5),
+        LIP_UPPER:   (0, 0, -0.5),
+        CORNER_L:    (-0.5, 0, 0),
+        CORNER_R:    (+0.5, 0, 0),
+    },
     # --- Eyelids ---
     'まばたき': {  # both eyes closed
         EYELID_UPPER_L: (0, 0, -8),
@@ -778,7 +784,7 @@ def bake_eyeball_recede(eyeball_mesh, morph_name, back_mm=6.0):
 EYEBALL_MORPHS = ('まばたき', 'ウィンク', 'ウィンク右', '笑い')  # morphs that should hide eyeball
 
 
-MOUTH_MORPH_NAMES   = ('あ', 'い', 'う', 'え', 'お', 'にやり', '激怒')
+MOUTH_MORPH_NAMES   = ('あ', 'い', 'う', 'え', 'お', 'ん', 'にやり', '激怒')
 EYELID_MORPH_NAMES  = ('まばたき', 'ウィンク', 'ウィンク右', '笑い', 'びっくり', 'じと目')
 BROW_MORPH_NAMES    = ('困る', '怒り', '真面目', '上', '下')
 
