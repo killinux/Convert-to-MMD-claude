@@ -583,49 +583,88 @@ def _vg_weights(mesh_obj, vg_names):
     return np.minimum(w, 1.0)  # clamp to 1.0
 
 
-def bake_programmatic_a(src_mesh,
-                         jaw_down_mm=3.0, jaw_back_mm=1.0,
-                         lip_lower_down_mm=5.0, lip_lower_back_mm=2.0,
-                         corner_down_mm=2.0,
-                         lip_upper_up_mm=0.5,
-                         shape_key_name='あ'):
-    """Programmatic 'あ' morph synthesis on Inase-XPS-like face mesh.
+def bake_programmatic_morph(src_mesh, morph_name, recipe):
+    """Generic programmatic morph synthesizer.
 
-    Uses vertex group weights as soft masks. Positive Y in Blender = backward
-    (away from viewer) per MMD/XPS import convention. Negative Z = down.
+    recipe: dict mapping
+      tuple_of_vg_names -> (x_mm, y_mm, z_mm)
 
-    No cross-mesh transfer. Params in millimeters.
+    For each bucket, summed weight across the listed vgs masks the offset.
+    Offsets accumulate if a vertex appears in multiple buckets.
     """
     import numpy as np
     N = len(src_mesh.data.vertices)
-
-    w_jaw    = _vg_weights(src_mesh, ['head jaw'])
-    w_lower  = _vg_weights(src_mesh, ['head lip lower left', 'head lip lower middle', 'head lip lower right'])
-    w_upper  = _vg_weights(src_mesh, ['head lip upper left', 'head lip upper middle', 'head lip upper right'])
-    w_corner = _vg_weights(src_mesh, ['head mouth corner left', 'head mouth corner right'])
-
-    # Per-vertex additive offsets (in local coords, matrix_world assumed ~identity)
     offsets = np.zeros((N, 3))
-    offsets += w_jaw[:, None]    * np.array([0.0, +jaw_back_mm        * 1e-3, -jaw_down_mm        * 1e-3])
-    offsets += w_lower[:, None]  * np.array([0.0, +lip_lower_back_mm  * 1e-3, -lip_lower_down_mm  * 1e-3])
-    offsets += w_corner[:, None] * np.array([0.0, 0.0,                        -corner_down_mm     * 1e-3])
-    offsets += w_upper[:, None]  * np.array([0.0, 0.0,                        +lip_upper_up_mm    * 1e-3])
+    for vg_names, (x_mm, y_mm, z_mm) in recipe.items():
+        w = _vg_weights(src_mesh, list(vg_names))
+        offsets += w[:, None] * np.array([x_mm * 1e-3, y_mm * 1e-3, z_mm * 1e-3])
 
     mag = np.linalg.norm(offsets, axis=1)
-    print(f"[progD] '{shape_key_name}': max={mag.max()*1000:.2f}mm  verts>0.5mm={int((mag>0.0005).sum())}")
+    print(f"[progD] '{morph_name}': max={mag.max()*1000:.2f}mm  verts>0.5mm={int((mag>0.0005).sum())}")
 
-    # Ensure basis exists
     if src_mesh.data.shape_keys is None:
         src_mesh.shape_key_add(name='Basis', from_mix=False)
     kbs = src_mesh.data.shape_keys.key_blocks
-    if shape_key_name in kbs:
-        src_mesh.shape_key_remove(kbs[shape_key_name])
-    sk = src_mesh.shape_key_add(name=shape_key_name, from_mix=False)
+    if morph_name in kbs:
+        src_mesh.shape_key_remove(kbs[morph_name])
+    sk = src_mesh.shape_key_add(name=morph_name, from_mix=False)
     rest = np.array([v.co[:] for v in src_mesh.data.vertices])
-    new_co = rest + offsets
-    for i, c in enumerate(new_co):
+    for i, c in enumerate(rest + offsets):
         sk.data[i].co = Vector(c)
     return sk
+
+
+# Recipes for Inase-XPS-style face rig.
+# Convention: +Y = backward (into face), -Y = forward (toward viewer).
+# Units in millimeters. X is lateral (L positive, R negative).
+LIP_LOWER = ('head lip lower left', 'head lip lower middle', 'head lip lower right')
+LIP_UPPER = ('head lip upper left', 'head lip upper middle', 'head lip upper right')
+JAW       = ('head jaw',)
+CORNER_L  = ('head mouth corner left',)
+CORNER_R  = ('head mouth corner right',)
+CORNER_BOTH = CORNER_L + CORNER_R
+
+INASE_RECIPES = {
+    'あ': {  # mouth wide open
+        JAW:         (0,  1, -3),
+        LIP_LOWER:   (0,  2, -5),
+        CORNER_BOTH: (0,  0, -2),
+        LIP_UPPER:   (0,  0, +0.5),
+    },
+    'い': {  # mouth flat-wide, corners pulled outward
+        CORNER_L:    (+4, 0, 0),
+        CORNER_R:    (-4, 0, 0),
+        LIP_LOWER:   (0,  0, +0.5),
+        LIP_UPPER:   (0,  0, -0.5),
+    },
+    'う': {  # mouth small round, corners inward+forward
+        CORNER_L:    (-2, -2, 0),
+        CORNER_R:    (+2, -2, 0),
+        LIP_LOWER:   (0, -1.5, 0),
+        LIP_UPPER:   (0, -1.5, 0),
+    },
+    'え': {  # mouth half-open wide
+        CORNER_L:    (+2, 0, -0.5),
+        CORNER_R:    (-2, 0, -0.5),
+        LIP_LOWER:   (0,  1, -3),
+        JAW:         (0,  0.5, -1.5),
+    },
+    'お': {  # mouth round open (like 'あ' but rounded)
+        LIP_LOWER:   (0, -2, -3),
+        LIP_UPPER:   (0, -2, +1),
+        CORNER_L:    (-1, -1.5, -1.5),
+        CORNER_R:    (+1, -1.5, -1.5),
+        JAW:         (0,  0.5, -2),
+    },
+}
+
+
+def bake_all_mouth_recipes(src_mesh, recipes=INASE_RECIPES):
+    results = []
+    for name, recipe in recipes.items():
+        sk = bake_programmatic_morph(src_mesh, name, recipe)
+        results.append((name, sk))
+    return results
 
 
 # ---------- Batch: bake + transfer all bone_morphs ----------
