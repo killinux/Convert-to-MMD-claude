@@ -420,6 +420,125 @@ def transfer_morph_surface_deform(
     return sk
 
 
+# ---------- Path C (self-implemented): BVH + barycentric transfer ----------
+
+def transfer_morph_barycentric(
+    tpl_mesh, morph_name, src_mesh,
+    max_bind_distance=0.03,
+):
+    """Manual Surface-Deform-like transfer: bind each src vert to closest tpl
+    triangle (barycentric coords), then for each morph, reconstruct the deformed
+    tpl point and compute src offset.
+
+    Assumes tpl_mesh and src_mesh are spatially aligned (use align_template_to_source).
+    """
+    import bmesh
+    from mathutils.bvhtree import BVHTree
+
+    # Ensure tpl is neutral (we want bind to rest-state tpl surface)
+    if tpl_mesh.data.shape_keys:
+        for k in tpl_mesh.data.shape_keys.key_blocks:
+            if k.name != 'Basis':
+                k.value = 0.0
+    bpy.context.view_layer.update()
+
+    # Build BVH of tpl mesh in world space
+    M_tpl = np.array(tpl_mesh.matrix_world)
+    tpl_verts_world = np.array([
+        (M_tpl[:3, :3] @ v.co + M_tpl[:3, 3]) for v in tpl_mesh.data.vertices
+    ])
+    # Build triangles (triangulate polygons)
+    bm = bmesh.new()
+    bm.from_mesh(tpl_mesh.data)
+    bmesh.ops.triangulate(bm, faces=bm.faces)
+    bm.verts.ensure_lookup_table()
+    bm.faces.ensure_lookup_table()
+    # Apply world matrix to bmesh verts
+    from mathutils import Matrix
+    bm.transform(tpl_mesh.matrix_world)
+    bvh = BVHTree.FromBMesh(bm)
+
+    # Per src vert: find nearest tpl triangle + barycentric
+    M_src = np.array(src_mesh.matrix_world)
+    src_verts_world = np.array([
+        (M_src[:3, :3] @ v.co + M_src[:3, 3]) for v in src_mesh.data.vertices
+    ])
+
+    bindings = []  # (v1, v2, v3, u, v, w, orig_surface_pos, dist)
+    unbound = 0
+    for i, p in enumerate(src_verts_world):
+        loc, normal, tri_idx, dist = bvh.find_nearest(Vector(p))
+        if loc is None or dist is None or dist > max_bind_distance:
+            bindings.append(None)
+            unbound += 1
+            continue
+        f = bm.faces[tri_idx]
+        v_idx = [bmv.index for bmv in f.verts[:3]]
+        a, b, c = [Vector(tpl_verts_world[k]) for k in v_idx]
+        # Barycentric coords of loc in triangle a-b-c
+        v0 = b - a
+        v1 = c - a
+        v2 = Vector(loc) - a
+        d00 = v0.dot(v0); d01 = v0.dot(v1); d11 = v1.dot(v1)
+        d20 = v2.dot(v0); d21 = v2.dot(v1)
+        denom = d00 * d11 - d01 * d01
+        if abs(denom) < 1e-12:
+            bindings.append(None)
+            unbound += 1
+            continue
+        v_bary = (d11 * d20 - d01 * d21) / denom
+        w_bary = (d00 * d21 - d01 * d20) / denom
+        u_bary = 1.0 - v_bary - w_bary
+        bindings.append((v_idx[0], v_idx[1], v_idx[2], u_bary, v_bary, w_bary, Vector(loc), dist))
+    bm.free()
+    print(f"[bary] bound: {len(src_verts_world)-unbound}/{len(src_verts_world)}  (max_dist={max_bind_distance}m)")
+
+    if unbound == len(src_verts_world):
+        print("[bary] 0 verts bound — alignment likely off")
+        return None
+
+    # Activate tpl morph, recompute tpl world verts
+    tpl_mesh.data.shape_keys.key_blocks[morph_name].value = 1.0
+    bpy.context.view_layer.update()
+    dep = bpy.context.evaluated_depsgraph_get()
+    em = tpl_mesh.evaluated_get(dep).data
+    tpl_morph_world = np.array([
+        (M_tpl[:3, :3] @ v.co + M_tpl[:3, 3]) for v in em.vertices
+    ])
+    tpl_mesh.data.shape_keys.key_blocks[morph_name].value = 0.0
+    bpy.context.view_layer.update()
+
+    # Compute src offsets via barycentric interpolation
+    src_offset_world = np.zeros_like(src_verts_world)
+    for i, b in enumerate(bindings):
+        if b is None:
+            continue
+        v1, v2, v3, u, vv, w, orig_surf, _ = b
+        morph_surf = u * tpl_morph_world[v1] + vv * tpl_morph_world[v2] + w * tpl_morph_world[v3]
+        src_offset_world[i] = morph_surf - np.array(orig_surf)
+
+    # Convert world offset to src local
+    M_src_inv = np.linalg.inv(M_src[:3, :3])
+    src_offset_local = src_offset_world @ M_src_inv.T
+
+    mag = np.linalg.norm(src_offset_local, axis=1)
+    print(f"[bary] '{morph_name}': max={mag.max()*1000:.2f}mm, verts>0.5mm={int((mag>0.0005).sum())}")
+
+    # Write shape key
+    if src_mesh.data.shape_keys is None:
+        src_mesh.shape_key_add(name='Basis', from_mix=False)
+    kbs = src_mesh.data.shape_keys.key_blocks
+    if morph_name in kbs:
+        src_mesh.shape_key_remove(kbs[morph_name])
+    sk = src_mesh.shape_key_add(name=morph_name, from_mix=False)
+    src_rest = np.array([v.co[:] for v in src_mesh.data.vertices])
+    new_co = src_rest + src_offset_local
+    for i, c in enumerate(new_co):
+        sk.data[i].co = Vector(c)
+
+    return sk
+
+
 # ---------- Batch: bake + transfer all bone_morphs ----------
 
 def bake_and_transfer_all(
