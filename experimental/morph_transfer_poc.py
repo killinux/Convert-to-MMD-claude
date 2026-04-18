@@ -170,47 +170,61 @@ def transfer_morph(
     src_rest = np.array([v.co[:] for v in src_mesh.data.vertices])
     src_rest_w = (src_rest @ Msrc[:3, :3].T) + Msrc[:3, 3]
 
-    # Fit TPS: template space -> source space (landmark-driven warp)
-    tps = tps_fit(tpl_lms, src_lms)
+    # INVERSE TPS (Sumner-style): fit src landmarks -> tpl landmarks, so we can
+    # map each src vert into template space and look up the corresponding tpl offset.
+    tps_fwd = tps_fit(tpl_lms, src_lms)  # kept for Jacobian calculation
+    tps_inv = tps_fit(src_lms, tpl_lms)  # src -> tpl
 
-    # Warp template verts to source space
-    tpl_warped_w = tps_apply(tps, tpl_rest_w)
-
-    # Also warp template-morph verts -> source space (so offsets reflect warp Jacobian implicitly)
-    tpl_morph_w = tpl_rest_w + tpl_offset_w
-    tpl_morph_warped_w = tps_apply(tps, tpl_morph_w)
-    tpl_offset_warped = tpl_morph_warped_w - tpl_warped_w  # (Nt, 3) offset in source space
-
-    # Face mask: keep only source verts near landmark centroid
+    # Face mask in src world space
     src_lms_arr = np.asarray(src_lms)
     centroid = src_lms_arr.mean(axis=0)
-    # Radius = max landmark distance to centroid * factor
     lm_spread = np.linalg.norm(src_lms_arr - centroid, axis=1).max()
     radius = lm_spread * (1.0 + face_mask_radius_factor)
     dist_to_c = np.linalg.norm(src_rest_w - centroid, axis=1)
     in_face = dist_to_c <= radius
     print(f"[transfer] face mask: {int(in_face.sum())}/{len(src_rest_w)} src verts included (R={radius:.3f})")
 
-    # For each src vert in face region, find nearest k warped template verts, IDW offset
-    # Simple KDTree via bmesh or just numpy (template has 169k verts — brute force too slow)
-    # Use Blender's KDTree
+    # Map masked src verts into template space
+    src_face_idx = np.where(in_face)[0]
+    src_in_tpl = tps_apply(tps_inv, src_rest_w[src_face_idx])
+
+    # Build KDTree on template rest positions (world)
     from mathutils import kdtree
-    kd = kdtree.KDTree(len(tpl_warped_w))
-    for i, p in enumerate(tpl_warped_w):
+    kd = kdtree.KDTree(len(tpl_rest_w))
+    for i, p in enumerate(tpl_rest_w):
         kd.insert(Vector(p), i)
     kd.balance()
 
+    # Compute local-Jacobian of forward TPS at each src face vert so we can
+    # map the tpl offset (in tpl space) into src space correctly.
+    # Approximate J via finite difference: d(warp(tpl_p))/d(tpl_p)
+    # For small offsets, offset_src = J @ offset_tpl.
+    def jacobian_at(params, p, eps=1e-3):
+        # 3x3 Jacobian at point p in source space (of tps_fwd: tpl -> src)
+        # p: template-space point
+        p = np.asarray(p)
+        J = np.zeros((3, 3))
+        for ax in range(3):
+            dp = np.zeros(3); dp[ax] = eps
+            f_plus = tps_apply(params, (p + dp)[None, :])[0]
+            f_minus = tps_apply(params, (p - dp)[None, :])[0]
+            J[:, ax] = (f_plus - f_minus) / (2 * eps)
+        return J
+
     k = 4
     src_offset = np.zeros_like(src_rest_w)
-    for j in np.where(in_face)[0]:
-        hits = kd.find_n(Vector(src_rest_w[j]), k)
-        # hits: list of (co, index, dist)
+    for n, j in enumerate(src_face_idx):
+        tpl_p = src_in_tpl[n]
+        hits = kd.find_n(Vector(tpl_p), k)
         idxs = np.array([h[1] for h in hits])
         dists = np.array([h[2] for h in hits])
-        # Inverse distance weights (eps to avoid div0)
         w = 1.0 / (dists + 1e-6)
         w = w / w.sum()
-        src_offset[j] = (tpl_offset_warped[idxs] * w[:, None]).sum(axis=0)
+        # IDW-blended tpl offset (in template world space)
+        off_tpl = (tpl_offset_w[idxs] * w[:, None]).sum(axis=0)
+        # Transform tpl offset via local forward Jacobian at tpl_p
+        J = jacobian_at(tps_fwd, tpl_p)
+        src_offset[j] = J @ off_tpl
 
     # Transform source offset from world back to src local
     src_offset_local = src_offset @ np.linalg.inv(Msrc[:3, :3]).T
