@@ -692,22 +692,22 @@ INASE_RECIPES = {
     },
     # --- Eyebrows ---
     '困る': {  # troubled / sad — inner brow drops, outer stays
-        BROW_INNER_BOTH: (0, 0, -4),
-        BROW_OUTER_BOTH: (0, 0, +1),
+        BROW_INNER_BOTH: (0, 0, -10),
+        BROW_OUTER_BOTH: (0, 0, +2),
     },
     '怒り': {  # angry — inner brow drops + pulled toward center
-        BROW_L_INNER: (-2, 0, -3),
-        BROW_R_INNER: (+2, 0, -3),
-        BROW_OUTER_BOTH: (0, 0, -1),
+        BROW_L_INNER: (-4, 0, -8),
+        BROW_R_INNER: (+4, 0, -8),
+        BROW_OUTER_BOTH: (0, 0, -2),
     },
     '真面目': {  # serious / flat — whole brow lowered slightly
-        BROW_ALL: (0, 0, -2),
+        BROW_ALL: (0, 0, -5),
     },
     '上': {  # brow raised
-        BROW_ALL: (0, 0, +4),
+        BROW_ALL: (0, 0, +10),
     },
     '下': {  # brow lowered
-        BROW_ALL: (0, 0, -4),
+        BROW_ALL: (0, 0, -10),
     },
 }
 
