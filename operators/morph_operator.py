@@ -1,0 +1,226 @@
+"""Clone topology-safe morphs from a target MMD model.
+
+Target PMX imports (e.g. Purifier Inase 18, Reika Shimohira 2) ship with the
+standard MMD expression set (あ/い/う/え/お/まばたき/笑い/ウィンク …). This
+operator copies the bone / material / group morphs from the target root onto
+the converted model.
+
+Only topology-safe morph types are cloned:
+  - bone_morphs — references bone names, safe
+  - material_morphs — references material names, safe if names match
+  - group_morphs — references other morph names, safe once bone/material are cloned
+
+vertex_morphs and uv_morphs are keyed by vertex index and are NOT cloned
+(different mesh topology between source and target). See TODO.md P3.
+"""
+import bpy
+from bpy.props import PointerProperty, BoolProperty
+
+
+BONE_MORPH_FIELDS = ('bone', 'location', 'rotation')
+MATERIAL_MORPH_FIELDS = (
+    'material', 'related_mesh', 'offset_type',
+    'diffuse_color', 'specular_color', 'shininess',
+    'ambient_color', 'edge_color', 'edge_weight',
+    'texture_factor', 'sphere_texture_factor', 'toon_texture_factor',
+)
+GROUP_MORPH_FIELDS = ('name', 'morph_type', 'factor')
+MORPH_META_FIELDS = ('name', 'name_e', 'category')
+
+
+def _copy_fields(src, dst, fields):
+    for f in fields:
+        if hasattr(src, f) and hasattr(dst, f):
+            try:
+                setattr(dst, f, getattr(src, f))
+            except (TypeError, AttributeError):
+                pass
+
+
+def _get_model(root_obj):
+    from mmd_tools.core.model import Model as MMDModel
+    return MMDModel(root_obj)
+
+
+def _collect_dst_materials(dst_model):
+    names = set()
+    for mesh_obj in dst_model.meshes():
+        for slot in mesh_obj.data.materials:
+            if slot is not None:
+                names.add(slot.name)
+                mmd_mat = getattr(slot, 'mmd_material', None)
+                jp = getattr(mmd_mat, 'name_j', None) if mmd_mat else None
+                if jp:
+                    names.add(jp)
+    return names
+
+
+def _mmd_root_poll(self, obj):
+    return getattr(obj, 'mmd_type', '') == 'ROOT'
+
+
+def _clone_bone_morphs(src_root, dst_root, dst_bones):
+    cloned = 0
+    skipped_bones = set()
+    dropped = 0
+    for src_m in src_root.mmd_root.bone_morphs:
+        dst_m = dst_root.mmd_root.bone_morphs.add()
+        _copy_fields(src_m, dst_m, MORPH_META_FIELDS)
+        kept = 0
+        for src_off in src_m.data:
+            if src_off.bone not in dst_bones:
+                skipped_bones.add(src_off.bone)
+                continue
+            dst_off = dst_m.data.add()
+            _copy_fields(src_off, dst_off, BONE_MORPH_FIELDS)
+            dst_off.bone_id = -1
+            kept += 1
+        if kept == 0:
+            dst_root.mmd_root.bone_morphs.remove(len(dst_root.mmd_root.bone_morphs) - 1)
+            dropped += 1
+        else:
+            cloned += 1
+    return cloned, dropped, skipped_bones
+
+
+def _clone_material_morphs(src_root, dst_root, dst_materials):
+    cloned = 0
+    skipped_materials = set()
+    dropped = 0
+    for src_m in src_root.mmd_root.material_morphs:
+        dst_m = dst_root.mmd_root.material_morphs.add()
+        _copy_fields(src_m, dst_m, MORPH_META_FIELDS)
+        kept = 0
+        for src_off in src_m.data:
+            mat_name = getattr(src_off, 'material', '')
+            # Empty material name = "applies to all materials", keep as-is.
+            if mat_name and mat_name not in dst_materials:
+                skipped_materials.add(mat_name)
+                continue
+            dst_off = dst_m.data.add()
+            _copy_fields(src_off, dst_off, MATERIAL_MORPH_FIELDS)
+            kept += 1
+        if kept == 0:
+            dst_root.mmd_root.material_morphs.remove(len(dst_root.mmd_root.material_morphs) - 1)
+            dropped += 1
+        else:
+            cloned += 1
+    return cloned, dropped, skipped_materials
+
+
+def _clone_group_morphs(src_root, dst_root):
+    dst_names = {m.name for m in dst_root.mmd_root.bone_morphs}
+    dst_names |= {m.name for m in dst_root.mmd_root.material_morphs}
+    dst_names |= {m.name for m in dst_root.mmd_root.vertex_morphs}
+    dst_names |= {m.name for m in dst_root.mmd_root.uv_morphs}
+
+    cloned = 0
+    skipped_refs = set()
+    dropped = 0
+    for src_m in src_root.mmd_root.group_morphs:
+        dst_m = dst_root.mmd_root.group_morphs.add()
+        _copy_fields(src_m, dst_m, MORPH_META_FIELDS)
+        kept = 0
+        for src_off in src_m.data:
+            ref_name = getattr(src_off, 'name', '')
+            if ref_name and ref_name not in dst_names:
+                skipped_refs.add(ref_name)
+                continue
+            dst_off = dst_m.data.add()
+            _copy_fields(src_off, dst_off, GROUP_MORPH_FIELDS)
+            kept += 1
+        if kept == 0:
+            dst_root.mmd_root.group_morphs.remove(len(dst_root.mmd_root.group_morphs) - 1)
+            dropped += 1
+        else:
+            cloned += 1
+    return cloned, dropped, skipped_refs
+
+
+class OBJECT_OT_clone_morphs_from_target(bpy.types.Operator):
+    """从 target PMX 克隆 bone/material/group morph 到 source 转换模型。
+    vertex_morph 和 uv_morph 因 topology 不同不克隆。"""
+    bl_idname = "object.clone_morphs_from_target"
+    bl_label = "从 target 克隆表情 morph"
+    bl_description = "克隆 target 的 bone/material/group morph 到 source 模型 (vertex/uv morph 因 topology 不同跳过)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    source_root: PointerProperty(
+        name="Source (目的地)",
+        description="接收 morph 的转换后 MMD 模型 root",
+        type=bpy.types.Object,
+        poll=_mmd_root_poll,
+    )
+    target_root: PointerProperty(
+        name="Target (来源)",
+        description="提供 morph 的参考 PMX 模型 root",
+        type=bpy.types.Object,
+        poll=_mmd_root_poll,
+    )
+    clear_existing: BoolProperty(
+        name="先清空 source 现有 morph",
+        description="克隆前清空 source 的 bone/material/group morph，避免重复运行累积",
+        default=True,
+    )
+
+    def execute(self, context):
+        src_root = self.source_root
+        tgt_root = self.target_root
+        if src_root is None or tgt_root is None:
+            self.report({'ERROR'}, "source_root 和 target_root 都必须选中")
+            return {'CANCELLED'}
+        if src_root == tgt_root:
+            self.report({'ERROR'}, "source 和 target 必须是不同的 mmd_root")
+            return {'CANCELLED'}
+        if getattr(src_root, 'mmd_type', '') != 'ROOT' or getattr(tgt_root, 'mmd_type', '') != 'ROOT':
+            self.report({'ERROR'}, "source/target 必须是 mmd_root (mmd_type == 'ROOT')")
+            return {'CANCELLED'}
+
+        src_model = _get_model(src_root)
+        src_arm = src_model.armature()
+        if src_arm is None:
+            self.report({'ERROR'}, "source 模型没有 armature")
+            return {'CANCELLED'}
+
+        if self.clear_existing:
+            src_root.mmd_root.bone_morphs.clear()
+            src_root.mmd_root.material_morphs.clear()
+            src_root.mmd_root.group_morphs.clear()
+
+        dst_bones = set(src_arm.data.bones.keys())
+        dst_materials = _collect_dst_materials(src_model)
+
+        n_bone_src = len(tgt_root.mmd_root.bone_morphs)
+        n_mat_src = len(tgt_root.mmd_root.material_morphs)
+        n_grp_src = len(tgt_root.mmd_root.group_morphs)
+        n_vert_src = len(tgt_root.mmd_root.vertex_morphs)
+        n_uv_src = len(tgt_root.mmd_root.uv_morphs)
+
+        n_bone, drop_bone, skip_bones = _clone_bone_morphs(tgt_root, src_root, dst_bones)
+        n_mat, drop_mat, skip_mats = _clone_material_morphs(tgt_root, src_root, dst_materials)
+        n_grp, drop_grp, skip_refs = _clone_group_morphs(tgt_root, src_root)
+
+        def _short(s, n=6):
+            if not s:
+                return '[]'
+            items = sorted(s)
+            if len(items) <= n:
+                return '[' + ', '.join(items) + ']'
+            return '[' + ', '.join(items[:n]) + f', ...+{len(items) - n}]'
+
+        summary = (
+            f"bone={n_bone}/{n_bone_src} (dropped {drop_bone}), "
+            f"material={n_mat}/{n_mat_src} (dropped {drop_mat}), "
+            f"group={n_grp}/{n_grp_src} (dropped {drop_grp}); "
+            f"SKIP {n_vert_src} vertex_morphs, {n_uv_src} uv_morphs (topology unsafe — TODO P2)"
+        )
+        print(f"[CTMMD 13] Cloned morphs: {summary}")
+        if skip_bones:
+            print(f"[CTMMD 13] skipped missing bones: {_short(skip_bones)}")
+        if skip_mats:
+            print(f"[CTMMD 13] skipped missing materials: {_short(skip_mats)}")
+        if skip_refs:
+            print(f"[CTMMD 13] skipped missing morph refs in groups: {_short(skip_refs)}")
+
+        self.report({'INFO'}, f"Cloned bone={n_bone}, material={n_mat}, group={n_grp}")
+        return {'FINISHED'}

@@ -63,14 +63,20 @@
 
 ## P3 — 表情 / morph
 
-- **vertex morph 生成**（方案 2，从 `project_face_bones_next.md`）
+- **bone / material / group morph 克隆**（方案 3）— **已实现 2026-04-18**
+  - `operators/morph_operator.py` `clone_morphs_from_target`
+  - UI: option2「物理+表情」tab → 表情 Morph → 从 target 克隆
+  - 设计文档: `doc/morph_clone_plan.md`
+  - 克隆 topology-safe 的 bone / material / group morph
+  - 缺失骨/材质的 offset 自动跳过, 整条空的 morph 整体丢弃
+- **vertex morph 生成**（方案 2，仍 TODO）
   - 识别「眼睛」/「嘴」顶点
   - 利用 XPS 面部细骨驱动 shape key 录制
   - 再从 shape key 建 MMD vertex morph
-  - 当前转换后 vertex_morphs = 0，完全没表情
-- **bone morph 克隆**（方案 3）
-  - 读 target 的 mmd_root.bone_morphs 克隆到转换模型
-  - 需要先补 MMD 表情控制骨（Jaw Bone 等）
+  - 当前转换后 vertex_morphs = 0
+- **uv morph 克隆**（TODO）
+  - 按 vertex index 走, topology 不同不能直接克隆
+  - 需要 proximity-based transfer
 
 ## P4 — 物理
 
