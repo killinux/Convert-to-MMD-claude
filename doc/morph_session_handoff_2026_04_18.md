@@ -255,14 +255,17 @@ mt.set_morph_synced([face, lash1, lash2, brow, eyeball], 'あ', 1.0)
 
 ## 下一步 TODO
 
-### ~~🆕 P0: 面部表情检查/观测工具~~ Tool C ✅ (commit `4b7188d`)
+### ~~🆕 P0: 面部表情检查/观测工具~~ ✅ A + B + C 全部完成
 
-已实现 Tool C:
-- `screenshot_all_morphs(meshes, out_dir)` — 循环每条 shape key 用 `set_morph_synced` 激活,按 category 选 view preset (`face/eye/mouth/brow`),`bpy.ops.render.opengl` 渲染 PNG。
-- `generate_morph_html_report(out_dir)` — 输出 `index.html`,按 Mouth/Eyelid/Brow 分组,每组带 basis 参考图。
-- 出口: Mac `/tmp/morph_verify/{morph}.png` + `index.html`,Safari 打开即用。
-
-Tool A (UI modal) / Tool B (自动数据 spec check) 未做。
+- **Tool C** (commit `4b7188d`): `screenshot_all_morphs` + `generate_morph_html_report` → Mac `/tmp/morph_verify/index.html`。
+- **Tool B** (commit `c7c36e3`): `verify_all_morphs(meshes)` 按 `INASE_MORPH_SPECS` (max_mm 上下限 + moved_verts 下限) 报违规。当前 19/19 pass。
+- **Tool A** (commit `c7c36e3`): `MORPH_OT_verify_modal` 交互式 modal operator。用法:
+  ```python
+  mt.register_verify_ops()
+  mt.start_verify_modal(meshes)  # meshes[0] 必须是 face mesh
+  # 然后在 Blender 3D viewport 里按键: O=OK, X=Issue, N=Skip, ESC=Quit
+  ```
+  每按一次自动切到下一条,结束在 console 打报告。
 
 **需求**:
 1. **人工观测**: 用户能一条一条过每个 morph,判断视觉是否 OK
