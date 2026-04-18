@@ -579,8 +579,11 @@ class OBJECT_OT_bake_and_transfer_morphs(bpy.types.Operator):
             self.report({'ERROR'}, "找不到头骨 (頭 / head neck upper)")
             return {'CANCELLED'}
 
-        tgt_meshes = list(tgt_model.meshes())
-        src_meshes = list(src_model.meshes())
+        # Skip mmd_tools internal meshes like .placeholder
+        def _is_user_mesh(obj):
+            return not obj.name.startswith('.')
+        tgt_meshes = [m for m in tgt_model.meshes() if _is_user_mesh(m)]
+        src_meshes = [m for m in src_model.meshes() if _is_user_mesh(m)]
         if not tgt_meshes or not src_meshes:
             self.report({'ERROR'}, "source 或 target 没 mesh")
             return {'CANCELLED'}

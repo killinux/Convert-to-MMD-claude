@@ -74,10 +74,17 @@
   - Edit mode 下创建骨: 头尾用相对父骨的偏移复制, roll 用 `align_roll(target.matrix_local.col[2])`
   - 拷 mmd_bone 字段: name_j, name_e, is_tip, transform_order, is_controllable, local_axes, fixed_axis
   - UI: option2「物理+表情」tab → ① 补面部驱动骨, 先跑 ① 再跑 ②
-- **视觉 morph 仍不工作** (方案 A 已知局限)
-  - 补了骨但 converted mesh 没权重绑这些骨 (因为 Step 6 已合并到 頭)
-  - Morph 数据能正确导出 PMX 并 reimport, VMD 表情轨道能驱动骨旋转, 但骨旋转驱动不了任何顶点
-  - 要真正有视觉表情, 需要方案 B (vertex morph proximity transfer) 或权重回迁
+- **方案 B: bake bone_morph → vertex_morph proximity transfer** — **已实现 2026-04-18**
+  - `operators/morph_operator.py` `bake_and_transfer_morphs` (`OBJECT_OT_bake_and_transfer_morphs`)
+  - 对每条 target bone_morph 临时 pose armature, 读 evaluated mesh 算 per-vert 位移
+  - 用 head-relative 坐标 + 身高归一化 scale 建 KDTree, 按 k-最近 + inverse-distance 加权把 offset 传到 source 各 mesh 的 shape key
+  - 注册为 mmd_root.vertex_morphs, 跟随 PMX 导出
+  - UI: option2 tab → ③ bake+传 vertex morph
+  - 默认阈值 2cm, k=3, min_magnitude 0.1mm
+- **Inase 实测 (2026-04-18)**: 19/19 morph 传完
+  - 缩放 target→src 自动测出 0.0797 (target 18m vs src 1.5m)
+  - あ 2527 src verts, 笑い 4082, まばたき 1957 等
+  - 嘴/眼/眉位移方向正确, 最大位移 ~5mm (跟 target 几何等比缩放后合理)
 - **vertex morph 生成**（方案 2，仍 TODO）
   - 识别「眼睛」/「嘴」顶点
   - 利用 XPS 面部细骨驱动 shape key 录制

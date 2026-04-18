@@ -96,10 +96,12 @@ print(len(dst.mmd_root.bone_morphs),
   - 实现: `operators/face_operator.py` `clone_face_bones_from_target`
   - 流程: DFS 找缺的骨 + 父链 → edit mode 创建骨 (head/tail = 相对 parent 的 offset，roll = align_roll(target Z)) → 拷 mmd_bone 元数据
   - 局限: 补了骨但 converted mesh 没权重绑这些骨 (Step 6 已合并到 頭)，morph 旋转骨但不驱动顶点变形
-- **方案 B**: vertex_morph proximity-based transfer (TODO)
-  - target mesh 有 morph shape key, 每个顶点有 offset
-  - 对 source mesh 每个顶点: 找 target mesh 最近点 (by 位置 + normal), 继承 offset
-  - 不依赖骨, 真正有视觉表情
+- **方案 B**: bake bone_morph → vertex_morph proximity transfer — **已实现 2026-04-18**
+  - 实现: `operators/morph_operator.py` `OBJECT_OT_bake_and_transfer_morphs`, UI ③
+  - 流程: 对每条 target bone_morph 临时 pose armature → `evaluated_get(depsgraph)` 拿变形 mesh → per-vert 位移 → KDTree (head-relative + 身高归一化 scale) → 按近邻加权把 offset 写到 source mesh shape key → 注册为 mmd_root.vertex_morphs
+  - 参数: distance_threshold (默认 2cm), k_neighbors (默认 3), min_offset_magnitude (默认 0.1mm), clear_existing
+  - Inase 实测 19/19 传完, 最大位移 ~5mm (target 20m 体型缩到 src 1.5m 体型后合理)
+  - 视觉对比: 嘴/眉/眼睛区位移方向正确, 嘴能开
 - **方案 C**: 不删 XPS 面部骨, 改成 rename 映射 (跳过) — 实现复杂, preset 要加 XPS→target 面部骨对照表，放弃
 
 ### 技术踩坑记录
