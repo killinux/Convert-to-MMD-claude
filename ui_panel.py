@@ -348,17 +348,11 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             rigid_box.label(text="单个 rigid 属性: 选中刚体后", icon='INFO')
             rigid_box.label(text="   N面板 → MMD → Rigid Body")
 
-            # 表情 Morph
+            # 表情 Morph (Path D 程序化合成)
             morph_box = layout.box()
-            morph_box.label(text="表情 Morph (顺序①→②→④)", icon='SHAPEKEY_DATA')
-            morph_box.operator("object.clone_face_bones_from_target",
-                               text="① 补面部驱动骨 (Jaw Bone / QQ*)",
-                               icon='BONE_DATA')
-            morph_box.operator("object.clone_morphs_from_target",
-                               text="② 克隆 bone/material/group morph (topology 安全)",
-                               icon='DUPLICATE')
+            morph_box.label(text="表情 Morph", icon='SHAPEKEY_DATA')
             morph_box.operator("object.synth_vertex_morphs",
-                               text="④ 程序化合成 19 条 vertex morph (Path D, 推荐)",
+                               text="合成 19 条标准 MMD morph (Path D)",
                                icon='SHAPEKEY_DATA')
             morph_box.label(text="然后: N面板 → MMD → Morph Tools 查看/编辑",
                             icon='INFO')
@@ -375,18 +369,3 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             verify_box.operator("morph.start_verify_modal",
                                 text="交互式逐条过 (O/X/N 键盘)",
                                 icon='PLAY')
-
-            # 已弃用旧方案 (折叠, 默认收起)
-            adv_box = layout.box()
-            row = adv_box.row()
-            row.prop(scene, "ctmmd_show_advanced", text="",
-                     icon='TRIA_DOWN' if scene.ctmmd_show_advanced else 'TRIA_RIGHT',
-                     emboss=False)
-            row.label(text="高级 / 旧方案", icon='TOOL_SETTINGS')
-            if scene.ctmmd_show_advanced:
-                adv_box.label(text="旧方案 (视觉质量差, 保留仅作对比)", icon='ERROR')
-                adv_box.operator("object.bake_and_transfer_morphs",
-                                 text="③ [旧] KDTree 近邻传 vertex morph",
-                                 icon='SHAPEKEY_DATA')
-                adv_box.label(text="跨 mesh KDTree/TPS/SurfaceDeform 传 offset")
-                adv_box.label(text="视觉会稀释 (撅嘴/翻唇), 已由 ④ 替代")
