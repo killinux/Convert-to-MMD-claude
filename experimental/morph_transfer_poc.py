@@ -783,6 +783,21 @@ EYELID_MORPH_NAMES  = ('まばたき', 'ウィンク', 'ウィンク右', '笑�
 BROW_MORPH_NAMES    = ('困る', '怒り', '真面目', '上', '下')
 
 
+def set_morph_synced(meshes, morph_name, value=1.0):
+    """Reset all non-basis sliders on every listed mesh, then set `morph_name`
+    slider to `value` on every mesh that has it. Prevents cross-mesh
+    slider drift during test/verify."""
+    for m in meshes:
+        if m is None or m.data.shape_keys is None:
+            continue
+        for k in m.data.shape_keys.key_blocks:
+            if k.name != 'Basis':
+                k.value = 0.0
+        if morph_name in m.data.shape_keys.key_blocks:
+            m.data.shape_keys.key_blocks[morph_name].value = float(value)
+    bpy.context.view_layer.update()
+
+
 def bake_all_for_inase(face_mesh, eyelash_meshes, eyebrow_mesh, eyeball_mesh,
                         recipes=INASE_RECIPES):
     """Apply recipes to every relevant mesh. Each mesh only gets the morphs
