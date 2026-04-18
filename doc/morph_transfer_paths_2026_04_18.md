@@ -52,7 +52,35 @@
 - 两边 mesh triangle 数差 10x+ 时,1-to-many map 效果存疑
 - **未尝试,但学术证明可行**
 
-## 路径 C: Blender Surface Deform Modifier — ⏳ 当前尝试
+## 路径 C: Surface Deform / BVH-barycentric — ❌ 已证失败
+
+**尝试两个子变体** (commits `9a9ec6a` `7e71e7b` `8f45eee`):
+1. Blender 内建 `SurfaceDeform` + `bpy.ops.object.surfacedeform_bind` — op 返回 FINISHED 但 `is_bound=False`,**Blender 3.6.21 bug**:脚本调用 bind 不 trigger 实际绑定
+2. 手写 BVHTree + barycentric (绕开 buggy op)
+   - V1 `find_nearest`: 所有嘴唇 verts bind 到同一个 YYB tri region → 上下唇同向运动 → **嘴唇前突畸形**,不张开
+   - V2 `ray_cast along vertex normal`: 上下唇终于有区分 (Z 差 0.74mm),但仍然视觉是 **上嘴唇被暴力翻起露 inner-lip**,下嘴唇基本不动,整体是 mesh tear artifact 而非自然张嘴
+
+**失败根因**:
+- 即使 normal-ray 区分了上下,Inase mouth region 的 mesh 拓扑(顶点密度/法线分布)与 YYB 不同,**相邻 verts 因法线微妙差异 bind 到 YYB 不同区域**,获得不一致位移 → 局部 mesh tear
+- 数据层面 max 12.7mm / upper-lower Z 差 0.74mm **数值方向都对**,但视觉是破坏性形变
+- 这是 mesh 差异的 **fundamental 限制**,不是 landmark 精度或 scale 问题
+
+**已避免但没救的变体**: MESH_DEFORM modifier(类似问题,不再试)
+
+**再次体会 post-mortem 教训**:多次 close-up 截图误读"暗色=嘴内"为成功,实际是**阴影/压缩**或**暴力撕开**。必须**对比 ground truth 有没有**"自然张嘴+露牙/舌"才算过关。
+
+## 路径 C 留下的可复用成果 (若将来再试 cross-mesh transfer)
+
+- `align_template_to_source` (uniform scale+translate,基于 landmark) — 这一步稳定
+- YYB Miku v1.02 作 template 验证: 110 vertex_morphs 齐全,morph 源码是 vertex_morph 而非 bone_morph → 不需要 bake step
+
+## 路径 B/C 共同教训
+
+两者都依赖 **"source 和 template 的 mesh 在嘴部区域拓扑相似度高"** 的假设,不 robust。跨角色 mesh transfer 对嘴/眼皮这种"高密度 fold + 薄层"区域不靠谱。
+
+---
+
+## 路径 C (已废弃) 原始说明
 
 **原理**: Blender 内建 SurfaceDeform modifier 能把 mesh A 的 verts bind 到 mesh B 的 surface (通过 barycentric coords + normal projection)。B 任意变形 → A 自动跟随。
 
@@ -92,11 +120,54 @@
 
 1. ❌ 不要把 Purifier Inase 18 当 template (bone_morph based,'あ' 仅 5° jaw 旋转,不是标准张嘴)
 2. ❌ 不要用 forward TPS warp + KDTree on warped verts (upper-lip offset 会被 nose-region 稀释)
-3. ❌ 不要相信 "max offset 量级对" 就 claim success (撅嘴和张嘴的 max offset 都可以 10-15mm)
+3. ❌ 不要相信 "max offset 量级对" 就 claim success (撅嘴/前突/翻唇的 max offset 都可以 10-15mm)
 4. ❌ 不要用粗估 landmark 位置做精细 transfer (± 5mm 误差在嘴区已致命)
 5. ❌ 不要一次跑 19 条再报告 — 1 条端到端失败,其他不必跑
 6. ❌ 不要只看 template 或只看 source 截图,**必须 side-by-side 对比**
 7. ❌ 不要在 transfer 成功前做 pipeline 集成 (operator / UI)
+8. ❌ 不要在 `bpy.ops.object.surfacedeform_bind` 后依赖 `is_bound` 为 True (Blender 3.6.21 bug — 脚本调用 bind 不 trigger 实际绑定,需手写 BVH+bary 代替)
+9. ❌ 不要相信"暗色区域"就说嘴张开 — 暗色可能是 **阴影 / 压缩 shading / 翻唇暴露的 inner-lip**,必须确认**露出上下牙** 或 **露出舌头** 才算真张嘴
+10. ❌ 不要对 mouth region 做跨 mesh barycentric bind — upper/lower lip topology 微妙,vertex 密度/法线差异导致 bind 不稳,局部产生 tear artifact
+
+## 跨 mesh transfer 一般性判定
+
+对于 mouth/eyelid 这种 **"薄层 + 高密度 fold"** 区域,任何基于"找最近 tri"或"固定点 warp"的跨 mesh transfer 都不够稳定。必须走:
+- 路径 B (Sumner per-triangle affine) — 理论更对但实现复杂
+- 路径 D (程序化,不跨 mesh) — 本次采用
+
+## 路径 D: 程序化 per-mesh (当前采用)
+
+**原理**: 不做 cross-mesh transfer。直接在 source mesh 自己上,按 source 自己的 vertex group / bone 定义 morph offset。
+
+**Inase XPS 能利用的结构**:
+- `head lip upper middle/left/right` — 上唇 vertex groups
+- `head lip lower middle/left/right` — 下唇 vertex groups  
+- `head mouth corner left/right` — 嘴角
+- `head jaw` — 下颌 vg (大区块)
+
+**'あ' 程序化公式**:
+- 下唇 vg verts: Z -= 5mm, Y += 2mm (向后下)
+- 嘴角 vg verts: Z -= 2mm (略下)
+- 下颌 vg verts: Z -= 3mm, Y += 1mm (下颌刚体下旋近似)
+- 上唇 vg verts: Z += 0.5mm (略抬,可选)
+- 其他 verts: 0 offset (零污染)
+
+**优点**:
+- 不涉及 cross-mesh,无 bind 不稳问题
+- 零污染天然保证 (vg mask 明确)
+- 容易参数化 / 调整
+- 每条 morph 单独实现,独立调参
+
+**缺点**:
+- 每条 morph 要手工写公式,19 条 * 几小时 = 几天工作量
+- 复杂表情 (笑い/困る/にやり) 没有简单公式,可能需要更多 vg 或 artist input
+
+**验证 checklist (比路径 A-C 更严格)**:
+- [ ] Source 'あ=1.0' 视觉能看到**上下牙或舌头** (至少其一)
+- [ ] 上嘴唇**不翻起**(inner-lip 不暴露)
+- [ ] 下嘴唇清晰下移
+- [ ] 嘴角两侧对称
+- [ ] 嘴外区 (眼/鼻/眉) 零位移
 
 ## 验证 checklist (Phase 1 端到端 1 条必做)
 
