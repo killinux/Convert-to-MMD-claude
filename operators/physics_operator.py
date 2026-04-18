@@ -711,17 +711,20 @@ class OBJECT_OT_toggle_rigid_visibility(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        rigids = [o for o in bpy.data.objects if getattr(o, 'mmd_type', '') in ('RIGID_BODY', 'JOINT')]
-        if not rigids:
-            self.report({'INFO'}, "场景里没有 mmd rigid/joint")
+        # mmd_tools 通过 mmd_root.show_rigid_bodies / show_joints 控制可见性,
+        # 直接改对象的 hide_viewport 会被 mmd_tools 覆盖, 所以这里切 mmd_root flag.
+        roots = [o for o in bpy.data.objects if getattr(o, 'mmd_type', '') == 'ROOT']
+        if not roots:
+            self.report({'INFO'}, "场景里没有 mmd_root")
             return {'CANCELLED'}
-        # Decide direction: if any visible, hide all; else show all
-        any_visible = any(not o.hide_viewport for o in rigids)
-        new_hidden = any_visible
-        for o in rigids:
-            o.hide_viewport = new_hidden
-        state = "隐藏" if new_hidden else "显示"
-        self.report({'INFO'}, f"{state} {len(rigids)} 个 rigid/joint")
+        # 方向: 看第一个 root, 任一 flag 为 True 就全关, 否则全开
+        any_on = any(r.mmd_root.show_rigid_bodies or r.mmd_root.show_joints for r in roots)
+        new_state = not any_on
+        for r in roots:
+            r.mmd_root.show_rigid_bodies = new_state
+            r.mmd_root.show_joints = new_state
+        state = "显示" if new_state else "隐藏"
+        self.report({'INFO'}, f"{state} {len(roots)} 个 mmd 模型的 rigid/joint")
         return {'FINISHED'}
 
 
