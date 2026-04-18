@@ -666,16 +666,16 @@ INASE_RECIPES = {
     'まばたき': {  # both eyes closed
         EYELID_UPPER_L: (0, 0, -8),
         EYELID_UPPER_R: (0, 0, -8),
-        EYELID_LOWER_L: (0, 0, +6),
-        EYELID_LOWER_R: (0, 0, +6),
+        EYELID_LOWER_L: (0, 0, +9),
+        EYELID_LOWER_R: (0, 0, +9),
     },
     'ウィンク': {  # model-left eye wink (viewer's right)
         EYELID_UPPER_L: (0, 0, -8),
-        EYELID_LOWER_L: (0, 0, +6),
+        EYELID_LOWER_L: (0, 0, +9),
     },
     'ウィンク右': {  # model-right eye wink (viewer's left)
         EYELID_UPPER_R: (0, 0, -8),
-        EYELID_LOWER_R: (0, 0, +6),
+        EYELID_LOWER_R: (0, 0, +9),
     },
 }
 
