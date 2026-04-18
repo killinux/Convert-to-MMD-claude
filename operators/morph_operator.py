@@ -324,6 +324,7 @@ class OBJECT_OT_clone_morphs_from_target(bpy.types.Operator):
 
 
 HEAD_BONE_CANDIDATES = ('頭', 'head neck upper')
+FOOT_REF_BONE_CANDIDATES = ('足首.L', '左足首', '足首_L', 'leg left ankle')
 
 
 def _find_head_bone(arm):
@@ -333,10 +334,16 @@ def _find_head_bone(arm):
     return None
 
 
-def _head_local_matrix(arm, head_pb):
-    """World-space → head-local-space matrix for the given armature."""
-    head_world = arm.matrix_world @ head_pb.bone.matrix_local
-    return head_world.inverted()
+def _compute_body_height(arm, head_pb):
+    """World-space distance from head bone head to ankle (fallback to bone length * 8)."""
+    head_world = (arm.matrix_world @ head_pb.bone.matrix_local).to_translation()
+    for name in FOOT_REF_BONE_CANDIDATES:
+        pb = arm.pose.bones.get(name)
+        if pb is not None:
+            foot_world = (arm.matrix_world @ pb.bone.matrix_local).to_translation()
+            return (head_world - foot_world).length
+    # Fallback: use head bone length * 8 as body-height estimate
+    return head_pb.bone.length * 8.0
 
 
 def _bake_target_morph_offsets(tgt_arm, tgt_meshes, tgt_morph, min_magnitude=1e-4):
@@ -407,68 +414,64 @@ def _bake_target_morph_offsets(tgt_arm, tgt_meshes, tgt_morph, min_magnitude=1e-
     return result, total_morphed
 
 
-def _build_kdtree_for_morph(baked, tgt_meshes_by_name, tgt_head_inv_world):
-    """Build a single KDTree across all baked verts from all target meshes.
-    Keys are in target-head-local space. Values are offsets also in
-    head-local space."""
+def _build_kdtree_for_morph(baked, tgt_head_world_pos, tgt_to_src_scale):
+    """Build a KDTree in source-body-scaled head-relative world space.
+    Each entry position is (target_world_pos - tgt_head_world_pos) * scale.
+    Offsets are also scaled to source body units so they apply correctly.
+    """
     from mathutils import kdtree
-    entries = []  # list of (head_local_basis_pos, head_local_offset)
+    entries = []  # list of (src_scaled_pos, src_scaled_offset)
     for tgt_mesh, verts in baked.items():
         mw = tgt_mesh.matrix_world
         for basis_co, offset, _idx in verts:
             world_basis = mw @ basis_co
-            # Offset vector: rotate by the mesh world rotation (linear part only)
+            # Offset rotated by world linear part only (no translation)
             world_tip = mw @ (basis_co + offset)
             world_offset = world_tip - world_basis
-            hl_basis = tgt_head_inv_world @ world_basis
-            # offset is a direction, apply linear part only
-            hl_offset = tgt_head_inv_world.to_3x3() @ world_offset
-            entries.append((hl_basis, hl_offset))
+            # Convert to source-scaled head-relative space
+            src_scaled_pos = (world_basis - tgt_head_world_pos) * tgt_to_src_scale
+            src_scaled_offset = world_offset * tgt_to_src_scale
+            entries.append((src_scaled_pos, src_scaled_offset))
 
     if not entries:
         return None, entries
     kd = kdtree.KDTree(len(entries))
-    for i, (hl_basis, _hl_offset) in enumerate(entries):
-        kd.insert(hl_basis, i)
+    for i, (pos, _offset) in enumerate(entries):
+        kd.insert(pos, i)
     kd.balance()
     return kd, entries
 
 
-def _apply_morph_to_source(src_meshes, src_head_inv_world, src_head_world,
+def _apply_morph_to_source(src_meshes, src_head_world_pos,
                            kd, entries, morph_name,
                            distance_threshold, k_neighbors):
     """For each source mesh vertex, find nearest morphed target verts in
-    head-local space and apply inverse-distance-weighted offset to a new
-    shape key with the given name."""
+    shared head-relative source-scale space. Apply inverse-distance-
+    weighted offset to a new shape key."""
     from mathutils import Vector
     total_applied = 0
-    # src_head_world transforms head-local vector → world
-    src_head_mat3 = src_head_world.to_3x3()
-
     for src_mesh in src_meshes:
         mesh_data = src_mesh.data
-        # Ensure shape_keys exists with a Basis
         if mesh_data.shape_keys is None:
             src_mesh.shape_key_add(name='Basis', from_mix=False)
         sk_coll = mesh_data.shape_keys.key_blocks
         basis_key = mesh_data.shape_keys.reference_key
-        # Add or reset the target morph shape key
         sk = sk_coll.get(morph_name)
         if sk is None:
             sk = src_mesh.shape_key_add(name=morph_name, from_mix=False)
         else:
-            # Reset to basis
             for i, bv in enumerate(basis_key.data):
                 sk.data[i].co = bv.co.copy()
         sk.value = 0.0
 
         mw = src_mesh.matrix_world
         mw_inv = mw.inverted()
+        mw_inv_3x3 = mw_inv.to_3x3()
         applied = 0
         for i, bv in enumerate(basis_key.data):
             world_basis = mw @ bv.co
-            hl = src_head_inv_world @ world_basis
-            neighbors = kd.find_n(hl, k_neighbors)
+            query_pos = world_basis - src_head_world_pos
+            neighbors = kd.find_n(query_pos, k_neighbors)
             if not neighbors:
                 continue
             valid = [(pos, idx, d) for pos, idx, d in neighbors if d <= distance_threshold]
@@ -482,10 +485,8 @@ def _apply_morph_to_source(src_meshes, src_head_inv_world, src_head_world,
                 total_w += w
             if total_w <= 0.0:
                 continue
-            avg_hl_offset = weighted / total_w
-            # Convert head-local offset back to world, then into source mesh local
-            world_offset = src_head_mat3 @ avg_hl_offset
-            local_offset = mw_inv.to_3x3() @ world_offset
+            avg_world_offset = weighted / total_w  # already in source-scale world
+            local_offset = mw_inv_3x3 @ avg_world_offset
             sk.data[i].co = bv.co + local_offset
             applied += 1
         total_applied += applied
@@ -584,11 +585,15 @@ class OBJECT_OT_bake_and_transfer_morphs(bpy.types.Operator):
             self.report({'ERROR'}, "source 或 target 没 mesh")
             return {'CANCELLED'}
 
-        # Head-local world matrices
-        src_head_world = src_arm.matrix_world @ src_head_pb.bone.matrix_local
-        tgt_head_world = tgt_arm.matrix_world @ tgt_head_pb.bone.matrix_local
-        src_head_inv = src_head_world.inverted()
-        tgt_head_inv = tgt_head_world.inverted()
+        # Head world positions
+        src_head_world_pos = (src_arm.matrix_world @ src_head_pb.bone.matrix_local).to_translation()
+        tgt_head_world_pos = (tgt_arm.matrix_world @ tgt_head_pb.bone.matrix_local).to_translation()
+        # Body heights (head-to-ankle) to normalize scale across models
+        src_h = _compute_body_height(src_arm, src_head_pb)
+        tgt_h = _compute_body_height(tgt_arm, tgt_head_pb)
+        tgt_to_src_scale = src_h / tgt_h if tgt_h > 1e-6 else 1.0
+        print(f'[CTMMD 15] body height: src={src_h:.4f} tgt={tgt_h:.4f} '
+              f'tgt→src scale={tgt_to_src_scale:.4f}')
 
         if self.clear_existing:
             src_root.mmd_root.vertex_morphs.clear()
@@ -613,11 +618,11 @@ class OBJECT_OT_bake_and_transfer_morphs(bpy.types.Operator):
             if not baked:
                 print(f'[CTMMD 15] [{i+1}/{n_morphs}] {tgt_morph.name!r}: 0 morphed verts on target (skipped)')
                 continue
-            kd, entries = _build_kdtree_for_morph(baked, None, tgt_head_inv)
+            kd, entries = _build_kdtree_for_morph(baked, tgt_head_world_pos, tgt_to_src_scale)
             if kd is None:
                 continue
             applied = _apply_morph_to_source(
-                src_meshes, src_head_inv, src_head_world,
+                src_meshes, src_head_world_pos,
                 kd, entries, tgt_morph.name,
                 self.distance_threshold, self.k_neighbors,
             )
