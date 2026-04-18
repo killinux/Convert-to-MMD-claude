@@ -222,14 +222,30 @@ def execute(self, context):
     ...
 ```
 
-## 实施顺序
+## 实施顺序 (2026-04-18 晚 S1+S2+S3 完成)
 
-1. **文档 + push 本次完成点** (本文档 + HEAD `bc130ee`) — 这样回滚点明确
-2. **refactor Path D 成 slot-based**, Inase 回归必须零变化
-3. **加 DAZ_G8_MAP + Reika POC**: 嘴 5 条 (あ/い/う/え/お) + まばたき
-4. **验证**: Reika XPS → synth → 截图 → 肉眼确认 5 条嘴 + 闭眼 OK
-5. **补 DAZ 剩余 13 条**: 调参数, 用批量截图 (Tool C) 校验
-6. **加 Mixamo/VRoid**: 按需
+1. **文档 + push 本次完成点** (本文档 + HEAD `bc130ee`) — 这样回滚点明确 ✅
+2. **refactor Path D 成 slot-based**, Inase 回归零变化 ✅ HEAD `7591eca`
+3. **加 DAZ_G8_MAP + Reika POC**: 嘴 5 条 (あ/い/う/え/お) + まばたき ✅ HEAD `bf823e0`
+4. **验证**: Reika XPS → synth → 截图 → 肉眼确认 5 条嘴 + 闭眼 OK ✅ (9 条抽检正常)
+5. **补 DAZ 剩余 13 条**: 调参数, 用批量截图 (Tool C) 校验 ✅
+   — 实际无需补: UNIVERSAL_RECIPES 里 19 条全部 rig-agnostic, Reika 一次 bake 全通过
+   — Tool B Spec 19/19 pass; Tool C 抽检 9 条语义正确 (あ嘴开/い横开/う噘/眨眼/眉动)
+6. **完整 pipeline export 验证** ✅ HEAD `0538433`
+   — 跑完 step 7→12, mmd_root 注册 19 vertex_morphs
+   — 新增 `apply_morph_categories`: 8 MOUTH + 6 EYE + 5 EYEBROW (不再全 OTHER)
+   — PMX export 9.91 MB, 14/14 抽检 morph 名在 binary 内
+   — VMD 导入 OK: 9037 bone frames + 73 morph frames, まばたき 峰值 frame 46 视觉闭眼正确
+7. **加 Mixamo/VRoid**: 按需 — 未做
+
+## S2/S3 实测数据
+
+- Reika DAZ brow (`上`/`下`) max 15.0mm, 比 Inase (9.6mm) 偏夸张
+  — 原因: DAZ eyelid/lip 每 slot 多 sub-vg (UpperInner/UpperOuter) sum+clamp 到 1.0
+  — 影响: 实际 VMD 帧很少用 1.0, 0.3-0.7 区间效果自然, 不 block 使用
+  — 如需调: `DAZ_G8_MAP` eyelid/brow slot 保留主 vg 去掉 sub (建议 #2, 保持 sum 语义)
+- mouth_interior (4_Mouth) 不 bake 仍看起来正常: 张嘴时牙齿静态保留, 与 MMD 标准一致
+- VMD 动画绑定正确: 18 个 morph fcurve 名字全部匹配 mmd_root.vertex_morphs
 
 ## 未决
 
@@ -262,3 +278,6 @@ def execute(self, context):
 - HEAD `7c51fe9`: one_click_convert 加 stop_at_morph 选项 (部分 1→6 给 morph 验证)
 - HEAD `be74ed3`: UI 加 mesh → parent armature walk, 选 mesh 时 panel 不消失
 - HEAD `bc130ee` 是 morph 通用化之前的稳定 checkpoint — 回滚用这个
+- HEAD `7591eca` S1: slot-based Path D, Inase bit-identical
+- HEAD `bf823e0` S2: DAZ_G8_MAP + detect_rig signature
+- HEAD `0538433` S3: `apply_morph_categories` post-convert, Reika 完整 pipeline + PMX + VMD 验证通过
