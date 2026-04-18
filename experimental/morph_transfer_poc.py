@@ -1149,21 +1149,29 @@ EYE_BONE_VG_NAMES = ('目.L', '目.R', 'head eyeball left', 'head eyeball right'
 
 
 def find_inase_meshes():
-    """Auto-detect [face, lash1, lash2, brow, eyeball] from scene by vg probes.
+    """Auto-detect [face, lash1, lash2, brow, eyeball] from scene.
+
+    Two strategies, tried in order:
+      1. **vg probe** — works BEFORE addon step-6 cleanup_face_bones.
+         face requires lip+eyelid+eyebrow; brow/lash/eyeball by their
+         respective face-detail vgs + eye-bone vg.
+      2. **shape-key probe** (fallback) — works AFTER cleanup_face_bones
+         once the morphs are already baked. Identifies each mesh by
+         which morph subset is present (face has all three categories;
+         brow has only brow morphs; lash/eyeball distinguished by eye-bone vg).
+
     Returns list of 5 objects, or None if any slot missing.
+    """
+    result = _find_inase_meshes_by_vgs()
+    if result:
+        return result
+    return _find_inase_meshes_by_morphs()
 
-    Priority (most specific first):
-      face   = has ALL THREE: lip + eyelid + eyebrow vgs (only real face mesh has all)
-      brow   = has 'head eyebrow *' vg but NO lip vg
-      lash   = has 'head eyelid *' vg but NO lip NOR brow vg
-      eyeball= has '目.L'/'目.R' (or XPS original 'head eyeball *') vg, small vg count,
-               NOT any face detail vg (rules out template meshes)
 
-    Why three-vg face check: tooth mesh (24_0005) rigs to `head lip` too but
-    has no eyelid/eyebrow, so a lone has_lip check picks teeth as face.
-
-    Note: Must run BEFORE the addon's step-6 cleanup_face_bones which deletes
-    the head lip/eyelid/eyebrow vgs by merging them into 頭.
+def _find_inase_meshes_by_vgs():
+    """Pre-cleanup detection: face requires lip+eyelid+eyebrow vgs all present.
+    Why three-vg face check: tooth mesh (e.g. Inase 24_0005) rigs to `head lip`
+    too but has no eyelid/eyebrow, so a lone has_lip check misidentifies teeth.
     """
     face = None
     lashes = []
@@ -1185,6 +1193,38 @@ def find_inase_meshes():
             lashes.append(o)
         elif has_eye_bone and not has_lip and not has_eyelid and not has_brow and len(vg_names) < 10:
             eyeball = o
+    if face and len(lashes) == 2 and brow and eyeball:
+        return [face, lashes[0], lashes[1], brow, eyeball]
+    return None
+
+
+def _find_inase_meshes_by_morphs():
+    """Post-cleanup + post-bake detection via shape keys.
+    face has all 3 category morphs; brow only brow morphs; lash vs eyeball
+    distinguished by eye-bone vg presence.
+    """
+    face = None
+    lashes = []
+    brow = None
+    eyeball = None
+    for o in bpy.data.objects:
+        if o.type != 'MESH' or o.data.shape_keys is None:
+            continue
+        kbs = {k.name for k in o.data.shape_keys.key_blocks}
+        vg_names = {vg.name for vg in o.vertex_groups}
+        has_mouth = 'あ' in kbs
+        has_eyelid = 'まばたき' in kbs
+        has_brow = '困る' in kbs
+        has_eye_bone = any(n in vg_names for n in EYE_BONE_VG_NAMES)
+        if has_mouth and has_eyelid and has_brow:
+            face = o
+        elif has_brow and not has_mouth:
+            brow = o
+        elif has_eyelid and not has_mouth and not has_brow:
+            if has_eye_bone and len(vg_names) < 10:
+                eyeball = o
+            else:
+                lashes.append(o)
     if face and len(lashes) == 2 and brow and eyeball:
         return [face, lashes[0], lashes[1], brow, eyeball]
     return None
