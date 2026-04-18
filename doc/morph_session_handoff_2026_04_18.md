@@ -106,7 +106,7 @@ bpy.ops.object.surfacedeform_bind(modifier='_morph_sd')
 - 4 个闭眼类 morph 都必须: まばたき / ウィンク / ウィンク右 / 笑い
 - **MMD 真实制作里也是这么做的**
 
-**Known side effect**: 单眼 ウィンク 时**两只 eyeball 都后退 6mm**。front ortho 看不明显,严格检查 1-2mm。改法: per-vert X 筛选只动对应侧。未实现。
+**Known side effect** (✅ 已修复 commit `1eb2dbe`): 之前单眼 ウィンク 两只 eyeball 都后退。现在 `bake_eyeball_recede(side='left'|'right'|'both')` + `EYEBALL_SIDES` 映射,ウィンク 只后退 model-left (232 verts, x>0), ウィンク右 只后退 model-right (252 verts, x<0)。
 
 ### 4. set_morph_synced 必须用 (slider 漂移 bug)
 
@@ -334,11 +334,12 @@ Reika XPS vg 命名**完全不同** (e.g. `lBrowInner` vs Inase `head eyebrow le
 需 `DAZ_RECIPES` preset,和 Inase 的 recipe 结构一样但 vg 映射不同。
 参考 TODO.md P0 "面部骨清理支持 DAZ 命名"。
 
-### P4: 单眼 eyeball recede 优化
+### ~~P4: 单眼 eyeball recede 优化~~ ✅ 完成 (commit `1eb2dbe`)
 
-当前 `bake_eyeball_recede` 无差别对所有 eyeball verts Y+=6mm。
-优化:对 ウィンク 只动 model-left 眼球 verts (x > 0), ウィンク右 对应反向。
-需要 per-vert X 筛选,~10 行修改。
+实现: `bake_eyeball_recede` 加 `side='both'|'left'|'right'` 参数,
+`EYEBALL_SIDES = {'ウィンク':'left', 'ウィンク右':'right', 'まばたき':'both', '笑い':'both'}`,
+`bake_eyeball_morphs_for_wink` 自动查表。Inase 眼球 mesh 天然以 x=0 对称分割 (232+252 verts, 无共享)。
+视觉验证: 单眼 wink 时睁着那只眼球前凸饱满,不再后陷。
 
 ---
 
