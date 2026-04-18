@@ -746,6 +746,41 @@ def bake_eyeball_recede(eyeball_mesh, morph_name, back_mm=6.0):
 EYEBALL_MORPHS = ('まばたき', 'ウィンク', 'ウィンク右', '笑い')  # morphs that should hide eyeball
 
 
+MOUTH_MORPH_NAMES   = ('あ', 'い', 'う', 'え', 'お')
+EYELID_MORPH_NAMES  = ('まばたき', 'ウィンク', 'ウィンク右')
+BROW_MORPH_NAMES    = ('困る', '怒り', '真面目', '上', '下')
+
+
+def bake_all_for_inase(face_mesh, eyelash_meshes, eyebrow_mesh, eyeball_mesh,
+                        recipes=INASE_RECIPES):
+    """Apply recipes to every relevant mesh. Each mesh only gets the morphs
+    whose vertex groups it actually has.
+
+    face_mesh: main skin (all vgs)
+    eyelash_meshes: list of eyelash meshes (only eyelid vgs)
+    eyebrow_mesh: eyebrow hair mesh (only eyebrow vgs)
+    eyeball_mesh: eyeballs (no vg, uses recede helper)
+    """
+    # Main face gets all recipes
+    bake_all_mouth_recipes(face_mesh, recipes)
+
+    # Eyelashes: only eyelid subset
+    eyelid_subset = {n: recipes[n] for n in EYELID_MORPH_NAMES if n in recipes}
+    for m in eyelash_meshes:
+        bake_all_mouth_recipes(m, eyelid_subset)
+
+    # Eyebrow mesh: only brow subset
+    brow_subset = {n: recipes[n] for n in BROW_MORPH_NAMES if n in recipes}
+    if eyebrow_mesh is not None:
+        bake_all_mouth_recipes(eyebrow_mesh, brow_subset)
+
+    # Eyeball mesh: recede for eye-closing morphs
+    if eyeball_mesh is not None:
+        bake_eyeball_morphs_for_wink(eyeball_mesh)
+
+    print("[bake_all_for_inase] done on all meshes")
+
+
 def bake_eyeball_morphs_for_wink(eyeball_mesh, morph_names=EYEBALL_MORPHS, back_mm=6.0):
     """Add the above shape keys on an eyeball mesh too.
     NOTE: this simple version moves BOTH eyes back even for one-sided winks;
