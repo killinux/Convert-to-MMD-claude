@@ -283,3 +283,36 @@ def read_landmarks(prefix):
             raise RuntimeError(f"missing landmark '{full}'")
         pts.append(tuple(o.matrix_world.translation))
     return pts
+
+
+# ---------- Batch: bake + transfer all bone_morphs ----------
+
+def bake_and_transfer_all(
+    tpl_root, tpl_mesh, src_mesh,
+    tpl_lms, src_lms,
+    morph_names=None,
+    face_mask_radius_factor=0.6,
+):
+    """Bake every bone_morph on template + transfer to source.
+
+    morph_names: optional subset, default = all bone_morphs.
+    Returns list of (name, sk) for successfully transferred morphs.
+    """
+    mr = tpl_root.mmd_root
+    names = morph_names if morph_names else [bm.name for bm in mr.bone_morphs]
+    results = []
+    for n in names:
+        print(f"\n=== processing '{n}' ===")
+        sk_tpl = bake_bone_morph_to_shape_key(tpl_root, tpl_mesh, n)
+        if sk_tpl is None:
+            continue
+        try:
+            sk_src = transfer_morph(
+                tpl_mesh, tpl_lms, n,
+                src_mesh, src_lms,
+                face_mask_radius_factor=face_mask_radius_factor,
+            )
+            results.append((n, sk_src))
+        except Exception as e:
+            print(f"  [transfer] FAILED for '{n}': {e}")
+    return results
