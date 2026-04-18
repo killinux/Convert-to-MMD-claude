@@ -664,18 +664,18 @@ INASE_RECIPES = {
     },
     # --- Eyelids ---
     'まばたき': {  # both eyes closed
-        EYELID_UPPER_L: (0, 0, -8),
-        EYELID_UPPER_R: (0, 0, -8),
-        EYELID_LOWER_L: (0, 0, +7),
-        EYELID_LOWER_R: (0, 0, +7),
+        EYELID_UPPER_L: (0, +1, -9),
+        EYELID_UPPER_R: (0, +1, -9),
+        EYELID_LOWER_L: (0, +1, +8),
+        EYELID_LOWER_R: (0, +1, +8),
     },
     'ウィンク': {  # model-left eye wink (viewer's right)
-        EYELID_UPPER_L: (0, 0, -8),
-        EYELID_LOWER_L: (0, 0, +7),
+        EYELID_UPPER_L: (0, +1, -9),
+        EYELID_LOWER_L: (0, +1, +8),
     },
     'ウィンク右': {  # model-right eye wink (viewer's left)
-        EYELID_UPPER_R: (0, 0, -8),
-        EYELID_LOWER_R: (0, 0, +7),
+        EYELID_UPPER_R: (0, +1, -9),
+        EYELID_LOWER_R: (0, +1, +8),
     },
 }
 
