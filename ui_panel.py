@@ -355,7 +355,7 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             rigid_box.label(text="单个 rigid 属性: 选中刚体后", icon='INFO')
             rigid_box.label(text="   N面板 → MMD → Rigid Body")
 
-            # 表情验证 (Tools A/B/C) — 合成按钮已移到 option1 ① 箱底部 (step 5.5)
+            # 表情验证 (Tools A/B/C) — 合成按钮已移到 option1 ① 箱底部 (step 6)
             verify_box = layout.box()
             verify_box.label(text="表情 Morph 验证", icon='VIEWZOOM')
             verify_box.label(text="查看/编辑: N 面板 → MMD → Morph Tools", icon='INFO')
