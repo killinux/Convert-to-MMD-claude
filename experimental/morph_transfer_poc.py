@@ -700,27 +700,27 @@ INASE_RECIPES = {
         BROW_R_INNER: (+4, 0, -8),
         BROW_OUTER_BOTH: (0, 0, -2),
     },
-    '真面目': {  # serious / flat — whole brow lowered slightly
-        BROW_ALL: (0, 0, -5),
+    '真面目': {  # serious / flat — whole brow lowered more noticeably
+        BROW_ALL: (0, 0, -8),
     },
     '上': {  # brow raised
-        BROW_ALL: (0, 0, +10),
+        BROW_ALL: (0, 0, +15),
     },
     '下': {  # brow lowered
-        BROW_ALL: (0, 0, -10),
+        BROW_ALL: (0, 0, -15),
     },
     # --- Mouth extras ---
-    'にやり': {  # smirk — mouth corners up asymmetric (or symmetric)
-        CORNER_L:    (+1, 0, +3),
-        CORNER_R:    (-1, 0, +3),
-        LIP_UPPER:   (0,  0, +1),
+    'にやり': {  # smirk — mouth corners pulled up + outward
+        CORNER_L:    (+4, 0, +5),
+        CORNER_R:    (-4, 0, +5),
+        LIP_UPPER:   (0,  0, +2),
     },
-    '激怒': {  # angry mouth — tight down-pulled pressed
-        CORNER_L:    (-1, 0, -2),
-        CORNER_R:    (+1, 0, -2),
-        LIP_LOWER:   (0,  0, -1),
-        LIP_UPPER:   (0,  0, -1),
-        JAW:         (0,  0, -1),
+    '激怒': {  # angry mouth — tight pressed + corners pulled inward/down
+        CORNER_L:    (-3, +1, -5),
+        CORNER_R:    (+3, +1, -5),
+        LIP_LOWER:   (0,  +1, -2),
+        LIP_UPPER:   (0,  0, -2),
+        JAW:         (0,  0, -2),
     },
     # --- Eye extras ---
     '笑い': {  # smile eyes (crescent shape — upper down slightly, lower up slightly)
