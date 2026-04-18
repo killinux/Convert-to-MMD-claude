@@ -758,12 +758,13 @@ def bake_all_mouth_recipes(src_mesh, recipes=INASE_RECIPES):
     return results
 
 
-def bake_eyeball_recede(eyeball_mesh, morph_name, back_mm=6.0):
+def bake_eyeball_recede(eyeball_mesh, morph_name, back_mm=6.0, side='both'):
     """For eye-closing morphs, push eyeball mesh backward into socket so it
     doesn't protrude past a closed face-mesh eyelid.
 
     eyeball_mesh: object (e.g. Inase XPS 24_0006 eyes mesh).
     back_mm: how many mm in +Y direction (per XPS convention, +Y = backward).
+    side: 'both' | 'left' | 'right' — per-vert X filter (Blender +X = model-left).
     """
     import numpy as np
     if eyeball_mesh.data.shape_keys is None:
@@ -774,10 +775,18 @@ def bake_eyeball_recede(eyeball_mesh, morph_name, back_mm=6.0):
     sk = eyeball_mesh.shape_key_add(name=morph_name, from_mix=False)
     rest = np.array([v.co[:] for v in eyeball_mesh.data.vertices])
     offset = np.zeros_like(rest)
-    offset[:, 1] = back_mm * 1e-3  # +Y backward
+    if side == 'both':
+        mask = np.ones(len(rest), dtype=bool)
+    elif side == 'left':
+        mask = rest[:, 0] > 0  # model-left
+    elif side == 'right':
+        mask = rest[:, 0] < 0  # model-right
+    else:
+        raise ValueError(f"side must be 'both'|'left'|'right', got {side!r}")
+    offset[mask, 1] = back_mm * 1e-3  # +Y backward
     for i, c in enumerate(rest + offset):
         sk.data[i].co = Vector(c)
-    print(f"[eye-recede] '{morph_name}' on {eyeball_mesh.name}: {back_mm}mm back")
+    print(f"[eye-recede] '{morph_name}' on {eyeball_mesh.name}: {back_mm}mm back, side={side} ({int(mask.sum())}/{len(rest)} verts)")
     return sk
 
 
@@ -834,15 +843,24 @@ def bake_all_for_inase(face_mesh, eyelash_meshes, eyebrow_mesh, eyeball_mesh,
     print("[bake_all_for_inase] done on all meshes")
 
 
+EYEBALL_SIDES = {  # per-vertex X filter for single-eye winks
+    'まばたき':  'both',
+    'ウィンク':   'left',   # model-left eye wink
+    'ウィンク右': 'right',  # model-right eye wink
+    '笑い':      'both',
+}
+
+
 def bake_eyeball_morphs_for_wink(eyeball_mesh, morph_names=EYEBALL_MORPHS, back_mm=6.0):
     """Add the above shape keys on an eyeball mesh too.
-    NOTE: this simple version moves BOTH eyes back even for one-sided winks;
-    for a clean ウィンク L/R we'd need per-vertex X filtering — left as future
-    improvement.
+
+    Per-morph side filter (EYEBALL_SIDES): single-eye winks only recede the
+    corresponding eye, both-eye closers recede both.
     """
     results = []
     for n in morph_names:
-        sk = bake_eyeball_recede(eyeball_mesh, n, back_mm)
+        side = EYEBALL_SIDES.get(n, 'both')
+        sk = bake_eyeball_recede(eyeball_mesh, n, back_mm, side=side)
         results.append((n, sk))
     return results
 
