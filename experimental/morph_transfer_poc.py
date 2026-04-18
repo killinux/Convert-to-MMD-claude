@@ -562,6 +562,72 @@ def transfer_morph_barycentric(
     return sk
 
 
+# ---------- Path D: programmatic per-mesh morph synthesis ----------
+
+def _vg_weights(mesh_obj, vg_names):
+    """Return per-vertex summed weight across given vertex-group names."""
+    import numpy as np
+    N = len(mesh_obj.data.vertices)
+    w = np.zeros(N, dtype=np.float64)
+    indices = set()
+    for n in vg_names:
+        vg = mesh_obj.vertex_groups.get(n)
+        if vg is not None:
+            indices.add(vg.index)
+    if not indices:
+        return w
+    for i, v in enumerate(mesh_obj.data.vertices):
+        for g in v.groups:
+            if g.group in indices:
+                w[i] += g.weight
+    return np.minimum(w, 1.0)  # clamp to 1.0
+
+
+def bake_programmatic_a(src_mesh,
+                         jaw_down_mm=3.0, jaw_back_mm=1.0,
+                         lip_lower_down_mm=5.0, lip_lower_back_mm=2.0,
+                         corner_down_mm=2.0,
+                         lip_upper_up_mm=0.5,
+                         shape_key_name='あ'):
+    """Programmatic 'あ' morph synthesis on Inase-XPS-like face mesh.
+
+    Uses vertex group weights as soft masks. Positive Y in Blender = backward
+    (away from viewer) per MMD/XPS import convention. Negative Z = down.
+
+    No cross-mesh transfer. Params in millimeters.
+    """
+    import numpy as np
+    N = len(src_mesh.data.vertices)
+
+    w_jaw    = _vg_weights(src_mesh, ['head jaw'])
+    w_lower  = _vg_weights(src_mesh, ['head lip lower left', 'head lip lower middle', 'head lip lower right'])
+    w_upper  = _vg_weights(src_mesh, ['head lip upper left', 'head lip upper middle', 'head lip upper right'])
+    w_corner = _vg_weights(src_mesh, ['head mouth corner left', 'head mouth corner right'])
+
+    # Per-vertex additive offsets (in local coords, matrix_world assumed ~identity)
+    offsets = np.zeros((N, 3))
+    offsets += w_jaw[:, None]    * np.array([0.0, +jaw_back_mm        * 1e-3, -jaw_down_mm        * 1e-3])
+    offsets += w_lower[:, None]  * np.array([0.0, +lip_lower_back_mm  * 1e-3, -lip_lower_down_mm  * 1e-3])
+    offsets += w_corner[:, None] * np.array([0.0, 0.0,                        -corner_down_mm     * 1e-3])
+    offsets += w_upper[:, None]  * np.array([0.0, 0.0,                        +lip_upper_up_mm    * 1e-3])
+
+    mag = np.linalg.norm(offsets, axis=1)
+    print(f"[progD] '{shape_key_name}': max={mag.max()*1000:.2f}mm  verts>0.5mm={int((mag>0.0005).sum())}")
+
+    # Ensure basis exists
+    if src_mesh.data.shape_keys is None:
+        src_mesh.shape_key_add(name='Basis', from_mix=False)
+    kbs = src_mesh.data.shape_keys.key_blocks
+    if shape_key_name in kbs:
+        src_mesh.shape_key_remove(kbs[shape_key_name])
+    sk = src_mesh.shape_key_add(name=shape_key_name, from_mix=False)
+    rest = np.array([v.co[:] for v in src_mesh.data.vertices])
+    new_co = rest + offsets
+    for i, c in enumerate(new_co):
+        sk.data[i].co = Vector(c)
+    return sk
+
+
 # ---------- Batch: bake + transfer all bone_morphs ----------
 
 def bake_and_transfer_all(
