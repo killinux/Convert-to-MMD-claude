@@ -285,6 +285,9 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             struct_box.operator("object.complete_twist_bones", text="3. 补全扭转骨")
             struct_box.operator("object.complete_d_bones", text="4. 补全D骨")
             struct_box.operator("object.complete_hip_cancel_bones", text="5. 补全腰キャンセル")
+            struct_box.operator("object.synth_vertex_morphs",
+                                text="5.5 合成表情 morph (XPS 专用, 须在 step 6 之前)",
+                                icon='SHAPEKEY_DATA')
 
             # 阶段 ②: 清理 + 权重
             weight_box = layout.box()
@@ -348,20 +351,10 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             rigid_box.label(text="单个 rigid 属性: 选中刚体后", icon='INFO')
             rigid_box.label(text="   N面板 → MMD → Rigid Body")
 
-            # 表情 Morph (Path D 程序化合成)
-            morph_box = layout.box()
-            morph_box.label(text="表情 Morph", icon='SHAPEKEY_DATA')
-            morph_box.operator("object.synth_vertex_morphs",
-                               text="合成 morph (一键转换已自动包含, 此为单独重跑)",
-                               icon='SHAPEKEY_DATA')
-            morph_box.label(text="⚠ 需在 option1 step 6 清理面部细骨 之前运行",
-                            icon='ERROR')
-            morph_box.label(text="查看/编辑: N 面板 → MMD → Morph Tools",
-                            icon='INFO')
-
-            # 表情验证 (Tools A/B/C)
+            # 表情验证 (Tools A/B/C) — 合成按钮已移到 option1 ① 箱底部 (step 5.5)
             verify_box = layout.box()
             verify_box.label(text="表情 Morph 验证", icon='VIEWZOOM')
+            verify_box.label(text="查看/编辑: N 面板 → MMD → Morph Tools", icon='INFO')
             verify_box.operator("morph.run_spec_check",
                                 text="自动 Spec 校验 (数据)",
                                 icon='CHECKMARK')
