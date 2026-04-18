@@ -255,7 +255,14 @@ mt.set_morph_synced([face, lash1, lash2, brow, eyeball], 'あ', 1.0)
 
 ## 下一步 TODO
 
-### 🆕 P0: 面部表情检查/观测工具 (user 本次新要求)
+### ~~🆕 P0: 面部表情检查/观测工具~~ Tool C ✅ (commit `4b7188d`)
+
+已实现 Tool C:
+- `screenshot_all_morphs(meshes, out_dir)` — 循环每条 shape key 用 `set_morph_synced` 激活,按 category 选 view preset (`face/eye/mouth/brow`),`bpy.ops.render.opengl` 渲染 PNG。
+- `generate_morph_html_report(out_dir)` — 输出 `index.html`,按 Mouth/Eyelid/Brow 分组,每组带 basis 参考图。
+- 出口: Mac `/tmp/morph_verify/{morph}.png` + `index.html`,Safari 打开即用。
+
+Tool A (UI modal) / Tool B (自动数据 spec check) 未做。
 
 **需求**:
 1. **人工观测**: 用户能一条一条过每个 morph,判断视觉是否 OK
