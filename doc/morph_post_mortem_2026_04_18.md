@@ -1,5 +1,12 @@
 # Face Morph Generation 复盘 (2026-04-18)
 
+> **状态更新 2026-04-18 后半**：本文讨论的三个 operator
+> (`clone_face_bones_from_target` / `clone_morphs_from_target` /
+> `bake_and_transfer_morphs` / UI ①②③) 已在 commit `166d7df` 被完整删除 —
+> Path D 程序化合成 (④ / `synth_vertex_morphs`) 取代了整条流水线,不需要
+> target PMX。本文保留作为**失败方案的历史记录**,当前有效的坑位清单见
+> `doc/pitfalls.md`,当前方案见 `doc/morph_session_handoff_2026_04_18.md`。
+
 **给下一个 Claude 会话**：这份文档记录了本次面部表情生成功能的完整尝试过程、具体错误、隐含假设以及后续建议。开始新设计前请先读完。
 
 ## 背景与目标
