@@ -672,15 +672,18 @@ def find_meshes_by_role_vgs(rig_map):
         has_brow = bool(vgs & brow_vgs)
         has_eye_bone = bool(vgs & eye_bone_vgs)
 
+        # Ordering: brow rule BEFORE eyelid, because Inase brow hair mesh
+        # (7_0003) has both brow + eyelid vgs — brow takes precedence.
         if has_lip and has_eyelid and has_brow:
             result['primary_face'].append(o)
         elif has_lip and not has_eyelid and not has_brow:
-            # Teeth mesh (Inase 24_0005) or mouth interior (DAZ 4_Mouth)
+            # Teeth (Inase 24_0005) / mouth interior (DAZ 4_Mouth)
             result['mouth_interior'].append(o)
+        elif has_brow and not has_lip:
+            # Eyebrow-hair mesh (may also carry eyelid vgs for edge blend)
+            result['eyebrow'].append(o)
         elif has_eyelid and not has_lip and not has_brow:
             result['eyelashes'].append(o)
-        elif has_brow and not has_lip and not has_eyelid:
-            result['eyebrow'].append(o)
         elif (has_eye_bone and not has_lip and not has_eyelid
               and not has_brow and len(vgs) < 10):
             result['eyeball'].append(o)
@@ -701,17 +704,18 @@ def find_meshes_by_role_morphs(rig_map):
         has_brow = '困る' in kbs
         has_eye_bone = bool(vgs & eye_bone_vgs)
 
+        # Ordering mirrors the vg-path (brow before eyelid)
         if has_mouth and has_eyelid and has_brow:
             result['primary_face'].append(o)
         elif has_mouth and not has_eyelid and not has_brow:
             result['mouth_interior'].append(o)
+        elif has_brow and not has_mouth:
+            result['eyebrow'].append(o)
         elif has_eyelid and not has_mouth and not has_brow:
             if has_eye_bone and len(vgs) < 10:
                 result['eyeball'].append(o)
             else:
                 result['eyelashes'].append(o)
-        elif has_brow and not has_mouth and not has_eyelid:
-            result['eyebrow'].append(o)
     return result
 
 
