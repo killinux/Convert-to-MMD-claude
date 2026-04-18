@@ -97,18 +97,20 @@ doc/
 代码修改在 AWS 端,commit + push,Mac 端 `git pull` 同步。**不要直接在 Mac 改代码**。
 详见 `/opt/mywork/mytest/bl/CLAUDE.md` (Blender Remote Bridge 架构)。
 
-核心 morph recipe 在 `experimental/morph_transfer_poc.py` 的 `INASE_RECIPES`,
+核心 morph recipe 在 `experimental/morph_transfer_poc.py` 的 `UNIVERSAL_RECIPES` (slot-based, 跨 rig 共享),
 每条 morph 形如:
 ```python
 'あ': {
-    JAW:         (0,  1, -3),     # vg → (x_mm, y_mm, z_mm)
-    LIP_LOWER:   (0,  2, -5),
-    CORNER_BOTH: (0,  0, -2),
-    LIP_UPPER:   (0,  0, +0.5),
+    'jaw':           (0,  1, -3),    # slot → (x_mm, y_mm, z_mm)
+    'lip.lower.*':   (0,  2, -5),
+    'lip.corner.*':  (0,  0, -2),
+    'lip.upper.*':   (0,  0, +0.5),
 },
 ```
 
-想给新模型(DAZ / Reika)做 recipe 就拷一份 + 换 vg 名字,细节见 `doc/morph_session_handoff_2026_04_18.md`。
+每种 rig (xps_inase / daz_g8 / ...) 在 `experimental/morph_rigs.py` 里提供 `slot → list[vg_name]` 映射。
+想给新模型 (Mixamo / VRoid 等) 做支持: 加新 map + 在 `detect_rig()` 里加签名识别,无需改 recipe。
+细节见 `doc/morph_generalization_architecture.md` 和 `doc/morph_session_handoff_2026_04_18.md`。
 
 ## 文档指南
 
@@ -132,8 +134,8 @@ doc/
 **一键转换中途失败**
 → 在"高级/调试"里找对应阶段单独重跑 (如 step 7 分配权重失败可只重跑 phase1/2/3...)
 
-**合成 morph 按钮显示"未找到 Inase 5 个脸部 mesh"**
-→ 当前 recipe (`INASE_RECIPES`) 是按 Inase XPS 的 vg 命名写的 (`head lip lower middle` 等)。不同源模型命名不同,需要新写 recipe preset (见 `experimental/morph_transfer_poc.py` 末尾 + `doc/morph_session_handoff_*.md`)
+**合成 morph 按钮显示"未识别 rig 类型"或"未找到 primary_face mesh"**
+→ `detect_rig()` 未在 scene 里看到已知签名 vg (如 `head lip lower middle` 代表 XPS Inase)。给新格式做支持: 在 `experimental/morph_rigs.py` 加 rig map + 在 `detect_rig()` 里加签名规则。架构见 `doc/morph_generalization_architecture.md`。
 
 **morph 烘焙完但视觉不对**
 → 读 `doc/pitfalls.md` 「视觉判断的陷阱」和「Slider / Shape key 测试」两节,最常见是 slider 漂移(用 `set_morph_synced` 切,不要手动 set)和把 close-up 穿透当 bug

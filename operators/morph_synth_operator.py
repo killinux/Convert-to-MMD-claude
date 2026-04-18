@@ -10,41 +10,41 @@ module and re-exposed in CLASSES for the addon to register.
 import bpy
 
 from ..experimental import morph_transfer_poc as _mt
+from ..experimental.morph_rigs import RIG_MAPS
 
 
 class OBJECT_OT_synth_vertex_morphs(bpy.types.Operator):
     bl_idname = "object.synth_vertex_morphs"
     bl_label = "④ 程序化合成 19 条 MMD morph (Path D)"
     bl_description = (
-        "按 Inase XPS 的 vg + 公式化 recipe 在 5 个脸部 mesh 上烘焙 19 条标准 "
-        "MMD 表情 morph (あ/い/う/え/お/ん/まばたき/ウィンク/笑い/困る…). "
-        "不需要 target template, 也不做跨 mesh transfer (前者 KDTree 方案视觉会稀释). "
-        "自动检测 face/双睫毛/眉/眼球 mesh."
+        "通用化 Path D: 按 rig 的 vg + 公式 recipe 烘焙 19 条标准 MMD 表情 "
+        "(あ/い/う/え/お/ん/まばたき/ウィンク/笑い/困る…). 自动识别 rig 类型 "
+        "(xps_inase / daz_g8 / …) 并按 mesh 角色 (primary_face/eyelashes/eyebrow/eyeball) 分发."
     )
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        print("[CTMMD 6] ===== Step 6: Synth Vertex Morphs (Path D) =====")
-        meshes = _mt.find_inase_meshes()
-        if meshes is None:
-            self.report({'ERROR'}, "未找到 Inase 5 个脸部 mesh (face/lash×2/brow/eyeball)")
+        print("[CTMMD 6] ===== Step 6: Synth Vertex Morphs (Path D, universal) =====")
+        rig = _mt.detect_rig()
+        if rig is None:
+            self.report({'ERROR'}, "未识别 rig 类型 (scene vg 不含 head lip lower middle 等签名)")
             return {'CANCELLED'}
-        face, lash1, lash2, brow, eyeball = meshes
-        # Pre-check: Path D recipes read head lip/eyelid/eyebrow vgs. If
-        # cleanup_face_bones (option1 step 7) already ran, they've been
-        # merged into 頭 and bake would silently produce zero-offset morphs.
-        face_vgs = {vg.name for vg in face.vertex_groups}
-        if not any(n.startswith('head lip') for n in face_vgs):
+        rig_map = RIG_MAPS[rig]
+        print(f"[CTMMD 6] detected rig: {rig}")
+        meshes_by_role = _mt.find_meshes_by_role_vgs(rig_map)
+        primary_face = meshes_by_role.get('primary_face') or []
+        if not primary_face:
             self.report(
                 {'ERROR'},
-                "face mesh 的 head lip/eyelid/eyebrow vg 已被 step 7 '清理面部细骨' 销毁。"
-                " 请重新导入 XPS,或改用 '🚀 一键转换' (会自动在 step 7 前完成 morph 合成)。",
+                f"未找到 primary_face mesh (rig={rig}). "
+                f"可能是 cleanup_face_bones (step 7) 已跑过把 vg 合并了, 请重新导入 XPS 或用 '🚀 一键转换'.",
             )
             return {'CANCELLED'}
-        _mt.bake_all_for_inase(face, [lash1, lash2], brow, eyeball)
+        _mt.bake_all_universal(meshes_by_role, rig_map)
+        face = primary_face[0]
         n_morphs = len([k for k in face.data.shape_keys.key_blocks if k.name != 'Basis'])
         print(f"[CTMMD 6] Done: {n_morphs} morphs on {face.name}")
-        self.report({'INFO'}, f"合成 {n_morphs} 条 morph on {face.name[:22]}")
+        self.report({'INFO'}, f"合成 {n_morphs} 条 morph on {face.name[:22]} (rig={rig})")
         return {'FINISHED'}
 
 

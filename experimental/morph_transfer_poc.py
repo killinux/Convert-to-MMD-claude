@@ -19,8 +19,46 @@ import bpy
 import numpy as np
 from mathutils import Vector
 
+from . import morph_rigs
+from .morph_rigs import ALL_SLOTS, RIG_MAPS
+
 
 # ---------- Path D: programmatic per-mesh morph synthesis ----------
+
+def _expand_slot_pattern(pattern):
+    """Expand a slot pattern to concrete slot names.
+
+    '*' matches any single segment (between dots). Examples:
+      'jaw'            → ['jaw']
+      'lip.lower.*'    → ['lip.lower.L','lip.lower.M','lip.lower.R']
+      'brow.*.L'       → ['brow.inner.L','brow.mid.L','brow.outer.L']
+      'lip.corner.*'   → ['lip.corner.L','lip.corner.R']
+
+    Returns sorted list. Unknown literal slot → empty list (recipe typo).
+    """
+    if '*' not in pattern:
+        return [pattern] if pattern in ALL_SLOTS else []
+    import re
+    regex = re.compile('^' + re.escape(pattern).replace(r'\*', r'[^.]+') + '$')
+    return sorted(s for s in ALL_SLOTS if regex.match(s))
+
+
+def detect_rig():
+    """Pick the rig whose signature vg is present in the scene.
+
+    Signature ordering matters: check specific rigs first, fall back to
+    more general ones. Returns rig key (see RIG_MAPS) or None.
+    """
+    all_vgs = set()
+    for o in bpy.data.objects:
+        if o.type == 'MESH':
+            all_vgs |= {vg.name for vg in o.vertex_groups}
+    # XPS Inase / XNA Lara family: distinctive `head lip lower middle`
+    if 'head lip lower middle' in all_vgs:
+        return 'xps_inase'
+    # Future: DAZ via 'LipLowerMiddle', Mixamo via ..., VRoid via ...
+    return None
+
 
 def _vg_weights(mesh_obj, vg_names):
     """Return per-vertex summed weight across given vertex-group names."""
@@ -41,20 +79,33 @@ def _vg_weights(mesh_obj, vg_names):
     return np.minimum(w, 1.0)  # clamp to 1.0
 
 
-def bake_programmatic_morph(src_mesh, morph_name, recipe):
-    """Generic programmatic morph synthesizer.
+def bake_programmatic_morph(src_mesh, morph_name, recipe, rig_map):
+    """Generic programmatic morph synthesizer (slot-based).
 
     recipe: dict mapping
-      tuple_of_vg_names -> (x_mm, y_mm, z_mm)
+      slot_pattern_str -> (x_mm, y_mm, z_mm)
+    where slot_pattern_str is a dot-separated slot name with optional '*'
+    wildcards ('lip.lower.*', 'brow.inner.L', 'jaw').
 
-    For each bucket, summed weight across the listed vgs masks the offset.
-    Offsets accumulate if a vertex appears in multiple buckets.
+    rig_map: dict mapping slot_name -> list[vg_name] for this rig. Slots
+    missing from the rig map are silently skipped (lets a recipe target
+    a slot some rigs don't have, e.g. cheek).
+
+    For each recipe entry, summed weight across the resolved vgs masks
+    the offset. Offsets accumulate if a vertex appears in multiple
+    buckets.
     """
     import numpy as np
     N = len(src_mesh.data.vertices)
     offsets = np.zeros((N, 3))
-    for vg_names, (x_mm, y_mm, z_mm) in recipe.items():
-        w = _vg_weights(src_mesh, list(vg_names))
+    for slot_pattern, (x_mm, y_mm, z_mm) in recipe.items():
+        slots = _expand_slot_pattern(slot_pattern)
+        vg_names = []
+        for s in slots:
+            vg_names.extend(rig_map.get(s, []))
+        if not vg_names:
+            continue
+        w = _vg_weights(src_mesh, vg_names)
         offsets += w[:, None] * np.array([x_mm * 1e-3, y_mm * 1e-3, z_mm * 1e-3])
 
     mag = np.linalg.norm(offsets, axis=1)
@@ -72,146 +123,121 @@ def bake_programmatic_morph(src_mesh, morph_name, recipe):
     return sk
 
 
-# Recipes for Inase-XPS-style face rig.
+# Universal MMD morph recipes (slot-based, rig-agnostic).
 # Convention: +Y = backward (into face), -Y = forward (toward viewer).
-# Units in millimeters. X is lateral (L positive, R negative).
-LIP_LOWER = ('head lip lower left', 'head lip lower middle', 'head lip lower right')
-LIP_UPPER = ('head lip upper left', 'head lip upper middle', 'head lip upper right')
-JAW       = ('head jaw',)
-CORNER_L  = ('head mouth corner left',)
-CORNER_R  = ('head mouth corner right',)
-CORNER_BOTH = CORNER_L + CORNER_R
-
-# Eyelid groups. L/R follow mesh vg naming (model-centric).
-EYELID_UPPER_L = ('head eyelid upper left',)
-EYELID_UPPER_R = ('head eyelid upper right',)
-EYELID_LOWER_L = ('head eyelid lower left',)
-EYELID_LOWER_R = ('head eyelid lower right',)
-
-# Eyebrow groups. 1=inner (near nose), 2=middle, 3=outer (near temple).
-BROW_L_INNER  = ('head eyebrow left 1',)
-BROW_L_MID    = ('head eyebrow left 2',)
-BROW_L_OUTER  = ('head eyebrow left 3',)
-BROW_R_INNER  = ('head eyebrow right 1',)
-BROW_R_MID    = ('head eyebrow right 2',)
-BROW_R_OUTER  = ('head eyebrow right 3',)
-BROW_L_ALL    = BROW_L_INNER + BROW_L_MID + BROW_L_OUTER
-BROW_R_ALL    = BROW_R_INNER + BROW_R_MID + BROW_R_OUTER
-BROW_ALL      = BROW_L_ALL + BROW_R_ALL
-BROW_INNER_BOTH = BROW_L_INNER + BROW_R_INNER
-BROW_OUTER_BOTH = BROW_L_OUTER + BROW_R_OUTER
-
-INASE_RECIPES = {
+# Units in millimeters. X is lateral (+L, -R). Offsets tuned against
+# Inase XPS; magnitudes may need per-rig adjustment if proportions differ.
+UNIVERSAL_RECIPES = {
     'あ': {  # mouth wide open
-        JAW:         (0,  1, -3),
-        LIP_LOWER:   (0,  2, -5),
-        CORNER_BOTH: (0,  0, -2),
-        LIP_UPPER:   (0,  0, +0.5),
+        'jaw':            (0,  1, -3),
+        'lip.lower.*':    (0,  2, -5),
+        'lip.corner.*':   (0,  0, -2),
+        'lip.upper.*':    (0,  0, +0.5),
     },
     'い': {  # flat wide, corners strongly outward + tight pressed
-        CORNER_L:    (+8, 0, 0),
-        CORNER_R:    (-8, 0, 0),
-        LIP_LOWER:   (0,  0, +1),
-        LIP_UPPER:   (0,  0, -1),
+        'lip.corner.L':   (+8, 0, 0),
+        'lip.corner.R':   (-8, 0, 0),
+        'lip.lower.*':    (0,  0, +1),
+        'lip.upper.*':    (0,  0, -1),
     },
     'う': {  # small round, corners inward, lips forward
-        CORNER_L:    (-5, -3, 0),
-        CORNER_R:    (+5, -3, 0),
-        LIP_LOWER:   (0, -4, 0),
-        LIP_UPPER:   (0, -4, 0),
+        'lip.corner.L':   (-5, -3, 0),
+        'lip.corner.R':   (+5, -3, 0),
+        'lip.lower.*':    (0, -4, 0),
+        'lip.upper.*':    (0, -4, 0),
     },
     'え': {  # half-open wide (jaw + corners out)
-        CORNER_L:    (+4, 0, -1),
-        CORNER_R:    (-4, 0, -1),
-        LIP_LOWER:   (0,  1, -3),
-        JAW:         (0,  0.5, -2.5),
+        'lip.corner.L':   (+4, 0, -1),
+        'lip.corner.R':   (-4, 0, -1),
+        'lip.lower.*':    (0,  1, -3),
+        'jaw':            (0,  0.5, -2.5),
     },
     'お': {  # round open (forward + down, corners in)
-        LIP_LOWER:   (0, -4, -3),
-        LIP_UPPER:   (0, -4, +1),
-        CORNER_L:    (-3, -2.5, -1.5),
-        CORNER_R:    (+3, -2.5, -1.5),
-        JAW:         (0,  0.5, -3),
+        'lip.lower.*':    (0, -4, -3),
+        'lip.upper.*':    (0, -4, +1),
+        'lip.corner.L':   (-3, -2.5, -1.5),
+        'lip.corner.R':   (+3, -2.5, -1.5),
+        'jaw':            (0,  0.5, -3),
     },
     'ん': {  # close-mouth hum — lips press together, corners drawn in slightly
-        LIP_LOWER:   (0, 0, +1.5),
-        LIP_UPPER:   (0, 0, -1.5),
-        CORNER_L:    (-1.5, 0, 0),
-        CORNER_R:    (+1.5, 0, 0),
+        'lip.lower.*':    (0, 0, +1.5),
+        'lip.upper.*':    (0, 0, -1.5),
+        'lip.corner.L':   (-1.5, 0, 0),
+        'lip.corner.R':   (+1.5, 0, 0),
     },
     # --- Eyelids ---
     'まばたき': {  # both eyes closed
-        EYELID_UPPER_L: (0, 0, -8),
-        EYELID_UPPER_R: (0, 0, -8),
-        EYELID_LOWER_L: (0, 0, +9),
-        EYELID_LOWER_R: (0, 0, +9),
+        'eyelid.upper.L': (0, 0, -8),
+        'eyelid.upper.R': (0, 0, -8),
+        'eyelid.lower.L': (0, 0, +9),
+        'eyelid.lower.R': (0, 0, +9),
     },
     'ウィンク': {  # model-left eye wink (viewer's right)
-        EYELID_UPPER_L: (0, 0, -8),
-        EYELID_LOWER_L: (0, 0, +9),
+        'eyelid.upper.L': (0, 0, -8),
+        'eyelid.lower.L': (0, 0, +9),
     },
     'ウィンク右': {  # model-right eye wink (viewer's left)
-        EYELID_UPPER_R: (0, 0, -8),
-        EYELID_LOWER_R: (0, 0, +9),
+        'eyelid.upper.R': (0, 0, -8),
+        'eyelid.lower.R': (0, 0, +9),
     },
     # --- Eyebrows ---
     '困る': {  # troubled / sad — inner brow drops, outer stays
-        BROW_INNER_BOTH: (0, 0, -10),
-        BROW_OUTER_BOTH: (0, 0, +2),
+        'brow.inner.*':   (0, 0, -10),
+        'brow.outer.*':   (0, 0, +2),
     },
     '怒り': {  # angry — inner brow drops + pulled toward center
-        BROW_L_INNER: (-4, 0, -8),
-        BROW_R_INNER: (+4, 0, -8),
-        BROW_OUTER_BOTH: (0, 0, -2),
+        'brow.inner.L':   (-4, 0, -8),
+        'brow.inner.R':   (+4, 0, -8),
+        'brow.outer.*':   (0, 0, -2),
     },
     '真面目': {  # serious / flat — whole brow lowered more noticeably
-        BROW_ALL: (0, 0, -8),
+        'brow.*.*':       (0, 0, -8),
     },
     '上': {  # brow raised
-        BROW_ALL: (0, 0, +15),
+        'brow.*.*':       (0, 0, +15),
     },
     '下': {  # brow lowered
-        BROW_ALL: (0, 0, -15),
+        'brow.*.*':       (0, 0, -15),
     },
     # --- Mouth extras ---
     'にやり': {  # smirk — mouth corners pulled up + outward
-        CORNER_L:    (+4, 0, +5),
-        CORNER_R:    (-4, 0, +5),
-        LIP_UPPER:   (0,  0, +2),
+        'lip.corner.L':   (+4, 0, +5),
+        'lip.corner.R':   (-4, 0, +5),
+        'lip.upper.*':    (0,  0, +2),
     },
     '激怒': {  # angry mouth — tight pressed + corners pulled inward/down
-        CORNER_L:    (-3, +1, -5),
-        CORNER_R:    (+3, +1, -5),
-        LIP_LOWER:   (0,  +1, -2),
-        LIP_UPPER:   (0,  0, -2),
-        JAW:         (0,  0, -2),
+        'lip.corner.L':   (-3, +1, -5),
+        'lip.corner.R':   (+3, +1, -5),
+        'lip.lower.*':    (0,  +1, -2),
+        'lip.upper.*':    (0,  0, -2),
+        'jaw':            (0,  0, -2),
     },
     # --- Eye extras ---
     '笑い': {  # smile eyes (crescent shape — upper down slightly, lower up slightly)
-        EYELID_UPPER_L: (0, 0, -3),
-        EYELID_UPPER_R: (0, 0, -3),
-        EYELID_LOWER_L: (0, 0, +4),
-        EYELID_LOWER_R: (0, 0, +4),
+        'eyelid.upper.L': (0, 0, -3),
+        'eyelid.upper.R': (0, 0, -3),
+        'eyelid.lower.L': (0, 0, +4),
+        'eyelid.lower.R': (0, 0, +4),
     },
     'びっくり': {  # surprised — eyes wide open (upper up, lower down)
-        EYELID_UPPER_L: (0, 0, +3),
-        EYELID_UPPER_R: (0, 0, +3),
-        EYELID_LOWER_L: (0, 0, -2),
-        EYELID_LOWER_R: (0, 0, -2),
+        'eyelid.upper.L': (0, 0, +3),
+        'eyelid.upper.R': (0, 0, +3),
+        'eyelid.lower.L': (0, 0, -2),
+        'eyelid.lower.R': (0, 0, -2),
     },
     'じと目': {  # narrow/suspicious eyes (less close than まばたき)
-        EYELID_UPPER_L: (0, 0, -5),
-        EYELID_UPPER_R: (0, 0, -5),
-        EYELID_LOWER_L: (0, 0, +2),
-        EYELID_LOWER_R: (0, 0, +2),
+        'eyelid.upper.L': (0, 0, -5),
+        'eyelid.upper.R': (0, 0, -5),
+        'eyelid.lower.L': (0, 0, +2),
+        'eyelid.lower.R': (0, 0, +2),
     },
 }
 
 
-def bake_all_mouth_recipes(src_mesh, recipes=INASE_RECIPES):
+def bake_all_mouth_recipes(src_mesh, recipes, rig_map):
     results = []
     for name, recipe in recipes.items():
-        sk = bake_programmatic_morph(src_mesh, name, recipe)
+        sk = bake_programmatic_morph(src_mesh, name, recipe, rig_map)
         results.append((name, sk))
     return results
 
@@ -271,34 +297,35 @@ def set_morph_synced(meshes, morph_name, value=1.0):
     bpy.context.view_layer.update()
 
 
-def bake_all_for_inase(face_mesh, eyelash_meshes, eyebrow_mesh, eyeball_mesh,
-                        recipes=INASE_RECIPES):
-    """Apply recipes to every relevant mesh. Each mesh only gets the morphs
-    whose vertex groups it actually has.
+def bake_all_universal(meshes_by_role, rig_map, recipes=UNIVERSAL_RECIPES):
+    """Apply recipes to every mesh by its role.
 
-    face_mesh: main skin (all vgs)
-    eyelash_meshes: list of eyelash meshes (only eyelid vgs)
-    eyebrow_mesh: eyebrow hair mesh (only eyebrow vgs)
-    eyeball_mesh: eyeballs (no vg, uses recede helper)
+    meshes_by_role: dict {role: [mesh,...]} from find_meshes_by_role()
+      primary_face   — full recipe (all morphs)
+      mouth_interior — skipped by default (Inase teeth, DAZ 4_Mouth)
+      eyelashes      — only eyelid subset
+      eyebrow        — only brow subset (Inase has dedicated mesh; DAZ empty)
+      eyeball        — eye-recede helper for closing morphs
+    rig_map: slot → vg names for this rig (see morph_rigs.py).
     """
-    # Main face gets all recipes
-    bake_all_mouth_recipes(face_mesh, recipes)
+    for m in meshes_by_role.get('primary_face', []):
+        bake_all_mouth_recipes(m, recipes, rig_map)
 
-    # Eyelashes: only eyelid subset
     eyelid_subset = {n: recipes[n] for n in EYELID_MORPH_NAMES if n in recipes}
-    for m in eyelash_meshes:
-        bake_all_mouth_recipes(m, eyelid_subset)
+    for m in meshes_by_role.get('eyelashes', []):
+        bake_all_mouth_recipes(m, eyelid_subset, rig_map)
 
-    # Eyebrow mesh: only brow subset
     brow_subset = {n: recipes[n] for n in BROW_MORPH_NAMES if n in recipes}
-    if eyebrow_mesh is not None:
-        bake_all_mouth_recipes(eyebrow_mesh, brow_subset)
+    for m in meshes_by_role.get('eyebrow', []):
+        bake_all_mouth_recipes(m, brow_subset, rig_map)
 
-    # Eyeball mesh: recede for eye-closing morphs
-    if eyeball_mesh is not None:
-        bake_eyeball_morphs_for_wink(eyeball_mesh)
+    for m in meshes_by_role.get('eyeball', []):
+        bake_eyeball_morphs_for_wink(m)
 
-    print("[bake_all_for_inase] done on all meshes")
+    print(f"[bake_all_universal] primary_face={len(meshes_by_role.get('primary_face',[]))} "
+          f"eyelashes={len(meshes_by_role.get('eyelashes',[]))} "
+          f"eyebrow={len(meshes_by_role.get('eyebrow',[]))} "
+          f"eyeball={len(meshes_by_role.get('eyeball',[]))}")
 
 
 EYEBALL_SIDES = {  # per-vertex X filter for single-eye winks
@@ -603,100 +630,119 @@ class MORPH_OT_verify_modal(bpy.types.Operator):
         print(f"[Verify-A] {n_ok} OK, {n_issue} issue, {n_skip} skipped")
 
 
-EYE_BONE_VG_NAMES = ('目.L', '目.R', 'head eyeball left', 'head eyeball right')
+MESH_ROLES = ('primary_face', 'mouth_interior', 'eyelashes', 'eyebrow', 'eyeball')
 
 
-def find_inase_meshes():
-    """Auto-detect [face, lash1, lash2, brow, eyeball] from scene.
+def _slot_family_vgs(rig_map, prefix):
+    """Gather all vg names for slots starting with prefix (e.g. 'lip.')."""
+    vgs = set()
+    for slot in ALL_SLOTS:
+        if slot.startswith(prefix):
+            vgs |= set(rig_map.get(slot, []))
+    return vgs
 
-    Two strategies, tried in order:
-      1. **vg probe** — works BEFORE addon step-6 cleanup_face_bones.
-         face requires lip+eyelid+eyebrow; brow/lash/eyeball by their
-         respective face-detail vgs + eye-bone vg.
-      2. **shape-key probe** (fallback) — works AFTER cleanup_face_bones
-         once the morphs are already baked. Identifies each mesh by
-         which morph subset is present (face has all three categories;
-         brow has only brow morphs; lash/eyeball distinguished by eye-bone vg).
 
-    Returns list of 5 objects, or None if any slot missing.
+def find_meshes_by_role(rig_map):
+    """Classify every mesh by its face-slot vg signature.
+
+    Returns {role: [mesh, ...]}. Meshes not matching any role are dropped.
+    Two-phase fallback: pre-cleanup uses vg names (same file as rig_map);
+    post-cleanup/post-bake uses shape-key presence (morph names).
     """
-    result = _find_inase_meshes_by_vgs()
-    if result:
+    result = find_meshes_by_role_vgs(rig_map)
+    if any(result.values()):
         return result
-    return _find_inase_meshes_by_morphs()
+    return find_meshes_by_role_morphs(rig_map)
 
 
-def _find_inase_meshes_by_vgs():
-    """Pre-cleanup detection: face requires lip+eyelid+eyebrow vgs all present.
-    Why three-vg face check: tooth mesh (e.g. Inase 24_0005) rigs to `head lip`
-    too but has no eyelid/eyebrow, so a lone has_lip check misidentifies teeth.
-    """
-    face = None
-    lashes = []
-    brow = None
-    eyeball = None
+def find_meshes_by_role_vgs(rig_map):
+    """Pre-cleanup: classify by which rig_map vg names each mesh has."""
+    lip_vgs = _slot_family_vgs(rig_map, 'lip.')
+    eyelid_vgs = _slot_family_vgs(rig_map, 'eyelid.')
+    brow_vgs = _slot_family_vgs(rig_map, 'brow.')
+    eye_bone_vgs = set(rig_map.get('_eye_bone_vgs', []))
+
+    result = {role: [] for role in MESH_ROLES}
     for o in bpy.data.objects:
         if o.type != 'MESH':
             continue
-        vg_names = {vg.name for vg in o.vertex_groups}
-        has_lip = any(n.startswith('head lip') for n in vg_names)
-        has_eyelid = any(n.startswith('head eyelid') for n in vg_names)
-        has_brow = any(n.startswith('head eyebrow') for n in vg_names)
-        has_eye_bone = any(n in vg_names for n in EYE_BONE_VG_NAMES)
+        vgs = {vg.name for vg in o.vertex_groups}
+        has_lip = bool(vgs & lip_vgs)
+        has_eyelid = bool(vgs & eyelid_vgs)
+        has_brow = bool(vgs & brow_vgs)
+        has_eye_bone = bool(vgs & eye_bone_vgs)
+
         if has_lip and has_eyelid and has_brow:
-            face = o
-        elif has_brow and not has_lip:
-            brow = o
+            result['primary_face'].append(o)
+        elif has_lip and not has_eyelid and not has_brow:
+            # Teeth mesh (Inase 24_0005) or mouth interior (DAZ 4_Mouth)
+            result['mouth_interior'].append(o)
         elif has_eyelid and not has_lip and not has_brow:
-            lashes.append(o)
-        elif has_eye_bone and not has_lip and not has_eyelid and not has_brow and len(vg_names) < 10:
-            eyeball = o
-    if face and len(lashes) == 2 and brow and eyeball:
-        return [face, lashes[0], lashes[1], brow, eyeball]
-    return None
+            result['eyelashes'].append(o)
+        elif has_brow and not has_lip and not has_eyelid:
+            result['eyebrow'].append(o)
+        elif (has_eye_bone and not has_lip and not has_eyelid
+              and not has_brow and len(vgs) < 10):
+            result['eyeball'].append(o)
+    return result
 
 
-def _find_inase_meshes_by_morphs():
-    """Post-cleanup + post-bake detection via shape keys.
-    face has all 3 category morphs; brow only brow morphs; lash vs eyeball
-    distinguished by eye-bone vg presence.
-    """
-    face = None
-    lashes = []
-    brow = None
-    eyeball = None
+def find_meshes_by_role_morphs(rig_map):
+    """Post-cleanup/post-bake: classify by which morph shape keys each mesh has."""
+    eye_bone_vgs = set(rig_map.get('_eye_bone_vgs', []))
+    result = {role: [] for role in MESH_ROLES}
     for o in bpy.data.objects:
         if o.type != 'MESH' or o.data.shape_keys is None:
             continue
         kbs = {k.name for k in o.data.shape_keys.key_blocks}
-        vg_names = {vg.name for vg in o.vertex_groups}
+        vgs = {vg.name for vg in o.vertex_groups}
         has_mouth = 'あ' in kbs
         has_eyelid = 'まばたき' in kbs
         has_brow = '困る' in kbs
-        has_eye_bone = any(n in vg_names for n in EYE_BONE_VG_NAMES)
+        has_eye_bone = bool(vgs & eye_bone_vgs)
+
         if has_mouth and has_eyelid and has_brow:
-            face = o
-        elif has_brow and not has_mouth:
-            brow = o
+            result['primary_face'].append(o)
+        elif has_mouth and not has_eyelid and not has_brow:
+            result['mouth_interior'].append(o)
         elif has_eyelid and not has_mouth and not has_brow:
-            if has_eye_bone and len(vg_names) < 10:
-                eyeball = o
+            if has_eye_bone and len(vgs) < 10:
+                result['eyeball'].append(o)
             else:
-                lashes.append(o)
-    if face and len(lashes) == 2 and brow and eyeball:
-        return [face, lashes[0], lashes[1], brow, eyeball]
-    return None
+                result['eyelashes'].append(o)
+        elif has_brow and not has_mouth and not has_eyelid:
+            result['eyebrow'].append(o)
+    return result
+
+
+def _find_verify_meshes():
+    """Return ordered list for verify operators: [primary_face, eyelashes..., eyebrow, eyeball]
+    or None if primary_face is missing (no morphs yet). Preserves old 5-mesh signature
+    roughly; callers that need structured access should use find_meshes_by_role directly.
+    """
+    rig = detect_rig()
+    if rig is None:
+        return None
+    by_role = find_meshes_by_role(RIG_MAPS[rig])
+    primary = by_role.get('primary_face') or []
+    if not primary:
+        return None
+    out = [primary[0]]
+    out.extend(by_role.get('eyelashes', []))
+    out.extend(by_role.get('eyebrow', []))
+    out.extend(by_role.get('eyeball', []))
+    return out
 
 
 class MORPH_OT_run_spec_check(bpy.types.Operator):
     bl_idname = "morph.run_spec_check"
     bl_label = "Run Spec Check (Tool B)"
-    bl_description = "Automated max/moved-verts check against INASE_MORPH_SPECS"
+    bl_description = "Automated max/moved-verts check against morph spec"
 
     def execute(self, context):
-        meshes = find_inase_meshes()
+        meshes = _find_verify_meshes()
         if meshes is None:
-            self.report({'ERROR'}, "Inase meshes not found — bake morphs first")
+            self.report({'ERROR'}, "No rig detected or primary_face missing — bake morphs first")
             return {'CANCELLED'}
         results = verify_all_morphs(meshes)
         n_pass = sum(1 for v in results.values() if v[0])
@@ -716,9 +762,9 @@ class MORPH_OT_run_batch_screenshot(bpy.types.Operator):
     out_dir: bpy.props.StringProperty(default='/tmp/morph_verify')  # type: ignore
 
     def execute(self, context):
-        meshes = find_inase_meshes()
+        meshes = _find_verify_meshes()
         if meshes is None:
-            self.report({'ERROR'}, "Inase meshes not found — bake morphs first")
+            self.report({'ERROR'}, "No rig detected or primary_face missing — bake morphs first")
             return {'CANCELLED'}
         screenshot_all_morphs(meshes, self.out_dir)
         generate_morph_html_report(self.out_dir)
@@ -732,9 +778,9 @@ class MORPH_OT_start_verify_modal(bpy.types.Operator):
     bl_description = "Cycle every morph; hover 3D viewport and press O/X/N/ESC"
 
     def execute(self, context):
-        meshes = find_inase_meshes()
+        meshes = _find_verify_meshes()
         if meshes is None:
-            self.report({'ERROR'}, "Inase meshes not found — bake morphs first")
+            self.report({'ERROR'}, "No rig detected or primary_face missing — bake morphs first")
             return {'CANCELLED'}
         global _verify_meshes_cache
         _verify_meshes_cache = meshes
