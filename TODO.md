@@ -63,6 +63,21 @@
 
 ## P3 — 表情 / morph
 
+- **路径 D operator 化 (进行中, 2026-04-18)**:
+  - 已实现: `experimental/morph_transfer_poc.py` 
+    - `bake_programmatic_morph(src_mesh, morph_name, recipe)`  
+    - `bake_eyeball_recede(eyeball_mesh, ...)` 眼球 Y+6mm 缩进 socket (必需)
+    - 8 条 recipe 跑通: あ/い/う/え/お/まばたき/ウィンク/ウィンク右
+  - TODO operator 化:
+    - 新 operator `OBJECT_OT_generate_mmd_morphs_programmatic` 放 `operators/morph_operator.py`
+    - 搬 recipes 到 `presets/morph_recipes_inase.py` (future DAZ preset 同路径加)
+    - UI: option2「物理+表情」tab → 新 Morph Generation section,按钮 [生成 8 条标准 morph]
+    - 自动 detect face mesh (vg 含 "head lip") + eyeball mesh (vg/name 命中)
+    - Optional: gain slider (0.5x-2x)
+  - 已知 side effect: ウィンク/ウィンク右 时两眼 eyeball 都 Y+6 后退,需要 X 过滤改到只退对应侧
+  - 扩展方向: 眉系 5 条 (困る/怒り/真面目/上/下)、嘴扩 (にやり/激怒)、眼扩 (笑い/びっくり/じと目)
+  - 参考: `doc/morph_transfer_paths_2026_04_18.md`
+
 - **bone / material / group morph 克隆 operator**（方案 3）— **已实现 2026-04-18**
   - `operators/morph_operator.py` `clone_morphs_from_target`
   - UI: option2「物理+表情」tab → 表情 Morph → 从 target 克隆
