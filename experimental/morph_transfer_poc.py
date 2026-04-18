@@ -630,6 +630,19 @@ EYELID_UPPER_R = ('head eyelid upper right',)
 EYELID_LOWER_L = ('head eyelid lower left',)
 EYELID_LOWER_R = ('head eyelid lower right',)
 
+# Eyebrow groups. 1=inner (near nose), 2=middle, 3=outer (near temple).
+BROW_L_INNER  = ('head eyebrow left 1',)
+BROW_L_MID    = ('head eyebrow left 2',)
+BROW_L_OUTER  = ('head eyebrow left 3',)
+BROW_R_INNER  = ('head eyebrow right 1',)
+BROW_R_MID    = ('head eyebrow right 2',)
+BROW_R_OUTER  = ('head eyebrow right 3',)
+BROW_L_ALL    = BROW_L_INNER + BROW_L_MID + BROW_L_OUTER
+BROW_R_ALL    = BROW_R_INNER + BROW_R_MID + BROW_R_OUTER
+BROW_ALL      = BROW_L_ALL + BROW_R_ALL
+BROW_INNER_BOTH = BROW_L_INNER + BROW_R_INNER
+BROW_OUTER_BOTH = BROW_L_OUTER + BROW_R_OUTER
+
 INASE_RECIPES = {
     'あ': {  # mouth wide open
         JAW:         (0,  1, -3),
@@ -676,6 +689,25 @@ INASE_RECIPES = {
     'ウィンク右': {  # model-right eye wink (viewer's left)
         EYELID_UPPER_R: (0, 0, -8),
         EYELID_LOWER_R: (0, 0, +9),
+    },
+    # --- Eyebrows ---
+    '困る': {  # troubled / sad — inner brow drops, outer stays
+        BROW_INNER_BOTH: (0, 0, -4),
+        BROW_OUTER_BOTH: (0, 0, +1),
+    },
+    '怒り': {  # angry — inner brow drops + pulled toward center
+        BROW_L_INNER: (-2, 0, -3),
+        BROW_R_INNER: (+2, 0, -3),
+        BROW_OUTER_BOTH: (0, 0, -1),
+    },
+    '真面目': {  # serious / flat — whole brow lowered slightly
+        BROW_ALL: (0, 0, -2),
+    },
+    '上': {  # brow raised
+        BROW_ALL: (0, 0, +4),
+    },
+    '下': {  # brow lowered
+        BROW_ALL: (0, 0, -4),
     },
 }
 
