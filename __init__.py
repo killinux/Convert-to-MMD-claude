@@ -25,6 +25,7 @@ from .operators import twist_operator
 from .operators import physics_operator
 from .operators import face_operator
 from .operators import morph_operator
+from .operators import morph_synth_operator
 from . import ui_panel
 from . import bone_map_and_group
 from . import bone_utils
@@ -79,6 +80,8 @@ def register():
     _safe_register(face_operator.OBJECT_OT_clone_face_bones_from_target)
     _safe_register(morph_operator.OBJECT_OT_clone_morphs_from_target)
     _safe_register(morph_operator.OBJECT_OT_bake_and_transfer_morphs)
+    for cls in morph_synth_operator.CLASSES:
+        _safe_register(cls)
     _safe_register(leg_operator.OBJECT_OT_complete_d_bones)
     _safe_register(leg_operator.OBJECT_OT_complete_hip_cancel_bones)
     _safe_register(leg_operator.OBJECT_OT_assign_weights)
@@ -160,6 +163,8 @@ def unregister():
     _safe_unregister(face_operator.OBJECT_OT_clone_face_bones_from_target)
     _safe_unregister(morph_operator.OBJECT_OT_clone_morphs_from_target)
     _safe_unregister(morph_operator.OBJECT_OT_bake_and_transfer_morphs)
+    for cls in reversed(morph_synth_operator.CLASSES):
+        _safe_unregister(cls)
     del bpy.types.Scene.my_enum
     if hasattr(bpy.types.Scene, "ctmmd_show_preprocessing"):
         del bpy.types.Scene.ctmmd_show_preprocessing

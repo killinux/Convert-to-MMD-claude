@@ -1234,50 +1234,13 @@ class MORPH_OT_start_verify_modal(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class MORPH_PT_verify_panel(bpy.types.Panel):
-    bl_label = "MMD Morph Verify"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = 'MMD Morph'
-
-    def draw(self, context):
-        layout = self.layout
-        layout.operator('morph.run_spec_check',        icon='CHECKMARK')
-        layout.operator('morph.run_batch_screenshot',  icon='RENDER_STILL')
-        layout.operator('morph.start_verify_modal',    icon='PLAY')
-        meshes = find_inase_meshes()
-        box = layout.box()
-        if meshes:
-            box.label(text=f"Face: {meshes[0].name[:22]}", icon='MESH_DATA')
-            box.label(text=f"Detected 5/5 meshes", icon='CHECKMARK')
-        else:
-            box.label(text="No Inase meshes found", icon='ERROR')
-
-
-_VERIFY_CLASSES = (
+# Operator classes (registered by the addon __init__, not here):
+VERIFY_OPERATORS = (
     MORPH_OT_verify_modal,
     MORPH_OT_run_spec_check,
     MORPH_OT_run_batch_screenshot,
     MORPH_OT_start_verify_modal,
-    MORPH_PT_verify_panel,
 )
-
-
-def register_verify_ops():
-    for cls in _VERIFY_CLASSES:
-        try:
-            bpy.utils.register_class(cls)
-        except ValueError:
-            bpy.utils.unregister_class(cls)
-            bpy.utils.register_class(cls)
-
-
-def unregister_verify_ops():
-    for cls in reversed(_VERIFY_CLASSES):
-        try:
-            bpy.utils.unregister_class(cls)
-        except Exception:
-            pass
 
 
 # ---------- Batch: bake + transfer all bone_morphs ----------
