@@ -2,7 +2,7 @@
 
 Two operators live here:
 
-* ``cleanup_face_bones`` (step 6 in the main pipeline)
+* ``cleanup_face_bones`` (step 7 in the main pipeline)
   Removes XPS face-detail bones (``head eyebrow/eyelid/.../jaw *``) after
   merging their weights into the head bone. After this step the converted
   model has a clean MMD-style head rig but no face driver bones.
@@ -152,13 +152,13 @@ class OBJECT_OT_cleanup_face_bones(bpy.types.Operator):
             if n > 0:
                 total_migrated += n
                 affected_meshes += 1
-                print(f'[CTMMD 6] {mesh.name}: merged {n} verts into {head_name}')
+                print(f'[CTMMD 7] {mesh.name}: merged {n} verts into {head_name}')
 
         deleted = _delete_bones_edit_mode(arm, face_bones)
 
         msg = (f"Face cleanup: deleted {deleted} bones, merged {total_migrated} vert-weights"
                f" across {affected_meshes} meshes into {head_name}")
-        print(f'[CTMMD 6] {msg}')
+        print(f'[CTMMD 7] {msg}')
         self.report({'INFO'}, msg)
         return {'FINISHED'}
 

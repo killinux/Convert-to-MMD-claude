@@ -392,7 +392,7 @@ def apply_physics(dst_root, data, *, rescale_by_bone_length=True, fit_to_mesh=Tr
                     if abs(old[0] - new[0]) > 0.005:
                         fit_stats.append((entry['bone'], round(old[0], 4), round(new[0], 4), n))
             if fit_stats:
-                print(f"[CTMMD 12] fit_to_mesh adjustments ({len(fit_stats)}):")
+                print(f"[CTMMD physics] fit_to_mesh adjustments ({len(fit_stats)}):")
                 for b, o, nw, n in fit_stats:
                     arrow = '↓' if nw < o else '↑'
                     print(f"  {b:12} {o:.4f} {arrow} {nw:.4f}  ({n} verts)")
@@ -601,7 +601,7 @@ class OBJECT_OT_apply_breast_physics(bpy.types.Operator):
         if missing_anchors:
             msg_parts.append(f"缺 joint 锚点: {missing_anchors} (建议先跑一次 setup_physics)")
         msg = '; '.join(msg_parts)
-        print(f"[CTMMD 12] {msg}")
+        print(f"[CTMMD physics] {msg}")
         self.report({'INFO'}, msg)
 
         if self.build_rig:
@@ -687,7 +687,7 @@ class OBJECT_OT_setup_physics(bpy.types.Operator):
         msg = f"Physics applied: {n_r} rigids, {n_j} joints"
         if skipped:
             msg += f", skipped {len(skipped)} (bones missing in target armature)"
-            print(f"[CTMMD 12] skipped bones: {skipped}")
+            print(f"[CTMMD physics] skipped bones: {skipped}")
         self.report({'INFO'}, msg)
 
         if self.build_rig:

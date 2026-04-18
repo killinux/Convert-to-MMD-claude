@@ -260,10 +260,10 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             row.operator("object.import_preset", text="导入预设")
             row.operator("object.export_preset", text="导出预设")
 
-            # 一键转换 (跑完 step 1→11)
+            # 一键转换 (跑完 step 1→12)
             row = layout.row()
             row.scale_y = 1.4
-            row.operator("object.one_click_convert", text="🚀 一键转换 (1→11)", icon='PLAY')
+            row.operator("object.one_click_convert", text="🚀 一键转换 (1→12)", icon='PLAY')
 
             # 可选预处理 (折叠, 默认收起)
             pre_box = layout.box()
@@ -286,29 +286,33 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             struct_box.operator("object.complete_d_bones", text="4. 补全D骨")
             struct_box.operator("object.complete_hip_cancel_bones", text="5. 补全腰キャンセル")
             struct_box.operator("object.synth_vertex_morphs",
-                                text="5.5 合成表情 morph (XPS 专用, 须在 step 6 之前)",
+                                text="6. 合成表情 morph (XPS 专用)",
                                 icon='SHAPEKEY_DATA')
 
             # 阶段 ②: 清理 + 权重
             weight_box = layout.box()
             weight_box.label(text="② 清理+权重", icon='MOD_VERTEX_WEIGHT')
-            weight_box.operator("object.cleanup_face_bones", text="6. 清理面部细骨", icon='MESH_MONKEY')
-            weight_box.operator("object.assign_weights", text="7. 分配权重 (一键)")
+            weight_box.operator("object.cleanup_face_bones", text="7. 清理面部细骨", icon='MESH_MONKEY')
+            weight_box.operator("object.assign_weights", text="8. 分配权重 (一键)")
 
             # 阶段 ③: IK + 属性
             attr_box = layout.box()
             attr_box.label(text="③ IK+属性", icon='CON_KINEMATIC')
-            attr_box.operator("object.add_mmd_ik", text="8. 添加MMD IK")
-            attr_box.operator("object.create_bone_group", text="9. 创建骨骼集合")
-            attr_box.operator("object.setup_pmx_attributes", text="10. 设置PMX属性")
+            attr_box.operator("object.add_mmd_ik", text="9. 添加MMD IK")
+            attr_box.operator("object.create_bone_group", text="10. 创建骨骼集合")
+            attr_box.operator("object.setup_pmx_attributes", text="11. 设置PMX属性")
 
-            # 阶段 ④: 转换 + 物理
+            # 阶段 ④: 转换 (step 12, 最终)
             final_box = layout.box()
-            final_box.label(text="④ 转换+物理", icon='EXPORT')
-            final_box.operator("object.use_mmd_tools_convert", text="11. 使用mmd_tools转换")
-            row = final_box.row(align=True)
-            row.operator("object.setup_physics", text="12. 加载物理模板", icon='PHYSICS')
-            row.operator("object.extract_physics_template", text="", icon='EXPORT')
+            final_box.label(text="④ 转换", icon='EXPORT')
+            final_box.operator("object.use_mmd_tools_convert", text="12. 使用mmd_tools转换")
+
+            # 物理 (独立, 不在 1→12 chain 内)
+            phys_box = layout.box()
+            phys_box.label(text="物理 (独立步骤)", icon='PHYSICS')
+            row = phys_box.row(align=True)
+            row.operator("object.setup_physics", text="加载物理模板", icon='PHYSICS')
+            row.operator("object.extract_physics_template", text="提取模板", icon='EXPORT')
 
             # 高级 / 调试 (折叠, 默认收起)
             adv_box = layout.box()
@@ -318,7 +322,7 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
                      emboss=False)
             row.label(text="高级 / 调试", icon='TOOL_SETTINGS')
             if scene.ctmmd_show_advanced:
-                adv_box.label(text="步骤 7 (分配权重) 内部阶段 — 调试重跑:")
+                adv_box.label(text="步骤 8 (分配权重) 内部阶段 — 调试重跑:")
                 grid = adv_box.grid_flow(row_major=True, columns=3, even_columns=True)
                 grid.operator("object.assign_weights_phase2", text="Unused→主骨")
                 grid.operator("object.assign_weights_phase1", text="主骨→D骨")
@@ -341,7 +345,7 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             breast_box = layout.box()
             breast_box.label(text="胸部物理", icon='MOD_SOFT')
             breast_box.operator("object.apply_breast_physics", text="应用胸部 rigid (乳奶.L/R)")
-            breast_box.label(text="需先跑过 12. 加载物理模板 (获得锚点 上半身2)",
+            breast_box.label(text="需先跑过 加载物理模板 (获得锚点 上半身2)",
                              icon='INFO')
 
             # 刚体编辑

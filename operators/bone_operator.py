@@ -171,7 +171,7 @@ class OBJECT_OT_rename_to_mmd(bpy.types.Operator):
         # 对应"的辅助骨直接重命名, 不新建/不迁移。
         #
         # 不在这里处理 twist 骨: 扭转骨 (foretwist / xtra07 / xtra07pp 等) 命名因模型
-        # 而异, 且可能位置语义和 XPS 命名不一致。改由 step 2.1 (complete_twist_bones)
+        # 而异, 且可能位置语义和 XPS 命名不一致。改由 step 3 (complete_twist_bones)
         # 按几何位置 + 权重匹配分配到 腕捩/手捩 槽位。
         UNUSED_RENAME_MAP = {
             "unused bip001 pelvis": "下半身",  # 胯部 -> MMD 下半身, 位置一致, 干净 rename
@@ -495,7 +495,7 @@ class OBJECT_OT_complete_missing_bones(bpy.types.Operator):
         # 切回 OBJECT 模式（权重分配由步骤2.5统一完成）
         bpy.ops.object.mode_set(mode='OBJECT')
 
-        # 在创建/更新骨骼的这一步就设好 is_tip 和 hide, 不积压到 step 8
+        # 在创建/更新骨骼的这一步就设好 is_tip 和 hide, 不积压到 step 11 (setup_pmx_attributes)
         # is_tip: 操作中心 (显示为点, 不需要箭头)
         b = obj.data.bones.get("操作中心")
         if b:

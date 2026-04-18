@@ -471,7 +471,7 @@ class OBJECT_OT_split_upper_arm_twist_weights(bpy.types.Operator):
        bone_hi: w * k       其中 k = (t - t_lo) / (t_hi - t_lo)
 
     不动 腕捩.L 已有的 XPS 原始顶点 (从 xtra07pp 继承), 只分裂 腕.L 侧。
-    建议在 step 5 (assign_weights) 之后运行。"""
+    建议在 step 8 (assign_weights) 之后运行。"""
     bl_idname = "object.split_upper_arm_twist_weights"
     bl_label = "可选: 上臂 twist 权重渐变"
     bl_description = "PMXEditor 风格双骨插值: 腕.L 顶点沿 t 平滑过渡到 腕捩1/2/3/腕捩 main"

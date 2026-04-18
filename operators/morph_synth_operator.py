@@ -24,24 +24,26 @@ class OBJECT_OT_synth_vertex_morphs(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        print("[CTMMD 6] ===== Step 6: Synth Vertex Morphs (Path D) =====")
         meshes = _mt.find_inase_meshes()
         if meshes is None:
             self.report({'ERROR'}, "未找到 Inase 5 个脸部 mesh (face/lash×2/brow/eyeball)")
             return {'CANCELLED'}
         face, lash1, lash2, brow, eyeball = meshes
         # Pre-check: Path D recipes read head lip/eyelid/eyebrow vgs. If
-        # cleanup_face_bones (option1 step 6) already ran, they've been
+        # cleanup_face_bones (option1 step 7) already ran, they've been
         # merged into 頭 and bake would silently produce zero-offset morphs.
         face_vgs = {vg.name for vg in face.vertex_groups}
         if not any(n.startswith('head lip') for n in face_vgs):
             self.report(
                 {'ERROR'},
-                "face mesh 的 head lip/eyelid/eyebrow vg 已被 step 6 '清理面部细骨' 销毁。"
-                " 请重新导入 XPS,或改用 '🚀 一键转换' (会自动在 step 6 前完成 morph 合成)。",
+                "face mesh 的 head lip/eyelid/eyebrow vg 已被 step 7 '清理面部细骨' 销毁。"
+                " 请重新导入 XPS,或改用 '🚀 一键转换' (会自动在 step 7 前完成 morph 合成)。",
             )
             return {'CANCELLED'}
         _mt.bake_all_for_inase(face, [lash1, lash2], brow, eyeball)
         n_morphs = len([k for k in face.data.shape_keys.key_blocks if k.name != 'Basis'])
+        print(f"[CTMMD 6] Done: {n_morphs} morphs on {face.name}")
         self.report({'INFO'}, f"合成 {n_morphs} 条 morph on {face.name[:22]}")
         return {'FINISHED'}
 

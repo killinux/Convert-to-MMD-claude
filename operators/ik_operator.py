@@ -119,5 +119,5 @@ class OBJECT_OT_add_ik(bpy.types.Operator):
         # 在 use_mmd_tools_convert 步骤统一创建（基于 mmd_bone.additional_transform_bone 属性）。
         # 涵盖: D骨(足D/ひざD/足首D), 腰キャンセル, 肩C, twist子骨(腕捩1-3/手捩1-3)。
 
-        print("[CTMMD 8] IK bones and constraints created")
+        print("[CTMMD 9] IK bones and constraints created")
         return {'FINISHED'}

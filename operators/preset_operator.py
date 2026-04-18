@@ -116,7 +116,7 @@ class OBJECT_OT_setup_pmx_attributes(bpy.types.Operator):
             if pb.mmd_bone.name_j != name_j:
                 pb.mmd_bone.name_j = name_j
                 name_j_count += 1
-        print(f"[CTMMD 10] Set name_j for {name_j_count} bones (.L/.R → 左/右)")
+        print(f"[CTMMD 11] Set name_j for {name_j_count} bones (.L/.R → 左/右)")
 
         # 设置 D骨/腰キャンセル 的付与親（additional transform）
         ADDITIONAL_TRANSFORM_MAP = {
@@ -200,7 +200,7 @@ class OBJECT_OT_setup_pmx_attributes(bpy.types.Operator):
                         sub_pb.mmd_bone.additional_transform_influence = inf
                         twist_sub += 1
         if twist_main or twist_sub:
-            print(f"[CTMMD 10] Twist system: {twist_main} main (fixed_axis from bone Y.xzy), {twist_sub} sub (付与親)")
+            print(f"[CTMMD 11] Twist system: {twist_main} main (fixed_axis from bone Y.xzy), {twist_sub} sub (付与親)")
 
         # is_tip 标志: PMX 显示为"末端点"而非箭头骨。
         # is_tip: 显示为末端点。main twist 也设 is_tip (和目标一致),
@@ -219,7 +219,7 @@ class OBJECT_OT_setup_pmx_attributes(bpy.types.Operator):
             if pb:
                 pb.mmd_bone.is_tip = True
                 tip_count += 1
-        print(f"[CTMMD 10] Set is_tip for {tip_count} bones")
+        print(f"[CTMMD 11] Set is_tip for {tip_count} bones")
 
         # transform_order: D 骨设为 1（在付与親源骨之后计算）
         D_ORDER_BONES = ["足D", "ひざD", "足首D", "足先EX"]
@@ -230,7 +230,7 @@ class OBJECT_OT_setup_pmx_attributes(bpy.types.Operator):
                 if pb:
                     pb.mmd_bone.transform_order = 1
                     order_count += 1
-        print(f"[CTMMD 10] Set transform_order=1 for {order_count} D-bones")
+        print(f"[CTMMD 11] Set transform_order=1 for {order_count} D-bones")
 
         # lock_location: 控制骨 + twist 骨 + 辅助骨锁定位移
         LOCK_LOC_BASES_LR = [
@@ -256,9 +256,9 @@ class OBJECT_OT_setup_pmx_attributes(bpy.types.Operator):
                 if pb:
                     pb.lock_location = [True, True, True]
                     lock_count += 1
-        print(f"[CTMMD 10] Set lock_location for {lock_count} bones")
+        print(f"[CTMMD 11] Set lock_location for {lock_count} bones")
 
-        print(f"[CTMMD 10] Set additional_transform for {at_count} bones")
+        print(f"[CTMMD 11] Set additional_transform for {at_count} bones")
 
         # 设置 name_e (英文名): 完整映射表，含 .L/.R 的全名直接映射
         # 身体骨用 l/r 前缀 (XPS 风格), 控制骨用 _L/_R 后缀
@@ -323,14 +323,14 @@ class OBJECT_OT_setup_pmx_attributes(bpy.types.Operator):
             if name_e and pb.mmd_bone.name_e != name_e:
                 pb.mmd_bone.name_e = name_e
                 name_e_count += 1
-        print(f"[CTMMD 10] Set name_e for {name_e_count} bones")
+        print(f"[CTMMD 11] Set name_e for {name_e_count} bones")
 
         # 已知未修复差异 log（供调试参考）
-        print("[CTMMD 10] Known remaining diffs vs target PMX:")
-        print("[CTMMD 10]   - 位置/长度/方向: 两模型体型不同, 非 pipeline bug")
-        print("[CTMMD 10]   - 腕捩 fixed_axis Z 轴差 ~0.003: 手臂对齐浮点误差, 不影响效果")
-        print("[CTMMD 10]   - 脚趾细分骨 (BigToe/SmallToe): XPS 源无此骨, TODO")
-        print("[CTMMD 10]   - name_e 未映射的骨骼保持为空 (hair/unused 等非标准骨)")
+        print("[CTMMD 11] Known remaining diffs vs target PMX:")
+        print("[CTMMD 11]   - 位置/长度/方向: 两模型体型不同, 非 pipeline bug")
+        print("[CTMMD 11]   - 腕捩 fixed_axis Z 轴差 ~0.003: 手臂对齐浮点误差, 不影响效果")
+        print("[CTMMD 11]   - 脚趾细分骨 (BigToe/SmallToe): XPS 源无此骨, TODO")
+        print("[CTMMD 11]   - name_e 未映射的骨骼保持为空 (hair/unused 等非标准骨)")
 
         self.report({'INFO'}, f"PMX attributes set: {name_j_count} name_j, {name_e_count} name_e, {at_count} additional_transform, twist {twist_main}+{twist_sub}")
         return {'FINISHED'}
@@ -389,7 +389,7 @@ class OBJECT_OT_use_mmd_tools_convert(bpy.types.Operator):
                 if b:
                     b.hide = True
                     h += 1
-            print(f"[CTMMD 11] Re-applied hide flags: {v} visible, {h} hidden")
+            print(f"[CTMMD 12] Re-applied hide flags: {v} visible, {h} hidden")
 
         # convert 会清掉 lock_rotation, 重新设置 twist main 骨的旋转锁定
         for base in ("腕捩", "手捩"):
@@ -399,7 +399,7 @@ class OBJECT_OT_use_mmd_tools_convert(bpy.types.Operator):
                 if pb and pb.mmd_bone.enabled_fixed_axis:
                     pb.lock_rotation[0] = True
                     pb.lock_rotation[2] = True
-        print("[CTMMD 11] Re-applied lock_rotation on twist bones")
+        print("[CTMMD 12] Re-applied lock_rotation on twist bones")
 
         # 把 mmd_bone 元数据 (additional_transform / fixed_axis) 物化为 Blender
         # constraint 链。涵盖所有设了 additional_transform_bone 的骨:
@@ -411,9 +411,9 @@ class OBJECT_OT_use_mmd_tools_convert(bpy.types.Operator):
         # 直接用 TRANSFORM constraint 指向源骨 (优化路径)。
         try:
             bpy.ops.mmd_tools.apply_additional_transform()
-            print("[CTMMD 11] Applied additional_transform constraints")
+            print("[CTMMD 12] Applied additional_transform constraints")
         except Exception as e:
-            print(f"[CTMMD 11] apply_additional_transform 失败: {e}")
+            print(f"[CTMMD 12] apply_additional_transform 失败: {e}")
 
         # 恢复原始选择状态
         context.view_layer.objects.active = obj
@@ -437,9 +437,9 @@ class OBJECT_OT_use_mmd_tools_convert(bpy.types.Operator):
 
 
 class OBJECT_OT_one_click_convert(bpy.types.Operator):
-    """一键运行主转换流程 (step 1→11). 前提: 已选中 XPS armature 并加载 preset."""
+    """一键运行主转换流程 (step 1→12). 前提: 已选中 XPS armature 并加载 preset."""
     bl_idname = "object.one_click_convert"
-    bl_label = "一键转换 (1→11)"
+    bl_label = "一键转换 (1→12)"
     bl_description = "按顺序跑主流程: 预处理/重命名/补骨/权重/IK/PMX属性/mmd_tools转换"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -504,5 +504,5 @@ class OBJECT_OT_one_click_convert(bpy.types.Operator):
                     return {'CANCELLED'}
                 print(f'[CTMMD one-click] {step_name}: {ret} (可选, 继续)')
 
-        self.report({'INFO'}, "一键转换完成 (step 1→11)")
+        self.report({'INFO'}, "一键转换完成 (step 1→12)")
         return {'FINISHED'}
