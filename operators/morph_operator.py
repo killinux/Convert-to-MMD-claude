@@ -303,3 +303,341 @@ class OBJECT_OT_clone_morphs_from_target(bpy.types.Operator):
 
         self.report({'INFO'}, f"Cloned bone={n_bone}, material={n_mat}, group={n_grp}")
         return {'FINISHED'}
+
+
+# ---------------------------------------------------------------------------
+# Vertex morph bake-and-transfer (方案 B)
+# ---------------------------------------------------------------------------
+#
+# When the target's facial expressions are bone morphs (common for anime
+# PMX models), cloning them onto the converted model is not enough to get
+# visible expressions — our cleanup_face_bones step removed the XPS face
+# bones and merged their weights into 頭, so the newly cloned driver
+# bones have no mesh weights to deform.
+#
+# This operator simulates each target bone_morph on the target mesh
+# (temporarily rotating the referenced bones, reading the evaluated mesh
+# to get deformed vertex positions), then transfers the per-vertex
+# offsets to the source mesh via head-local KDTree proximity. The
+# result is a real vertex_morph on source that visibly deforms the mesh
+# when the slider moves.
+
+
+HEAD_BONE_CANDIDATES = ('頭', 'head neck upper')
+
+
+def _find_head_bone(arm):
+    for name in HEAD_BONE_CANDIDATES:
+        if name in arm.pose.bones:
+            return arm.pose.bones[name]
+    return None
+
+
+def _head_local_matrix(arm, head_pb):
+    """World-space → head-local-space matrix for the given armature."""
+    head_world = arm.matrix_world @ head_pb.bone.matrix_local
+    return head_world.inverted()
+
+
+def _bake_target_morph_offsets(tgt_arm, tgt_meshes, tgt_morph, min_magnitude=1e-4):
+    """Pose the target armature to apply tgt_morph, then read evaluated
+    mesh vertex positions. Returns {mesh_obj: [(basis_co, offset_vec, vert_idx), ...]}.
+
+    Offsets are in each mesh's LOCAL mesh space (i.e. mesh.data coords),
+    NOT world. Caller transforms as needed."""
+    # Save original pose transforms
+    stash = []
+    for pb in tgt_arm.pose.bones:
+        stash.append((pb.name,
+                      pb.location.copy(),
+                      pb.rotation_quaternion.copy(),
+                      pb.rotation_mode))
+        pb.rotation_mode = 'QUATERNION'
+
+    # Reset all to rest
+    for pb in tgt_arm.pose.bones:
+        pb.location = (0, 0, 0)
+        pb.rotation_quaternion = (1, 0, 0, 0)
+
+    # Capture basis vertex positions (at rest pose, fully evaluated)
+    bpy.context.view_layer.update()
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    basis_coords = {}
+    for m in tgt_meshes:
+        em = m.evaluated_get(depsgraph)
+        basis_coords[m.name] = [v.co.copy() for v in em.data.vertices]
+
+    # Apply the morph
+    for off in tgt_morph.data:
+        pb = tgt_arm.pose.bones.get(off.bone)
+        if pb is not None:
+            pb.location = tuple(off.location)
+            pb.rotation_quaternion = tuple(off.rotation)
+
+    bpy.context.view_layer.update()
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+
+    # Collect offsets per mesh
+    result = {}
+    total_morphed = 0
+    for m in tgt_meshes:
+        em = m.evaluated_get(depsgraph)
+        basis = basis_coords[m.name]
+        entries = []
+        for i, v in enumerate(em.data.vertices):
+            if i >= len(basis):
+                continue
+            offset = v.co - basis[i]
+            if offset.length < min_magnitude:
+                continue
+            entries.append((basis[i].copy(), offset.copy(), i))
+        if entries:
+            result[m] = entries
+            total_morphed += len(entries)
+
+    # Restore pose
+    for name, loc, rq, mode in stash:
+        pb = tgt_arm.pose.bones.get(name)
+        if pb is not None:
+            pb.location = loc
+            pb.rotation_quaternion = rq
+            pb.rotation_mode = mode
+    bpy.context.view_layer.update()
+
+    return result, total_morphed
+
+
+def _build_kdtree_for_morph(baked, tgt_meshes_by_name, tgt_head_inv_world):
+    """Build a single KDTree across all baked verts from all target meshes.
+    Keys are in target-head-local space. Values are offsets also in
+    head-local space."""
+    from mathutils import kdtree
+    entries = []  # list of (head_local_basis_pos, head_local_offset)
+    for tgt_mesh, verts in baked.items():
+        mw = tgt_mesh.matrix_world
+        for basis_co, offset, _idx in verts:
+            world_basis = mw @ basis_co
+            # Offset vector: rotate by the mesh world rotation (linear part only)
+            world_tip = mw @ (basis_co + offset)
+            world_offset = world_tip - world_basis
+            hl_basis = tgt_head_inv_world @ world_basis
+            # offset is a direction, apply linear part only
+            hl_offset = tgt_head_inv_world.to_3x3() @ world_offset
+            entries.append((hl_basis, hl_offset))
+
+    if not entries:
+        return None, entries
+    kd = kdtree.KDTree(len(entries))
+    for i, (hl_basis, _hl_offset) in enumerate(entries):
+        kd.insert(hl_basis, i)
+    kd.balance()
+    return kd, entries
+
+
+def _apply_morph_to_source(src_meshes, src_head_inv_world, src_head_world,
+                           kd, entries, morph_name,
+                           distance_threshold, k_neighbors):
+    """For each source mesh vertex, find nearest morphed target verts in
+    head-local space and apply inverse-distance-weighted offset to a new
+    shape key with the given name."""
+    from mathutils import Vector
+    total_applied = 0
+    # src_head_world transforms head-local vector → world
+    src_head_mat3 = src_head_world.to_3x3()
+
+    for src_mesh in src_meshes:
+        mesh_data = src_mesh.data
+        # Ensure shape_keys exists with a Basis
+        if mesh_data.shape_keys is None:
+            src_mesh.shape_key_add(name='Basis', from_mix=False)
+        sk_coll = mesh_data.shape_keys.key_blocks
+        basis_key = mesh_data.shape_keys.reference_key
+        # Add or reset the target morph shape key
+        sk = sk_coll.get(morph_name)
+        if sk is None:
+            sk = src_mesh.shape_key_add(name=morph_name, from_mix=False)
+        else:
+            # Reset to basis
+            for i, bv in enumerate(basis_key.data):
+                sk.data[i].co = bv.co.copy()
+        sk.value = 0.0
+
+        mw = src_mesh.matrix_world
+        mw_inv = mw.inverted()
+        applied = 0
+        for i, bv in enumerate(basis_key.data):
+            world_basis = mw @ bv.co
+            hl = src_head_inv_world @ world_basis
+            neighbors = kd.find_n(hl, k_neighbors)
+            if not neighbors:
+                continue
+            valid = [(pos, idx, d) for pos, idx, d in neighbors if d <= distance_threshold]
+            if not valid:
+                continue
+            total_w = 0.0
+            weighted = Vector((0.0, 0.0, 0.0))
+            for _pos, idx, d in valid:
+                w = 1.0 / max(d, 1e-4)
+                weighted += entries[idx][1] * w
+                total_w += w
+            if total_w <= 0.0:
+                continue
+            avg_hl_offset = weighted / total_w
+            # Convert head-local offset back to world, then into source mesh local
+            world_offset = src_head_mat3 @ avg_hl_offset
+            local_offset = mw_inv.to_3x3() @ world_offset
+            sk.data[i].co = bv.co + local_offset
+            applied += 1
+        total_applied += applied
+        print(f'[CTMMD 15]   {morph_name} -> {src_mesh.name}: applied {applied}/{len(basis_key.data)} verts')
+    return total_applied
+
+
+class OBJECT_OT_bake_and_transfer_morphs(bpy.types.Operator):
+    """Bake each target bone_morph into vertex offsets on target mesh, then
+    transfer those offsets to source mesh via head-local KDTree proximity.
+    Produces real vertex_morphs on source that visibly deform the mesh.
+    方案 B: 最终达到视觉表情效果的方案。"""
+    bl_idname = "object.bake_and_transfer_morphs"
+    bl_label = "③ bake + 按近邻传 vertex morph"
+    bl_description = (
+        "对 target 的每条 bone_morph 临时 pose 后评估 mesh 变形, 用 head-local KDTree 把 offset"
+        " 按近邻加权传到 source, 生成真正能驱动顶点变形的 vertex_morph"
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    source_name: StringProperty(
+        name="Source (目的地)",
+        default="",
+    )
+    target_name: StringProperty(
+        name="Target (来源)",
+        default="",
+    )
+    distance_threshold: bpy.props.FloatProperty(
+        name="距离阈值 (head-local, 米)",
+        description="source 顶点到最近 target morph 顶点距离超过此值则不应用 (越小越局部化)",
+        default=0.02,
+        min=0.001,
+        max=0.2,
+    )
+    k_neighbors: bpy.props.IntProperty(
+        name="K 近邻",
+        description="每个 source 顶点用几个最近 target 顶点加权",
+        default=3,
+        min=1,
+        max=10,
+    )
+    clear_existing: BoolProperty(
+        name="先清空 source vertex_morphs",
+        default=True,
+    )
+    min_offset_magnitude: bpy.props.FloatProperty(
+        name="最小偏移过滤 (米)",
+        description="target 顶点偏移小于此值视为未变形, 不参与 KDTree",
+        default=1e-4,
+        min=1e-6,
+        max=0.01,
+        precision=5,
+    )
+
+    def invoke(self, context, event):
+        if not self.source_name:
+            active = context.active_object
+            root = _resolve_mmd_root(active.name) if active else None
+            if root:
+                self.source_name = root.name
+        return context.window_manager.invoke_props_dialog(self, width=420)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop_search(self, 'source_name', bpy.data, 'objects', text='Source')
+        layout.prop_search(self, 'target_name', bpy.data, 'objects', text='Target')
+        layout.prop(self, 'distance_threshold')
+        layout.prop(self, 'k_neighbors')
+        layout.prop(self, 'clear_existing')
+        layout.prop(self, 'min_offset_magnitude')
+
+    def execute(self, context):
+        src_root = _resolve_mmd_root(self.source_name)
+        tgt_root = _resolve_mmd_root(self.target_name)
+        if src_root is None or tgt_root is None or src_root == tgt_root:
+            self.report({'ERROR'}, "source/target 必须是两个不同的 mmd_root")
+            return {'CANCELLED'}
+
+        src_model = _get_model(src_root)
+        tgt_model = _get_model(tgt_root)
+        src_arm = src_model.armature()
+        tgt_arm = tgt_model.armature()
+        if src_arm is None or tgt_arm is None:
+            self.report({'ERROR'}, "source 或 target 缺 armature")
+            return {'CANCELLED'}
+        src_head_pb = _find_head_bone(src_arm)
+        tgt_head_pb = _find_head_bone(tgt_arm)
+        if src_head_pb is None or tgt_head_pb is None:
+            self.report({'ERROR'}, "找不到头骨 (頭 / head neck upper)")
+            return {'CANCELLED'}
+
+        tgt_meshes = list(tgt_model.meshes())
+        src_meshes = list(src_model.meshes())
+        if not tgt_meshes or not src_meshes:
+            self.report({'ERROR'}, "source 或 target 没 mesh")
+            return {'CANCELLED'}
+
+        # Head-local world matrices
+        src_head_world = src_arm.matrix_world @ src_head_pb.bone.matrix_local
+        tgt_head_world = tgt_arm.matrix_world @ tgt_head_pb.bone.matrix_local
+        src_head_inv = src_head_world.inverted()
+        tgt_head_inv = tgt_head_world.inverted()
+
+        if self.clear_existing:
+            src_root.mmd_root.vertex_morphs.clear()
+            # Also remove pre-existing shape keys on source meshes that match any target morph name
+            target_names = {m.name for m in tgt_root.mmd_root.bone_morphs}
+            for src_mesh in src_meshes:
+                if src_mesh.data.shape_keys is None:
+                    continue
+                for name in list(src_mesh.data.shape_keys.key_blocks.keys()):
+                    if name in target_names:
+                        sk = src_mesh.data.shape_keys.key_blocks[name]
+                        src_mesh.shape_key_remove(sk)
+
+        n_morphs = len(tgt_root.mmd_root.bone_morphs)
+        n_transferred = 0
+        per_morph_stats = []
+        for i, tgt_morph in enumerate(tgt_root.mmd_root.bone_morphs):
+            baked, n_morphed = _bake_target_morph_offsets(
+                tgt_arm, tgt_meshes, tgt_morph,
+                min_magnitude=self.min_offset_magnitude,
+            )
+            if not baked:
+                print(f'[CTMMD 15] [{i+1}/{n_morphs}] {tgt_morph.name!r}: 0 morphed verts on target (skipped)')
+                continue
+            kd, entries = _build_kdtree_for_morph(baked, None, tgt_head_inv)
+            if kd is None:
+                continue
+            applied = _apply_morph_to_source(
+                src_meshes, src_head_inv, src_head_world,
+                kd, entries, tgt_morph.name,
+                self.distance_threshold, self.k_neighbors,
+            )
+            # Register as mmd vertex_morph if not yet
+            existing = {vm.name for vm in src_root.mmd_root.vertex_morphs}
+            if tgt_morph.name not in existing and applied > 0:
+                vm = src_root.mmd_root.vertex_morphs.add()
+                vm.name = tgt_morph.name
+                for fld in ('name_e', 'category'):
+                    if hasattr(tgt_morph, fld) and hasattr(vm, fld):
+                        try:
+                            setattr(vm, fld, getattr(tgt_morph, fld))
+                        except Exception:
+                            pass
+            per_morph_stats.append((tgt_morph.name, n_morphed, applied))
+            if applied > 0:
+                n_transferred += 1
+            print(f'[CTMMD 15] [{i+1}/{n_morphs}] {tgt_morph.name!r}: {n_morphed} target verts → {applied} source verts')
+
+        summary = f"transferred {n_transferred}/{n_morphs} morphs"
+        print(f'[CTMMD 15] Bake+transfer done: {summary}')
+        self.report({'INFO'}, summary)
+        return {'FINISHED'}
