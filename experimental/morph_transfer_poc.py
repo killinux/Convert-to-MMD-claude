@@ -709,6 +709,38 @@ INASE_RECIPES = {
     '下': {  # brow lowered
         BROW_ALL: (0, 0, -10),
     },
+    # --- Mouth extras ---
+    'にやり': {  # smirk — mouth corners up asymmetric (or symmetric)
+        CORNER_L:    (+1, 0, +3),
+        CORNER_R:    (-1, 0, +3),
+        LIP_UPPER:   (0,  0, +1),
+    },
+    '激怒': {  # angry mouth — tight down-pulled pressed
+        CORNER_L:    (-1, 0, -2),
+        CORNER_R:    (+1, 0, -2),
+        LIP_LOWER:   (0,  0, -1),
+        LIP_UPPER:   (0,  0, -1),
+        JAW:         (0,  0, -1),
+    },
+    # --- Eye extras ---
+    '笑い': {  # smile eyes (crescent shape — upper down slightly, lower up slightly)
+        EYELID_UPPER_L: (0, 0, -3),
+        EYELID_UPPER_R: (0, 0, -3),
+        EYELID_LOWER_L: (0, 0, +4),
+        EYELID_LOWER_R: (0, 0, +4),
+    },
+    'びっくり': {  # surprised — eyes wide open (upper up, lower down)
+        EYELID_UPPER_L: (0, 0, +3),
+        EYELID_UPPER_R: (0, 0, +3),
+        EYELID_LOWER_L: (0, 0, -2),
+        EYELID_LOWER_R: (0, 0, -2),
+    },
+    'じと目': {  # narrow/suspicious eyes (less close than まばたき)
+        EYELID_UPPER_L: (0, 0, -5),
+        EYELID_UPPER_R: (0, 0, -5),
+        EYELID_LOWER_L: (0, 0, +2),
+        EYELID_LOWER_R: (0, 0, +2),
+    },
 }
 
 
@@ -746,8 +778,8 @@ def bake_eyeball_recede(eyeball_mesh, morph_name, back_mm=6.0):
 EYEBALL_MORPHS = ('まばたき', 'ウィンク', 'ウィンク右', '笑い')  # morphs that should hide eyeball
 
 
-MOUTH_MORPH_NAMES   = ('あ', 'い', 'う', 'え', 'お')
-EYELID_MORPH_NAMES  = ('まばたき', 'ウィンク', 'ウィンク右')
+MOUTH_MORPH_NAMES   = ('あ', 'い', 'う', 'え', 'お', 'にやり', '激怒')
+EYELID_MORPH_NAMES  = ('まばたき', 'ウィンク', 'ウィンク右', '笑い', 'びっくり', 'じと目')
 BROW_MORPH_NAMES    = ('困る', '怒り', '真面目', '上', '下')
 
 
