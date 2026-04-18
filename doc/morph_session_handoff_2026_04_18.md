@@ -313,13 +313,14 @@ mt.set_morph_synced([face, lash1, lash2, brow, eyeball], 'あ', 1.0)
 
 C 可以直接改 session 里已有的 `OUT=/tmp/pathD_v2; for morph ...` bash loop 加 HTML report。
 
-### P1: Operator 化 (已在 TODO.md P3 记录)
+### ~~P1: Operator 化~~ ✅ 完成 (commit `627dac5`)
 
-- 搬 `experimental/morph_transfer_poc.py` 相关函数到 `operators/morph_operator.py` + `presets/morph_recipes_inase.py`
-- 新 operator `OBJECT_OT_generate_mmd_morphs_programmatic`
-- UI 按钮在 option2「物理+表情」tab
-- 自动 detect 5 mesh(按 vg 命名)
-- 必须用 `set_morph_synced` 切换 slider
+实现方式比原计划轻:
+- `experimental/` 加 `__init__.py` 变成 package,**核心逻辑留在** `morph_transfer_poc.py`(dev iteration 仍可 cli.py exec + reload)
+- 新增 `operators/morph_synth_operator.py` — 从 experimental 导入 ops,加 `OBJECT_OT_synth_vertex_morphs` (按钮 ④)
+- `__init__.py` 通过 `morph_synth_operator.CLASSES` 注册 5 个 class
+- `ui_panel.py` option2 加 ④ Path D synth + 3 个 verify 按钮(spec/screenshot/interactive),③ KDTree 旧方案移到折叠的"高级/旧方案"box 并标弃用
+- `find_inase_meshes` 在 operator 里 auto-detect,用户不用选 mesh
 
 ### ~~P2: 补 ん 到 19/19~~ ✅ 完成 (commit `cc3d7b6`)
 
