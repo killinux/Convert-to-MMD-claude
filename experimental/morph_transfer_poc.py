@@ -688,6 +688,45 @@ def bake_all_mouth_recipes(src_mesh, recipes=INASE_RECIPES):
     return results
 
 
+def bake_eyeball_recede(eyeball_mesh, morph_name, back_mm=6.0):
+    """For eye-closing morphs, push eyeball mesh backward into socket so it
+    doesn't protrude past a closed face-mesh eyelid.
+
+    eyeball_mesh: object (e.g. Inase XPS 24_0006 eyes mesh).
+    back_mm: how many mm in +Y direction (per XPS convention, +Y = backward).
+    """
+    import numpy as np
+    if eyeball_mesh.data.shape_keys is None:
+        eyeball_mesh.shape_key_add(name='Basis', from_mix=False)
+    kbs = eyeball_mesh.data.shape_keys.key_blocks
+    if morph_name in kbs:
+        eyeball_mesh.shape_key_remove(kbs[morph_name])
+    sk = eyeball_mesh.shape_key_add(name=morph_name, from_mix=False)
+    rest = np.array([v.co[:] for v in eyeball_mesh.data.vertices])
+    offset = np.zeros_like(rest)
+    offset[:, 1] = back_mm * 1e-3  # +Y backward
+    for i, c in enumerate(rest + offset):
+        sk.data[i].co = Vector(c)
+    print(f"[eye-recede] '{morph_name}' on {eyeball_mesh.name}: {back_mm}mm back")
+    return sk
+
+
+EYEBALL_MORPHS = ('まばたき', 'ウィンク', 'ウィンク右', '笑い')  # morphs that should hide eyeball
+
+
+def bake_eyeball_morphs_for_wink(eyeball_mesh, morph_names=EYEBALL_MORPHS, back_mm=6.0):
+    """Add the above shape keys on an eyeball mesh too.
+    NOTE: this simple version moves BOTH eyes back even for one-sided winks;
+    for a clean ウィンク L/R we'd need per-vertex X filtering — left as future
+    improvement.
+    """
+    results = []
+    for n in morph_names:
+        sk = bake_eyeball_recede(eyeball_mesh, n, back_mm)
+        results.append((n, sk))
+    return results
+
+
 # ---------- Batch: bake + transfer all bone_morphs ----------
 
 def bake_and_transfer_all(
