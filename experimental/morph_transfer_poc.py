@@ -865,6 +865,133 @@ def bake_eyeball_morphs_for_wink(eyeball_mesh, morph_names=EYEBALL_MORPHS, back_
     return results
 
 
+# ---------- P0 Tool C: batch morph verification (screenshot + HTML report) ----------
+
+VIEW_PRESETS = {
+    # (view_location_z, view_distance) for XPS-scale Inase model. Front ortho.
+    'face':  (1.60, 0.18),   # whole face
+    'eye':   (1.64, 0.05),   # eye region close-up
+    'mouth': (1.55, 0.06),   # mouth region close-up
+    'brow':  (1.66, 0.07),   # brow region
+}
+
+
+def _morph_preset(morph_name):
+    if morph_name in EYELID_MORPH_NAMES:
+        return 'eye'
+    if morph_name in MOUTH_MORPH_NAMES:
+        return 'mouth'
+    if morph_name in BROW_MORPH_NAMES:
+        return 'brow'
+    return 'face'
+
+
+def _apply_view_preset(preset):
+    """Set every VIEW_3D area to front ortho at the preset's z/distance."""
+    z, d = VIEW_PRESETS[preset]
+    for a in bpy.context.screen.areas:
+        if a.type == 'VIEW_3D':
+            r3d = a.spaces.active.region_3d
+            r3d.view_perspective = 'ORTHO'
+            r3d.view_rotation = (0.7071, 0.7071, 0, 0)
+            r3d.view_location = Vector((0, 0, z))
+            r3d.view_distance = d
+
+
+def _opengl_render(filepath):
+    """Render the first VIEW_3D area's current viewport to filepath (PNG)."""
+    scene = bpy.context.scene
+    scene.render.filepath = filepath
+    scene.render.image_settings.file_format = 'PNG'
+    for a in bpy.context.screen.areas:
+        if a.type == 'VIEW_3D':
+            with bpy.context.temp_override(area=a):
+                bpy.ops.render.opengl(write_still=True)
+            return True
+    return False
+
+
+def screenshot_all_morphs(meshes, out_dir='/tmp/morph_verify'):
+    """Iterate every non-Basis shape key on meshes[0] (face), set slider=1.0
+    via set_morph_synced across all meshes, OpenGL-render a categorised
+    preset view, write PNG per morph + a basis reference.
+
+    meshes: [face, lash1, lash2, brow, eyeball] ordering expected.
+    """
+    import os
+    os.makedirs(out_dir, exist_ok=True)
+    face = meshes[0]
+    morph_names = [k.name for k in face.data.shape_keys.key_blocks if k.name != 'Basis']
+
+    results = []
+    # 3 basis shots, one per view preset category (for side-by-side comparison).
+    set_morph_synced(meshes, '__reset__', 0.0)
+    for preset in ('face', 'eye', 'mouth', 'brow'):
+        _apply_view_preset(preset)
+        p = os.path.join(out_dir, f'__basis_{preset}.png')
+        _opengl_render(p)
+        results.append((f'__basis_{preset}', p))
+
+    for name in morph_names:
+        set_morph_synced(meshes, name, 1.0)
+        preset = _morph_preset(name)
+        _apply_view_preset(preset)
+        p = os.path.join(out_dir, f'{name}.png')
+        _opengl_render(p)
+        results.append((name, p))
+        print(f"[verify] {name} ({preset}) -> {p}")
+
+    set_morph_synced(meshes, '__reset__', 0.0)
+    print(f"[verify] wrote {len(results)} PNGs to {out_dir}")
+    return results
+
+
+def generate_morph_html_report(out_dir='/tmp/morph_verify', report_path=None):
+    """Scan out_dir for PNGs, write index.html grouping morphs by category
+    (mouth/eyelid/brow) with the matching basis reference shown alongside."""
+    import os
+    if report_path is None:
+        report_path = os.path.join(out_dir, 'index.html')
+
+    groups = [
+        ('Mouth',  'mouth', MOUTH_MORPH_NAMES),
+        ('Eyelid', 'eye',   EYELID_MORPH_NAMES),
+        ('Brow',   'brow',  BROW_MORPH_NAMES),
+    ]
+
+    parts = [
+        '<!doctype html><html><head><meta charset="utf-8">',
+        '<title>Morph Verification</title><style>',
+        'body{font-family:sans-serif;background:#222;color:#eee;margin:20px}',
+        'h1{margin-bottom:4px}h2{margin-top:28px;border-bottom:1px solid #555;padding-bottom:4px}',
+        '.row{display:flex;flex-wrap:wrap;gap:12px;margin:8px 0}',
+        '.cell{background:#333;padding:6px;border-radius:4px}',
+        '.cell.basis{border:2px solid #5a5}',
+        '.cell img{display:block;width:280px;height:auto}',
+        '.cell .name{font-size:12px;margin-top:4px;text-align:center}',
+        '</style></head><body>',
+        f'<h1>MMD Morph Verification</h1>',
+        f'<p>Source: {out_dir}</p>',
+    ]
+
+    for title, preset, names in groups:
+        parts.append(f'<h2>{title}</h2><div class="row">')
+        basis_png = f'__basis_{preset}.png'
+        if os.path.exists(os.path.join(out_dir, basis_png)):
+            parts.append(f'<div class="cell basis"><img src="{basis_png}"><div class="name">(basis)</div></div>')
+        for n in names:
+            fp = f'{n}.png'
+            if os.path.exists(os.path.join(out_dir, fp)):
+                parts.append(f'<div class="cell"><img src="{fp}"><div class="name">{n}</div></div>')
+        parts.append('</div>')
+
+    parts.append('</body></html>')
+    with open(report_path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(parts))
+    print(f"[verify] wrote HTML report: {report_path}")
+    return report_path
+
+
 # ---------- Batch: bake + transfer all bone_morphs ----------
 
 def bake_and_transfer_all(
