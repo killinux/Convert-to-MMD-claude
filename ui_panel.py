@@ -39,11 +39,24 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
         scene = context.scene
 
 
-        # 检查活动对象是否为骨架
-        obj = context.active_object
-        if not obj or obj.type != 'ARMATURE':
+        # 找目标 armature: active → 若 active 是 mesh/空, 往上找父骨架 → 若还没有就退化
+        active = context.active_object
+        obj = active if (active and active.type == 'ARMATURE') else None
+        if obj is None and active is not None:
+            cur = active.parent
+            while cur and cur.type != 'ARMATURE':
+                cur = cur.parent
+            obj = cur
+        if obj is None:  # fallback: 场景里任意 armature
+            obj = next((o for o in bpy.data.objects if o.type == 'ARMATURE'), None)
+        if obj is None:
             layout.menu("TOPBAR_MT_file_import", text="Import", icon='IMPORT')
             return
+        # 若 active 不是 armature, 骨骼流程 op 会自 report ERROR; 这里给个提示, 不隐藏 panel
+        if active is None or active.type != 'ARMATURE':
+            box = layout.box()
+            box.label(text=f"当前显示: {obj.name}", icon='ARMATURE_DATA')
+            box.label(text="① 骨骼流程按钮需选中 armature", icon='INFO')
 
         # 添加带有标签、prop_search用于骨骼和填充按钮的行的函数
         def add_bone_row_with_button(layout, label_text, prop_name):
