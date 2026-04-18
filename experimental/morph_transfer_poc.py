@@ -992,6 +992,72 @@ def generate_morph_html_report(out_dir='/tmp/morph_verify', report_path=None):
     return report_path
 
 
+# ---------- P0 Tool B: automated morph spec check ----------
+
+INASE_MORPH_SPECS = {
+    # (max_mm_lo, max_mm_hi, moved_verts_min)
+    'あ':     (3.0, 10.0, 50),
+    'い':     (2.0, 12.0, 30),
+    'う':     (2.0, 10.0, 30),
+    'え':     (2.0, 8.0,  30),
+    'お':     (3.0, 10.0, 30),
+    'ん':     (1.0, 4.0,  20),
+    'にやり':  (3.0, 10.0, 20),
+    '激怒':    (3.0, 10.0, 30),
+    'まばたき': (5.0, 15.0, 40),
+    'ウィンク':  (5.0, 15.0, 20),
+    'ウィンク右': (5.0, 15.0, 20),
+    '笑い':    (2.0, 8.0,  20),
+    'びっくり': (1.0, 5.0,  20),
+    'じと目':  (1.0, 6.0,  20),
+    '困る':    (5.0, 15.0, 20),
+    '怒り':    (5.0, 15.0, 20),
+    '真面目':  (5.0, 12.0, 20),
+    '上':     (8.0, 20.0, 20),
+    '下':     (8.0, 20.0, 20),
+}
+
+
+def verify_morph_data(mesh, morph_name, spec):
+    """Compare one shape key's delta to spec (max_mm_lo, max_mm_hi, moved_min).
+    Returns (ok, max_mm, moved_count, violations_list)."""
+    import numpy as np
+    violations = []
+    kbs = mesh.data.shape_keys.key_blocks if mesh.data.shape_keys else None
+    if kbs is None or morph_name not in kbs:
+        return False, 0.0, 0, [f"shape key missing"]
+    sk = kbs[morph_name]
+    rest = np.array([v.co[:] for v in mesh.data.vertices])
+    morph = np.array([sk.data[i].co[:] for i in range(len(rest))])
+    mag = np.linalg.norm(morph - rest, axis=1)
+    max_mm = float(mag.max() * 1000)
+    moved = int((mag > 1e-5).sum())
+    lo, hi, mv_min = spec
+    if max_mm < lo:
+        violations.append(f"max={max_mm:.2f}mm below min {lo}mm")
+    if max_mm > hi:
+        violations.append(f"max={max_mm:.2f}mm exceeds max {hi}mm")
+    if moved < mv_min:
+        violations.append(f"only {moved} verts moved (min {mv_min})")
+    return (not violations), max_mm, moved, violations
+
+
+def verify_all_morphs(meshes, specs=None):
+    """Run spec check on meshes[0]. Returns dict {morph: (ok, max_mm, moved, viols)}."""
+    if specs is None:
+        specs = INASE_MORPH_SPECS
+    face = meshes[0]
+    results = {}
+    for name, spec in specs.items():
+        ok, max_mm, moved, viols = verify_morph_data(face, name, spec)
+        results[name] = (ok, max_mm, moved, viols)
+        tag = 'OK  ' if ok else 'FAIL'
+        print(f"[verify-B] {tag} {name:6s} max={max_mm:5.2f}mm moved={moved:4d}" + (f"  {viols}" if viols else ""))
+    n_ok = sum(1 for v in results.values() if v[0])
+    print(f"\n[verify-B] {n_ok}/{len(results)} pass spec")
+    return results
+
+
 # ---------- Batch: bake + transfer all bone_morphs ----------
 
 def bake_and_transfer_all(
