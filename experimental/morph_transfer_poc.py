@@ -1148,6 +1148,12 @@ class MORPH_OT_verify_modal(bpy.types.Operator):
 def find_inase_meshes():
     """Auto-detect [face, lash1, lash2, brow, eyeball] from scene by vg probes.
     Returns list of 5 objects, or None if any slot missing.
+
+    Priority (most specific first):
+      face   = has 'head lip *' vg
+      brow   = has 'head eyebrow *' vg but NO lip vg
+      lash   = has 'head eyelid *' vg but NO lip NOR brow vg
+      eyeball= has 'まばたき' shape key but NO lip/eyelid/brow vgs
     """
     face = None
     lashes = []
@@ -1157,17 +1163,17 @@ def find_inase_meshes():
         if o.type != 'MESH' or o.data.shape_keys is None:
             continue
         vg_names = {vg.name for vg in o.vertex_groups}
-        has_lip = 'head lip lower middle' in vg_names
+        has_lip = any(n.startswith('head lip') for n in vg_names)
         has_eyelid = any(n.startswith('head eyelid') for n in vg_names)
         has_brow = any(n.startswith('head eyebrow') for n in vg_names)
         has_wink = 'まばたき' in [k.name for k in o.data.shape_keys.key_blocks]
         if has_lip:
             face = o
-        elif has_eyelid and not has_lip:
-            lashes.append(o)
-        elif has_brow and not has_eyelid and not has_lip:
+        elif has_brow and not has_lip:
             brow = o
-        elif has_wink and not vg_names:
+        elif has_eyelid and not has_lip and not has_brow:
+            lashes.append(o)
+        elif has_wink and not has_lip and not has_eyelid and not has_brow:
             eyeball = o
     if face and len(lashes) == 2 and brow and eyeball:
         return [face, lashes[0], lashes[1], brow, eyeball]
