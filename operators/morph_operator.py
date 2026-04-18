@@ -14,7 +14,7 @@ vertex_morphs and uv_morphs are keyed by vertex index and are NOT cloned
 (different mesh topology between source and target). See TODO.md P3.
 """
 import bpy
-from bpy.props import PointerProperty, BoolProperty
+from bpy.props import StringProperty, BoolProperty
 
 
 BONE_MORPH_FIELDS = ('bone', 'location', 'rotation')
@@ -55,8 +55,18 @@ def _collect_dst_materials(dst_model):
     return names
 
 
-def _mmd_root_poll(self, obj):
-    return getattr(obj, 'mmd_type', '') == 'ROOT'
+def _resolve_mmd_root(name):
+    obj = bpy.data.objects.get(name)
+    if obj is None:
+        return None
+    if getattr(obj, 'mmd_type', '') == 'ROOT':
+        return obj
+    cur = obj
+    while cur is not None:
+        if getattr(cur, 'mmd_type', '') == 'ROOT':
+            return cur
+        cur = cur.parent
+    return None
 
 
 def _clone_bone_morphs(src_root, dst_root, dst_bones):
@@ -145,17 +155,15 @@ class OBJECT_OT_clone_morphs_from_target(bpy.types.Operator):
     bl_description = "克隆 target 的 bone/material/group morph 到 source 模型 (vertex/uv morph 因 topology 不同跳过)"
     bl_options = {'REGISTER', 'UNDO'}
 
-    source_root: PointerProperty(
+    source_name: StringProperty(
         name="Source (目的地)",
-        description="接收 morph 的转换后 MMD 模型 root",
-        type=bpy.types.Object,
-        poll=_mmd_root_poll,
+        description="接收 morph 的转换后 mmd_root 对象名 (mmd_type=='ROOT')",
+        default="",
     )
-    target_root: PointerProperty(
+    target_name: StringProperty(
         name="Target (来源)",
-        description="提供 morph 的参考 PMX 模型 root",
-        type=bpy.types.Object,
-        poll=_mmd_root_poll,
+        description="提供 morph 的参考 PMX mmd_root 对象名",
+        default="",
     )
     clear_existing: BoolProperty(
         name="先清空 source 现有 morph",
@@ -163,17 +171,32 @@ class OBJECT_OT_clone_morphs_from_target(bpy.types.Operator):
         default=True,
     )
 
+    def invoke(self, context, event):
+        # Default source to active's mmd_root if unset
+        if not self.source_name:
+            active = context.active_object
+            root = _resolve_mmd_root(active.name) if active else None
+            if root:
+                self.source_name = root.name
+        return context.window_manager.invoke_props_dialog(self, width=380)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop_search(self, 'source_name', bpy.data, 'objects', text='Source')
+        layout.prop_search(self, 'target_name', bpy.data, 'objects', text='Target')
+        layout.prop(self, 'clear_existing')
+
     def execute(self, context):
-        src_root = self.source_root
-        tgt_root = self.target_root
-        if src_root is None or tgt_root is None:
-            self.report({'ERROR'}, "source_root 和 target_root 都必须选中")
+        src_root = _resolve_mmd_root(self.source_name)
+        tgt_root = _resolve_mmd_root(self.target_name)
+        if src_root is None:
+            self.report({'ERROR'}, f"source_name {self.source_name!r} 不是 mmd_root")
+            return {'CANCELLED'}
+        if tgt_root is None:
+            self.report({'ERROR'}, f"target_name {self.target_name!r} 不是 mmd_root")
             return {'CANCELLED'}
         if src_root == tgt_root:
             self.report({'ERROR'}, "source 和 target 必须是不同的 mmd_root")
-            return {'CANCELLED'}
-        if getattr(src_root, 'mmd_type', '') != 'ROOT' or getattr(tgt_root, 'mmd_type', '') != 'ROOT':
-            self.report({'ERROR'}, "source/target 必须是 mmd_root (mmd_type == 'ROOT')")
             return {'CANCELLED'}
 
         src_model = _get_model(src_root)
