@@ -135,6 +135,34 @@
 - 路径 B (Sumner per-triangle affine) — 理论更对但实现复杂
 - 路径 D (程序化,不跨 mesh) — 本次采用
 
+## 路径 E: 半自动 Blender sculpt + MMD Tools (收藏,以后讨论)
+
+**行业标准工作流** (user 2026-04-18 提出):
+1. MMD Tools 导入 PMX
+2. 面部 mesh 加 shape key (base + target)
+3. Sculpt mode + X 对称,笔刷 Grab/Inflate/Smooth 雕刻表情
+4. 同名 shape key 传给 eyelash/brow 等分离 mesh (Cats 辅助)
+5. MMD Tools → Morph Tools → Create 转 PMX vertex_morph
+6. 导出 PMX
+
+**优点**:
+- 质量保证,artist 审美直接介入
+- 无需跨 mesh transfer,适配任意 source
+- 业界稳定工作流
+
+**缺点**:
+- **人力成本**: 19 条全手雕约 3-20 小时/模型(熟练度)
+- 不是自动化 — 核心劳动是人
+
+**和 path D 组合**:
+- Hybrid: path D 程序化做嘴系 5 条 + 眼皮类 3 条 (8 条自动),sculpt 做剩 11 条情感类
+- Operator 提供 "sculpt jump" 按钮:自动新建 shape key + 跳入 sculpt mode + X 对称 + vg 选区,artist 每条 1-2 分钟
+- 总成本: ~30 分钟/模型 (相比纯手工 5x 效率)
+
+**当前决定** (2026-04-18): user 选 **纯自动化方向**,继续 path D。sculpt 方案**收藏备用**,未来若 path D 覆盖不够再启用。
+
+---
+
 ## 路径 D: 程序化 per-mesh (当前采用)
 
 **原理**: 不做 cross-mesh transfer。直接在 source mesh 自己上,按 source 自己的 vertex group / bone 定义 morph offset。
