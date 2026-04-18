@@ -464,14 +464,37 @@ def transfer_morph_barycentric(
         (M_src[:3, :3] @ v.co + M_src[:3, 3]) for v in src_mesh.data.vertices
     ])
 
+    # Compute src vertex normals (world-space) for ray projection
+    src_mesh.data.calc_normals_split()
+    # Use vertex normals from mesh data (smoothed) — world space
+    M_src_rot = np.array(src_mesh.matrix_world.to_3x3())
+    src_normals_local = np.array([v.normal[:] for v in src_mesh.data.vertices])
+    src_normals_world = src_normals_local @ M_src_rot.T
+    # Normalize
+    _norms = np.linalg.norm(src_normals_world, axis=1, keepdims=True)
+    src_normals_world = src_normals_world / np.maximum(_norms, 1e-9)
+
     bindings = []  # (v1, v2, v3, u, v, w, orig_surface_pos, dist)
     unbound = 0
     for i, p in enumerate(src_verts_world):
-        loc, normal, tri_idx, dist = bvh.find_nearest(Vector(p))
-        if loc is None or dist is None or dist > max_bind_distance:
-            bindings.append(None)
-            unbound += 1
-            continue
+        # Shoot ray along src normal (both directions) — keep closest hit within max_bind_distance
+        n = Vector(src_normals_world[i])
+        best = None  # (dist, loc, tri_idx)
+        for sign in (+1, -1):
+            origin = Vector(p) - sign * n * 0.001  # tiny offset to avoid self-hit if mesh overlaps
+            direction = sign * n
+            hit_loc, hit_n, hit_idx, hit_dist = bvh.ray_cast(origin, direction, max_bind_distance)
+            if hit_loc is not None and (best is None or hit_dist < best[0]):
+                best = (hit_dist, hit_loc, hit_idx)
+        if best is None:
+            # Fallback to nearest (but flag)
+            loc, normal, tri_idx, dist = bvh.find_nearest(Vector(p), max_bind_distance)
+            if loc is None:
+                bindings.append(None)
+                unbound += 1
+                continue
+            best = (dist, loc, tri_idx)
+        dist, loc, tri_idx = best
         f = bm.faces[tri_idx]
         v_idx = [bmv.index for bmv in f.verts[:3]]
         a, b, c = [Vector(tpl_verts_world[k]) for k in v_idx]
