@@ -7,11 +7,11 @@
 ## TL;DR
 
 - **Goal**: Convert_to_MMD_claude 转换后 `vertex_morphs = 0`,用户要生成 19 条标准 MMD 表情 morph,**全自动,无 artist 手动**
-- **当前状态**: **Path D (程序化) 成功 18/19 条**,5 个 mesh 协同 (face + 双睫毛 + 眉毛 + 眼球)
-- **HEAD commit** (Convert_to_MMD_claude repo): `16518ae`
+- **当前状态**: **Path D (程序化) 成功 19/19 条**,5 个 mesh 协同 (face + 双睫毛 + 眉毛 + 眼球)
+- **HEAD commit** (Convert_to_MMD_claude repo): `cc3d7b6`
 - **核心代码**: `experimental/morph_transfer_poc.py`
 - **前 3 条 path (A/B/C) 全部失败**,复盘在 `doc/morph_transfer_paths_2026_04_18.md`
-- **下一步**: user 要求"表情检查观测工具"(新 P0)、operator 化(P1)、补 ん(P2)、Reika 跨模型(P3)
+- **下一步**: user 要求"表情检查观测工具"(新 P0)、operator 化(P1)、~~补 ん(P2)~~ ✅ 已完成、Reika 跨模型(P3)
 
 ---
 
@@ -48,8 +48,9 @@ mt.bake_all_for_inase(face_mesh, eyelash_meshes, eyebrow_mesh, eyeball_mesh)
 mt.set_morph_synced([face, lash1, lash2, brow, eyeball], 'あ', 1.0)
 ```
 
-**18 条 morph 覆盖**(MMD 标准 19 条里缺 ん):
+**19 条 morph 覆盖**(MMD 标准全量):
 - **嘴系 5**: あ/い/う/え/お ✅
+- **嘴闭 1**: ん ✅ (commit `cc3d7b6`, 1.5mm 挤压)
 - **嘴扩 2**: にやり / 激怒 ✅
 - **眼皮 3**: まばたき / ウィンク / ウィンク右 ✅
 - **眼扩 3**: 笑い / びっくり / じと目 ✅
@@ -310,18 +311,22 @@ C 可以直接改 session 里已有的 `OUT=/tmp/pathD_v2; for morph ...` bash l
 - 自动 detect 5 mesh(按 vg 命名)
 - 必须用 `set_morph_synced` 切换 slider
 
-### P2: 补 ん 到 19/19
+### ~~P2: 补 ん 到 19/19~~ ✅ 完成 (commit `cc3d7b6`)
 
-简单 recipe (user 说"其他弱视觉 morph" 时已接近完成 18,ん 是 close-mouth hum,嘴唇互挤 1mm)。
+初版用 handoff 给的 0.5mm 数值 (commit `9311ef5`) 实测**视觉零感知** —
+Inase mesh 上 `max=0.50mm verts>0.5mm=0`。同 eyebrow 材质淡教训,上调 ×3 到 1.5mm 可见。
 
+最终 recipe:
 ```python
 'ん': {
-    LIP_LOWER: (0, 0, +0.5),
-    LIP_UPPER: (0, 0, -0.5),
-    CORNER_L:  (-0.5, 0, 0),
-    CORNER_R:  (+0.5, 0, 0),
+    LIP_LOWER: (0, 0, +1.5),
+    LIP_UPPER: (0, 0, -1.5),
+    CORNER_L:  (-1.5, 0, 0),
+    CORNER_R:  (+1.5, 0, 0),
 },
 ```
+
+测试数据: `max=1.50mm, 472 verts moved`。视觉 subtle 但可见(嘴唇挤压变薄 + 嘴角内收)。
 
 ### P3: Reika (DAZ) 跨模型
 
