@@ -18,6 +18,8 @@ import bpy
 from bpy.props import StringProperty
 
 
+# Fallback prefix list — catches XPS face detail bones that somehow
+# aren't parented under 頭 (rare but seen in older XPS rigs).
 FACE_BONE_PREFIXES = (
     'head eyebrow',
     'head eyelid',
@@ -30,7 +32,14 @@ FACE_BONE_PREFIXES = (
 )
 
 # Head bone may or may not have been renamed to MMD at the time this runs.
-HEAD_BONE_CANDIDATES = ('頭', 'head neck upper')
+HEAD_BONE_CANDIDATES = ('頭', 'head neck upper', 'head')
+
+# Bones under 頭 we NEVER merge/delete — standard MMD rig bones and
+# physics/accessory bones the user probably wants to keep animating.
+FACE_KEEP_EXACT = {'目.L', '目.R', '両目'}
+FACE_KEEP_PREFIXES = ('ダミー', '舌', '顎')
+FACE_KEEP_SUBSTRINGS_LOWER = ('hair',)  # case-insensitive
+FACE_KEEP_SUBSTRINGS = ('耳', '飾り')    # CJK (no case folding needed)
 
 
 def _find_head_bone_name(arm):
@@ -40,9 +49,42 @@ def _find_head_bone_name(arm):
     return None
 
 
+def _should_keep_face_child(name: str) -> bool:
+    if name in FACE_KEEP_EXACT:
+        return True
+    if any(name.startswith(p) for p in FACE_KEEP_PREFIXES):
+        return True
+    lower = name.lower()
+    if any(kw in lower for kw in FACE_KEEP_SUBSTRINGS_LOWER):
+        return True
+    if any(kw in name for kw in FACE_KEEP_SUBSTRINGS):
+        return True
+    return False
+
+
+def _walk_bone_subtree(arm, head_name):
+    """Yield every descendant bone name of head_name (not including head itself)."""
+    head = arm.data.bones.get(head_name)
+    if head is None:
+        return
+    stack = list(head.children)
+    while stack:
+        b = stack.pop()
+        yield b.name
+        stack.extend(b.children)
+
+
 def _find_face_bones(arm):
-    return [b.name for b in arm.data.bones
-            if any(b.name.startswith(p) for p in FACE_BONE_PREFIXES)]
+    head_name = _find_head_bone_name(arm)
+    subtree_hits = set()
+    if head_name is not None:
+        for n in _walk_bone_subtree(arm, head_name):
+            if not _should_keep_face_child(n):
+                subtree_hits.add(n)
+    # Fallback prefix scan (for rigs where face detail isn't under 頭)
+    prefix_hits = {b.name for b in arm.data.bones
+                   if any(b.name.startswith(p) for p in FACE_BONE_PREFIXES)}
+    return sorted(subtree_hits | prefix_hits)
 
 
 def _merge_weights_to_head(mesh, face_bone_names, head_bone_name):
