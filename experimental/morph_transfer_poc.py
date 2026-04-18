@@ -1145,19 +1145,133 @@ class MORPH_OT_verify_modal(bpy.types.Operator):
         print(f"[Verify-A] {n_ok} OK, {n_issue} issue, {n_skip} skipped")
 
 
+def find_inase_meshes():
+    """Auto-detect [face, lash1, lash2, brow, eyeball] from scene by vg probes.
+    Returns list of 5 objects, or None if any slot missing.
+    """
+    face = None
+    lashes = []
+    brow = None
+    eyeball = None
+    for o in bpy.data.objects:
+        if o.type != 'MESH' or o.data.shape_keys is None:
+            continue
+        vg_names = {vg.name for vg in o.vertex_groups}
+        has_lip = 'head lip lower middle' in vg_names
+        has_eyelid = any(n.startswith('head eyelid') for n in vg_names)
+        has_brow = any(n.startswith('head eyebrow') for n in vg_names)
+        has_wink = 'まばたき' in [k.name for k in o.data.shape_keys.key_blocks]
+        if has_lip:
+            face = o
+        elif has_eyelid and not has_lip:
+            lashes.append(o)
+        elif has_brow and not has_eyelid and not has_lip:
+            brow = o
+        elif has_wink and not vg_names:
+            eyeball = o
+    if face and len(lashes) == 2 and brow and eyeball:
+        return [face, lashes[0], lashes[1], brow, eyeball]
+    return None
+
+
+class MORPH_OT_run_spec_check(bpy.types.Operator):
+    bl_idname = "morph.run_spec_check"
+    bl_label = "Run Spec Check (Tool B)"
+    bl_description = "Automated max/moved-verts check against INASE_MORPH_SPECS"
+
+    def execute(self, context):
+        meshes = find_inase_meshes()
+        if meshes is None:
+            self.report({'ERROR'}, "Inase meshes not found — bake morphs first")
+            return {'CANCELLED'}
+        results = verify_all_morphs(meshes)
+        n_pass = sum(1 for v in results.values() if v[0])
+        n_total = len(results)
+        if n_pass == n_total:
+            self.report({'INFO'}, f"{n_pass}/{n_total} pass spec")
+        else:
+            fails = [n for n, v in results.items() if not v[0]]
+            self.report({'WARNING'}, f"{n_pass}/{n_total} pass — FAIL: {', '.join(fails)}")
+        return {'FINISHED'}
+
+
+class MORPH_OT_run_batch_screenshot(bpy.types.Operator):
+    bl_idname = "morph.run_batch_screenshot"
+    bl_label = "Batch Screenshot + HTML (Tool C)"
+    bl_description = "Render every morph to /tmp/morph_verify + index.html"
+    out_dir: bpy.props.StringProperty(default='/tmp/morph_verify')  # type: ignore
+
+    def execute(self, context):
+        meshes = find_inase_meshes()
+        if meshes is None:
+            self.report({'ERROR'}, "Inase meshes not found — bake morphs first")
+            return {'CANCELLED'}
+        screenshot_all_morphs(meshes, self.out_dir)
+        generate_morph_html_report(self.out_dir)
+        self.report({'INFO'}, f"wrote {self.out_dir}/index.html")
+        return {'FINISHED'}
+
+
+class MORPH_OT_start_verify_modal(bpy.types.Operator):
+    bl_idname = "morph.start_verify_modal"
+    bl_label = "Verify Interactive (Tool A)"
+    bl_description = "Cycle every morph; hover 3D viewport and press O/X/N/ESC"
+
+    def execute(self, context):
+        meshes = find_inase_meshes()
+        if meshes is None:
+            self.report({'ERROR'}, "Inase meshes not found — bake morphs first")
+            return {'CANCELLED'}
+        global _verify_meshes_cache
+        _verify_meshes_cache = meshes
+        bpy.ops.morph.verify_modal('INVOKE_DEFAULT')
+        return {'FINISHED'}
+
+
+class MORPH_PT_verify_panel(bpy.types.Panel):
+    bl_label = "MMD Morph Verify"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'MMD Morph'
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator('morph.run_spec_check',        icon='CHECKMARK')
+        layout.operator('morph.run_batch_screenshot',  icon='RENDER_STILL')
+        layout.operator('morph.start_verify_modal',    icon='PLAY')
+        meshes = find_inase_meshes()
+        box = layout.box()
+        if meshes:
+            box.label(text=f"Face: {meshes[0].name[:22]}", icon='MESH_DATA')
+            box.label(text=f"Detected 5/5 meshes", icon='CHECKMARK')
+        else:
+            box.label(text="No Inase meshes found", icon='ERROR')
+
+
+_VERIFY_CLASSES = (
+    MORPH_OT_verify_modal,
+    MORPH_OT_run_spec_check,
+    MORPH_OT_run_batch_screenshot,
+    MORPH_OT_start_verify_modal,
+    MORPH_PT_verify_panel,
+)
+
+
 def register_verify_ops():
-    try:
-        bpy.utils.register_class(MORPH_OT_verify_modal)
-    except ValueError:
-        bpy.utils.unregister_class(MORPH_OT_verify_modal)
-        bpy.utils.register_class(MORPH_OT_verify_modal)
+    for cls in _VERIFY_CLASSES:
+        try:
+            bpy.utils.register_class(cls)
+        except ValueError:
+            bpy.utils.unregister_class(cls)
+            bpy.utils.register_class(cls)
 
 
 def unregister_verify_ops():
-    try:
-        bpy.utils.unregister_class(MORPH_OT_verify_modal)
-    except Exception:
-        pass
+    for cls in reversed(_VERIFY_CLASSES):
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception:
+            pass
 
 
 # ---------- Batch: bake + transfer all bone_morphs ----------
