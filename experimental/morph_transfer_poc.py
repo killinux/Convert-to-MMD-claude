@@ -56,7 +56,10 @@ def detect_rig():
     # XPS Inase / XNA Lara family: distinctive `head lip lower middle`
     if 'head lip lower middle' in all_vgs:
         return 'xps_inase'
-    # Future: DAZ via 'LipLowerMiddle', Mixamo via ..., VRoid via ...
+    # DAZ Genesis 8 family: distinctive `LipLowerMiddle` (no space, capitalised)
+    if 'LipLowerMiddle' in all_vgs:
+        return 'daz_g8'
+    # Future: Mixamo / VRoid / iClone / Bip_001 signatures
     return None
 
 

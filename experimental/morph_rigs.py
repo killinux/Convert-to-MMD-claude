@@ -74,7 +74,39 @@ XPS_INASE_MAP = {
 }
 
 
-# Rig registry. Future DAZ_G8_MAP / MIXAMO_MAP / VROID_MAP slot here.
+# ---------- DAZ Genesis 8 ----------
+# DAZ splits each lip into Inner+Outer (finer than XPS) and eyelid into
+# Upper/Lower × Inner/Outer/base. Slots map to the full set; weights sum
+# and clamp to 1.0 so overlapping subgroups produce full-coverage blend.
+DAZ_G8_MAP = {
+    'lip.upper.L': ['lLipUpperInner', 'lLipUpperOuter'],
+    'lip.upper.M': ['LipUpperMiddle'],
+    'lip.upper.R': ['rLipUpperInner', 'rLipUpperOuter'],
+    'lip.lower.L': ['lLipLowerInner', 'lLipLowerOuter'],
+    'lip.lower.M': ['LipLowerMiddle'],
+    'lip.lower.R': ['rLipLowerInner', 'rLipLowerOuter'],
+    'lip.corner.L': ['lLipCorner'],
+    'lip.corner.R': ['rLipCorner'],
+    'eyelid.upper.L': ['lEyelidUpper', 'lEyelidUpperInner', 'lEyelidUpperOuter'],
+    'eyelid.upper.R': ['rEyelidUpper', 'rEyelidUpperInner', 'rEyelidUpperOuter'],
+    'eyelid.lower.L': ['lEyelidLower', 'lEyelidLowerInner', 'lEyelidLowerOuter'],
+    'eyelid.lower.R': ['rEyelidLower', 'rEyelidLowerInner', 'rEyelidLowerOuter'],
+    'brow.inner.L': ['lBrowInner'],
+    'brow.mid.L':   ['lBrowMid'],
+    'brow.outer.L': ['lBrowOuter'],
+    'brow.inner.R': ['rBrowInner'],
+    'brow.mid.R':   ['rBrowMid'],
+    'brow.outer.R': ['rBrowOuter'],
+    'jaw': ['lowerJaw'],
+    'cheek.L': ['lCheekUpper', 'lCheekLower'],
+    'cheek.R': ['rCheekUpper', 'rCheekLower'],
+    '_eye_bone_vgs': ['lEye', 'rEye', '目.L', '目.R'],
+}
+
+
+# Rig registry. Add new rig: put map above + register here + add signature
+# to detect_rig() in morph_transfer_poc.py.
 RIG_MAPS = {
     'xps_inase': XPS_INASE_MAP,
+    'daz_g8':    DAZ_G8_MAP,
 }
