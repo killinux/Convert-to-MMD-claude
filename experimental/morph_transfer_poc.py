@@ -299,6 +299,127 @@ def read_landmarks(prefix):
     return pts
 
 
+# ---------- Path C: Surface Deform based transfer ----------
+
+def align_template_to_source(tpl_root, tpl_lms, src_lms, use_first_n=5):
+    """Apply uniform scale + translation to tpl_root so its first-N landmarks
+    best-fit the source's first-N landmarks. Uses eye+nose (not mouth/chin which
+    vary more across anatomies).
+
+    tpl_root: the mmd root empty parent of template mesh/armature.
+    tpl_lms, src_lms: LANDMARK_NAMES ordered lists of world coords.
+    """
+    t = np.asarray(tpl_lms[:use_first_n])
+    s = np.asarray(src_lms[:use_first_n])
+    tc = t.mean(0)
+    sc = s.mean(0)
+    t_spread = np.linalg.norm(t - tc, axis=1).mean()
+    s_spread = np.linalg.norm(s - sc, axis=1).mean()
+    scale = s_spread / t_spread
+    # world: tpl_w -> (tpl_w - tc) * scale + sc
+    # tpl_root scale + location combined with mesh local coords to produce world.
+    # Simpler: reset root to world-scale-and-translate.
+    # But root may have existing transform; easier to set it directly.
+    from mathutils import Matrix
+    M_align = (
+        Matrix.Translation(sc)
+        @ Matrix.Diagonal((scale, scale, scale, 1.0))
+        @ Matrix.Translation(-tc)
+    )
+    # Current world matrix of root
+    M_current = tpl_root.matrix_world.copy()
+    # We want: new_world = M_align @ M_current
+    tpl_root.matrix_world = M_align @ M_current
+    bpy.context.view_layer.update()
+    print(f"[align] scale={scale:.3f}  translation=({sc[0]-scale*tc[0]:+.3f},{sc[1]-scale*tc[1]:+.3f},{sc[2]-scale*tc[2]:+.3f})")
+    return scale
+
+
+def transfer_morph_surface_deform(
+    tpl_mesh, morph_name,
+    src_mesh,
+    vertex_group=None,
+):
+    """Transfer one shape key from tpl_mesh to src_mesh via Surface Deform.
+
+    Assumes tpl_mesh and src_mesh are already spatially aligned
+    (use align_template_to_source() first).
+
+    Returns src shape key, or None on bind failure.
+    """
+    # Ensure both neutral for binding
+    if tpl_mesh.data.shape_keys:
+        for k in tpl_mesh.data.shape_keys.key_blocks:
+            if k.name != 'Basis':
+                k.value = 0.0
+    if src_mesh.data.shape_keys:
+        for k in src_mesh.data.shape_keys.key_blocks:
+            if k.name != 'Basis':
+                k.value = 0.0
+    bpy.context.view_layer.update()
+
+    # Ensure src has Basis shape key
+    if src_mesh.data.shape_keys is None:
+        src_mesh.shape_key_add(name='Basis', from_mix=False)
+
+    # Remove any stale SD modifier
+    for m in list(src_mesh.modifiers):
+        if m.name == '_morph_sd':
+            src_mesh.modifiers.remove(m)
+
+    # Add Surface Deform modifier
+    sd = src_mesh.modifiers.new(name='_morph_sd', type='SURFACE_DEFORM')
+    sd.target = tpl_mesh
+    if vertex_group:
+        sd.vertex_group = vertex_group
+    # Put SD above armature in stack so armature doesn't mask it
+    # (Blender evaluates modifiers top-down; armature deformation should be preserved)
+    while src_mesh.modifiers[0] != sd:
+        bpy.ops.object.modifier_move_up({'object': src_mesh}, modifier='_morph_sd')
+
+    # Bind — requires src_mesh as active
+    bpy.context.view_layer.objects.active = src_mesh
+    src_mesh.select_set(True)
+    bpy.ops.object.surfacedeform_bind(modifier='_morph_sd')
+
+    if not sd.is_bound:
+        print(f"[SD] bind FAILED for morph '{morph_name}'")
+        src_mesh.modifiers.remove(sd)
+        return None
+    print(f"[SD] bound: tpl={tpl_mesh.name} → src={src_mesh.name}")
+
+    # Record rest positions after bind
+    rest = np.array([v.co[:] for v in src_mesh.data.vertices])
+
+    # Activate morph on tpl
+    tpl_mesh.data.shape_keys.key_blocks[morph_name].value = 1.0
+    bpy.context.view_layer.update()
+
+    # Read evaluated src mesh (SD applied)
+    dep = bpy.context.evaluated_depsgraph_get()
+    em = src_mesh.evaluated_get(dep).data
+    deformed = np.array([v.co[:] for v in em.vertices])
+
+    offset = deformed - rest
+    mag = np.linalg.norm(offset, axis=1)
+    print(f"[SD] '{morph_name}': max={mag.max()*1000:.2f}mm, verts>0.5mm={int((mag>0.0005).sum())}")
+
+    # Write shape key on src (in local coords — rest is already local)
+    kbs = src_mesh.data.shape_keys.key_blocks
+    if morph_name in kbs:
+        src_mesh.shape_key_remove(kbs[morph_name])
+    sk = src_mesh.shape_key_add(name=morph_name, from_mix=False)
+    for i, d in enumerate(deformed):
+        sk.data[i].co = Vector(d)
+
+    # Reset tpl slider + remove SD modifier
+    tpl_mesh.data.shape_keys.key_blocks[morph_name].value = 0.0
+    bpy.context.view_layer.update()
+    src_mesh.modifiers.remove(sd)
+
+    return sk
+
+
 # ---------- Batch: bake + transfer all bone_morphs ----------
 
 def bake_and_transfer_all(
