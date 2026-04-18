@@ -63,6 +63,18 @@
 
 ## P3 — 表情 / morph
 
+- **面部表情检查/观测工具 (2026-04-18 新, 必做)**:
+  - 需求: user 能一条一条过每个 morph 判断视觉 OK;Claude 能 programmatic 快速验证
+  - 三种工具,按难度升序实施:
+    - **C (batch screenshot report)**: 批量截每个 morph 1.0 状态,输出 HTML 或图片 grid,人工扫一遍。最快上手,~50 行 bash/python
+    - **B (auto data check)**: `verify_morph_data(mesh, name, expected_spec)` 检查 max_mm/moved_verts/region_distribution 是否符合 spec,不用人眼,CI-friendly
+    - **A (UI modal operator)**: Blender addon 按钮,循环 slider=1.0 + 弹窗 [OK/有问题],用户点按记录结果
+  - 关键实现点:
+    - 必须用 `set_morph_synced` 切换 slider (见 `experimental/morph_transfer_poc.py`)
+    - 固定 view_location + view_distance + ortho 保证截图可对比
+    - 为每条 morph 准备 expected spec (嘴/眼/眉不同 region check)
+  - 参考: `doc/morph_session_handoff_2026_04_18.md` "P0 面部表情检查工具" 章节
+
 - **路径 D operator 化 (进行中, 2026-04-18)**:
   - 已实现: `experimental/morph_transfer_poc.py` 
     - `bake_programmatic_morph(src_mesh, morph_name, recipe)`  
