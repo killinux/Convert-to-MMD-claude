@@ -2,7 +2,7 @@ print("[Convert-to-MMD] ====== Module loading ======")
 
 bl_info = {
     "name": "Convert to MMD",
-    "author": "haha(hehe)",
+    "author": "killinux",
     "version": (2, 2),
     "blender": (3, 0, 0),
     "location": "View3D > Sidebar",

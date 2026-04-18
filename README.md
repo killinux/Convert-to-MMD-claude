@@ -140,4 +140,7 @@ doc/
 
 ## License
 
-随仓库。
+MIT License © 2024-2026 killinux — 详见 [LICENSE](LICENSE)。
+
+允许任意使用、修改、分发,商用/闭源都可以,**唯一要求**: 分发时保留原版权声明
+(`Copyright (c) 2024-2026 killinux`) + 许可证文本。
