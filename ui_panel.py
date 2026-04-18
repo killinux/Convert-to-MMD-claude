@@ -352,9 +352,11 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             morph_box = layout.box()
             morph_box.label(text="表情 Morph", icon='SHAPEKEY_DATA')
             morph_box.operator("object.synth_vertex_morphs",
-                               text="合成 19 条标准 MMD morph (Path D)",
+                               text="合成 morph (一键转换已自动包含, 此为单独重跑)",
                                icon='SHAPEKEY_DATA')
-            morph_box.label(text="然后: N面板 → MMD → Morph Tools 查看/编辑",
+            morph_box.label(text="⚠ 需在 option1 step 6 清理面部细骨 之前运行",
+                            icon='ERROR')
+            morph_box.label(text="查看/编辑: N 面板 → MMD → Morph Tools",
                             icon='INFO')
 
             # 表情验证 (Tools A/B/C)
