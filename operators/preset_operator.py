@@ -448,6 +448,11 @@ class OBJECT_OT_one_click_convert(bpy.types.Operator):
         description="先跑对齐手臂/手指/修正前腕 (rest pose 烘焙)",
         default=True,
     )
+    stop_at_morph: bpy.props.BoolProperty(
+        name="停在 step 6 (验证 morph 用)",
+        description="跑到 step 6 合成 morph 就停, 便于用 option2 的 Spec/批量截图/交互验证工具检查 19 条 morph. 验证 OK 后再手动继续 step 7-12",
+        default=False,
+    )
 
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self, width=320)
@@ -475,13 +480,16 @@ class OBJECT_OT_one_click_convert(bpy.types.Operator):
             # reads head lip*/eyelid*/eyebrow* vgs which step-6 destroys.
             # CANCEL is OK for models without those vgs (e.g., DAZ).
             ('synth_vertex_morphs', False),
-            ('cleanup_face_bones', False),  # may CANCEL for DAZ (no XPS face bones)
-            ('assign_weights', True),
-            ('add_mmd_ik', True),
-            ('create_bone_group', True),
-            ('setup_pmx_attributes', True),
-            ('use_mmd_tools_convert', True),
         ]
+        if not self.stop_at_morph:
+            pipeline += [
+                ('cleanup_face_bones', False),  # may CANCEL for DAZ (no XPS face bones)
+                ('assign_weights', True),
+                ('add_mmd_ik', True),
+                ('create_bone_group', True),
+                ('setup_pmx_attributes', True),
+                ('use_mmd_tools_convert', True),
+            ]
 
         for step_name, required in pipeline:
             op = getattr(bpy.ops.object, step_name, None)
@@ -504,5 +512,8 @@ class OBJECT_OT_one_click_convert(bpy.types.Operator):
                     return {'CANCELLED'}
                 print(f'[CTMMD one-click] {step_name}: {ret} (可选, 继续)')
 
-        self.report({'INFO'}, "一键转换完成 (step 1→12)")
+        if self.stop_at_morph:
+            self.report({'INFO'}, "部分一键完成 (step 1→6). 去 option2 验证 morph, OK 后手动跑 step 7-12")
+        else:
+            self.report({'INFO'}, "一键转换完成 (step 1→12)")
         return {'FINISHED'}
