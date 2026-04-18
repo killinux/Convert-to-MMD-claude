@@ -631,30 +631,30 @@ INASE_RECIPES = {
         CORNER_BOTH: (0,  0, -2),
         LIP_UPPER:   (0,  0, +0.5),
     },
-    'い': {  # mouth flat-wide, corners pulled outward
-        CORNER_L:    (+4, 0, 0),
-        CORNER_R:    (-4, 0, 0),
-        LIP_LOWER:   (0,  0, +0.5),
-        LIP_UPPER:   (0,  0, -0.5),
+    'い': {  # flat wide, corners strongly outward + tight pressed
+        CORNER_L:    (+8, 0, 0),
+        CORNER_R:    (-8, 0, 0),
+        LIP_LOWER:   (0,  0, +1),
+        LIP_UPPER:   (0,  0, -1),
     },
-    'う': {  # mouth small round, corners inward+forward
-        CORNER_L:    (-2, -2, 0),
-        CORNER_R:    (+2, -2, 0),
-        LIP_LOWER:   (0, -1.5, 0),
-        LIP_UPPER:   (0, -1.5, 0),
+    'う': {  # small round, corners inward, lips forward
+        CORNER_L:    (-5, -3, 0),
+        CORNER_R:    (+5, -3, 0),
+        LIP_LOWER:   (0, -4, 0),
+        LIP_UPPER:   (0, -4, 0),
     },
-    'え': {  # mouth half-open wide
-        CORNER_L:    (+2, 0, -0.5),
-        CORNER_R:    (-2, 0, -0.5),
+    'え': {  # half-open wide (jaw + corners out)
+        CORNER_L:    (+4, 0, -1),
+        CORNER_R:    (-4, 0, -1),
         LIP_LOWER:   (0,  1, -3),
-        JAW:         (0,  0.5, -1.5),
+        JAW:         (0,  0.5, -2.5),
     },
-    'お': {  # mouth round open (like 'あ' but rounded)
-        LIP_LOWER:   (0, -2, -3),
-        LIP_UPPER:   (0, -2, +1),
-        CORNER_L:    (-1, -1.5, -1.5),
-        CORNER_R:    (+1, -1.5, -1.5),
-        JAW:         (0,  0.5, -2),
+    'お': {  # round open (forward + down, corners in)
+        LIP_LOWER:   (0, -4, -3),
+        LIP_UPPER:   (0, -4, +1),
+        CORNER_L:    (-3, -2.5, -1.5),
+        CORNER_R:    (+3, -2.5, -1.5),
+        JAW:         (0,  0.5, -3),
     },
 }
 
