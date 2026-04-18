@@ -415,6 +415,22 @@ class OBJECT_OT_use_mmd_tools_convert(bpy.types.Operator):
         except Exception as e:
             print(f"[CTMMD 12] apply_additional_transform 失败: {e}")
 
+        # Categorise the 19 synthesised vertex morphs so they show up in
+        # Mouth/Eye/Eyebrow panels instead of Other.
+        try:
+            from ..experimental.morph_transfer_poc import apply_morph_categories
+            mmd_root_obj = obj.parent if (obj.parent and obj.parent.mmd_type == 'ROOT') else None
+            if mmd_root_obj is None:
+                for o in bpy.data.objects:
+                    if o.mmd_type == 'ROOT' and obj in o.children_recursive:
+                        mmd_root_obj = o
+                        break
+            if mmd_root_obj is not None:
+                n = apply_morph_categories(mmd_root_obj)
+                print(f"[CTMMD 12] Categorised {n} vertex morphs (Mouth/Eye/Eyebrow)")
+        except Exception as e:
+            print(f"[CTMMD 12] apply_morph_categories 失败: {e}")
+
         # 恢复原始选择状态
         context.view_layer.objects.active = obj
         obj.select_set(True)

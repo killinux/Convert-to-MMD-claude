@@ -285,6 +285,33 @@ EYELID_MORPH_NAMES  = ('まばたき', 'ウィンク', 'ウィンク右', '笑�
 BROW_MORPH_NAMES    = ('困る', '怒り', '真面目', '上', '下')
 
 
+def apply_morph_categories(mmd_root_obj):
+    """Set mmd_root.vertex_morphs[*].category based on canonical MMD grouping.
+
+    mmd_tools convert_to_mmd_model creates vertex_morphs with category=OTHER.
+    PMX viewers organise morph sliders by category; without this fix the
+    19 synthesised morphs all land in 'Other' and are awkward to scrub.
+    """
+    try:
+        vms = mmd_root_obj.mmd_root.vertex_morphs
+    except AttributeError:
+        return 0
+    changed = 0
+    for m in vms:
+        if m.name in MOUTH_MORPH_NAMES:
+            cat = 'MOUTH'
+        elif m.name in EYELID_MORPH_NAMES:
+            cat = 'EYE'
+        elif m.name in BROW_MORPH_NAMES:
+            cat = 'EYEBROW'
+        else:
+            continue
+        if m.category != cat:
+            m.category = cat
+            changed += 1
+    return changed
+
+
 def set_morph_synced(meshes, morph_name, value=1.0):
     """Reset all non-basis sliders on every listed mesh, then set `morph_name`
     slider to `value` on every mesh that has it. Prevents cross-mesh
