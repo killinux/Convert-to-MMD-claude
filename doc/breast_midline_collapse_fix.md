@@ -223,7 +223,33 @@ collide, 但 胸体 ↔ 其他 body rigid 不 collide 避免自撞)。
 **风险:** collision group 配错会导致 body 其他物理全错。
 **状态:** ⬜ 未实施。是最"正确"但工作量最大的方案。
 
-### ⚠️ 尝试失败记录: 一次性手写 preset 加 anchor+胸体 (2026-04-19, commit `643c3ba` → reverted `02f5d6c`)
+### ⚠️ 尝试失败记录 2: B 方案 (mass=0.999/damp=0.05/mode=2) (2026-04-19, runtime only, 未 commit)
+
+**尝试:** 把 breast rigid 改成 N 式紧弹参数 — mass=0.999, linear/angular damping=0.05,
+`mmd_rigid.type='2'` (物理+骨骼位置对齐)。理论上 mode=2 应让 rigid 位置严格跟
+bone 走, 物理只影响 rotation。
+
+**实测结果** (Inase + baseline 参数 vs B 参数对比):
+| VMD | 参数 | max L-R gap | max/rest |
+|---|---|---|---|
+| 八方来才 | baseline (mass=1/damp=0.5/mode=1) | 26.10cm | 2.00x |
+| 八方来才 | B (mass=0.999/damp=0.05/mode=2) | 22.76cm | 1.74x |
+| 摇香 | B | 23.80cm | 1.82x |
+
+数字改善 13% (2.00x → 1.74x), 但**视觉上** peak 帧 (摇香 frame 86 低头弯腰) 仍能
+看到明显中线 V 字, bikini 内边缘裸露。用户评价"完全不可用"。
+
+**失败原因:** Blender Bullet 物理引擎对 `mmd_rigid.type='2'` 没严格 kinematic
+binding 的 enforcement — linear 的 "0-0" limit 仍有 drift, rigid 位置仍脱离
+bone。mode=2 的承诺没兑现。
+
+**教训:** 光调 rigid 参数 (mass/damp/mode) 无法解决中线塌陷, 必须**结构性改动**:
+- A2 真 N 式 (加 bone + 重分 weight) — 次优, 重
+- D2 runtime anchor op — 避免手写 preset, 待尝试
+
+---
+
+### ⚠️ 尝试失败记录 1: 一次性手写 preset 加 anchor+胸体 (2026-04-19, commit `643c3ba` → reverted `02f5d6c`)
 
 **尝试:** 直接在 `mmd_standard_inase.json` 里加 乳中央 idx=35 + 胸体 idx=36 +
 把 breast joint 的 `rigid_a_idx` 从 19 (上半身2) 改成 35 (乳中央), 打算一次
