@@ -1126,20 +1126,30 @@ def _bone_weighted_vert_count(bone_name, meshes):
     return n
 
 
-def _detect_dynamic_chains(dst_root, arm, *, min_chain_length=2):
+# Default anchor bones Tier 3 walks from. 頭 (hair) is the overwhelmingly
+# common case. Skirt (下半身) / sleeves (手首) / tails (下半身) can be opted
+# in via the operator's `anchor_bones` arg.
+DEFAULT_AUTO_ANCHORS = frozenset(['頭'])
+
+
+def _detect_dynamic_chains(dst_root, arm, *, min_chain_length=2,
+                             anchor_bones=None):
     """Walk armature, find bone subtrees that qualify as dynamic chains:
 
       1) root bone NOT in CANONICAL_BODY_BONES (includes MMD standard
          body + finger bones, both half-width and full-width digits)
       2) root name not `_dummy_*` / `_shadow_*` (mmd_tools internal helpers)
-      3) parent IS in CANONICAL_BODY_BONES (anchored on body)
+      3) parent IN `anchor_bones` (default {'頭'}, user-expandable to include
+         下半身 for skirts / 手首 for sleeves / etc.)
       4) subtree size >= min_chain_length (default 2 — filters single-leaf
-         bones like DAZ genitals that happen to parent on 下半身)
+         bones like DAZ anatomical helpers / toe splits)
 
     Returns list of dicts:
       { 'root': Bone, 'chain': [Bone, ...] (all bones in subtree),
         'parent_body_bone': str, 'depth_by_name': {name: int} }
     """
+    if anchor_bones is None:
+        anchor_bones = DEFAULT_AUTO_ANCHORS
     chains = []
     for b in arm.data.bones:
         if b.name in CANONICAL_BODY_BONES:
@@ -1147,7 +1157,7 @@ def _detect_dynamic_chains(dst_root, arm, *, min_chain_length=2):
         if _is_internal_helper_bone(b.name):
             continue
         parent = b.parent
-        if parent is None or parent.name not in CANONICAL_BODY_BONES:
+        if parent is None or parent.name not in anchor_bones:
             continue
 
         # BFS collect subtree, skipping any descendant that lands back on a
@@ -1185,6 +1195,7 @@ def _is_hair_chain(chain_entry):
 
 
 def auto_generate_chain_physics(dst_root, *,
+                                 anchor_bones=None,
                                  radius_ratio=0.15,
                                  root_angle_deg=10.0,
                                  leaf_angle_deg=30.0,
@@ -1230,8 +1241,9 @@ def auto_generate_chain_physics(dst_root, *,
         except Exception:
             pass
 
-    chains = _detect_dynamic_chains(dst_root, dst_arm)
-    print(f"[CTMMD auto-chain] detected {len(chains)} dynamic chain(s)")
+    chains = _detect_dynamic_chains(dst_root, dst_arm, anchor_bones=anchor_bones)
+    print(f"[CTMMD auto-chain] detected {len(chains)} dynamic chain(s) "
+          f"from anchors {sorted(anchor_bones or DEFAULT_AUTO_ANCHORS)}")
 
     total_rigids = 0
     total_joints = 0
@@ -1359,6 +1371,12 @@ class OBJECT_OT_auto_chain_physics(bpy.types.Operator):
                       "可在 Tier 1 克隆 / Tier 2 模板之后追加, 已存在的 rigid 会跳过.")
     bl_options = {'REGISTER', 'UNDO'}
 
+    anchor_bones: StringProperty(
+        name="锚点骨 (逗号分隔)",
+        description="只处理 parent 在此列表里的链 (默认 '頭' = 只生成发型物理; "
+                    "可加 '下半身,手首.L,手首.R' 覆盖裙摆/袖口)",
+        default='頭',
+    )  # type: ignore
     radius_ratio: bpy.props.FloatProperty(
         name="半径/骨长比",
         description="CAPSULE/SPHERE 半径 = 骨长 × 该比例 (PMXEditor 经验值 0.1-0.2)",
@@ -1400,9 +1418,13 @@ class OBJECT_OT_auto_chain_physics(bpy.types.Operator):
         if root is None:
             self.report({'ERROR'}, "active 不在任何 mmd_root 下")
             return {'CANCELLED'}
+        anchors = frozenset(n.strip() for n in self.anchor_bones.split(',') if n.strip())
+        if not anchors:
+            anchors = DEFAULT_AUTO_ANCHORS
         try:
             n_r, n_j, n_c = auto_generate_chain_physics(
                 root,
+                anchor_bones=anchors,
                 radius_ratio=self.radius_ratio,
                 root_angle_deg=self.root_angle_deg,
                 leaf_angle_deg=self.leaf_angle_deg,
