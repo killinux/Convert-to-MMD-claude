@@ -186,7 +186,15 @@ Reika 场景 (HEAD `891f81a`):
 
 - [x] 原理调研完成 (本文档)
 - [x] HEAD `891f81a`: per-bone mesh pick + strand 过滤 + log 阈值 2mm
-- [ ] Tier 1: `clone_physics_from_pmx` 实现
-- [ ] Tier 1: Reika 实测 (应拿到 83 rigids)
-- [ ] Tier 3: `auto_chain_physics` 实现
-- [ ] Tier 3: Reika 模拟无 target 实测
+- [x] HEAD `ff20cf9`: Tier 1 `clone_physics_from_pmx` 实现
+- [x] Tier 1 Reika 实测通过: **79/83 rigids, 60/64 joints** 克隆 (skipped 4 是 target 里的 legacy `Bone.L/R`)
+- [x] HEAD `ec835f5`: Tier 3 `auto_chain_physics` 实现
+- [x] HEAD `c700515`: Tier 3 detection 修正 (skip `_shadow_`/`_dummy_`, 扩展 canonical list, 全宽数字 fingers)
+- [x] HEAD `0115fb9`: Tier 3 加 `anchor_bones` 白名单 (默认 `頭` 只做发型)
+- [x] Tier 3 Reika 实测通过: Tier 2 (21) + Tier 3 (58 hair) = **79 rigids, 60 joints**, 接近 target 83/64
+
+## 尚未做
+
+- VMD 播放测试 Tier 3 发型动画 (Tier 1 已隐式验证, Tier 3 参数是经验默认值, 需实际动画确认效果)
+- 裙摆/袖口 anchor 扩展实测 (需要有裙摆骨的 XPS 模型)
+- 其他 XPS 模型验证 (Mixamo / VRoid 等)
