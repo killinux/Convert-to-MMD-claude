@@ -1056,10 +1056,17 @@ def _create_missing_target_bones(dst_arm, model, scale=0.08):
         emit(bidx)
 
     # Edit-mode add. Save & restore active + mode so callers aren't
-    # surprised.
+    # surprised. mode_set.poll() requires an active, selected object in
+    # the current view_layer, so explicitly select the armature first.
     import bpy
     prev_active = bpy.context.view_layer.objects.active
     prev_mode = bpy.context.mode
+    prev_hide = dst_arm.hide_viewport
+    dst_arm.hide_viewport = False
+    prev_selected = [o for o in bpy.context.view_layer.objects if o.select_get()]
+    for o in bpy.context.view_layer.objects:
+        o.select_set(False)
+    dst_arm.select_set(True)
     bpy.context.view_layer.objects.active = dst_arm
     bpy.ops.object.mode_set(mode='EDIT')
     try:
@@ -1097,6 +1104,15 @@ def _create_missing_target_bones(dst_arm, model, scale=0.08):
             added.append((name, name))
     finally:
         bpy.ops.object.mode_set(mode='OBJECT')
+        dst_arm.hide_viewport = prev_hide
+        # Restore selection and active object
+        for o in bpy.context.view_layer.objects:
+            o.select_set(False)
+        for o in prev_selected:
+            try:
+                o.select_set(True)
+            except Exception:
+                pass
         if prev_active is not None:
             bpy.context.view_layer.objects.active = prev_active
 
