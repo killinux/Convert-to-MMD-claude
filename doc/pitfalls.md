@@ -164,6 +164,36 @@ Path D (程序化合成,现在的 ④ 按钮) **完全不走这条路** — 不�
   3. "Stop" 按钮按下时设 `autostart=False`,尊重用户显式断连,watchdog 不乱插手
 - **部署**: Mac `/Users/bytedance/work/mytest/blender-mcp` git pull,然后 `cp addon.py ~/Library/Application Support/Blender/3.6/scripts/addons/addon.py`,重启 addon
 
+## 导出 PMX: 骨被分到 'other' group → 用户以为"骨没了"
+
+- **方案名**: `bone_map_and_group.py` 里 `mmd_bone_group` 清单遗漏新加骨 (2026-04-19, fix `c4fcd44`)
+- **原理**: step 10 `create_bone_group` 按 `mmd_bone_group` 预设清单分 group, 清单外的骨全部塞入 `other` (其他)
+- **失败表现**:
+  - 导出 PMX 后, 用户在 PMXEditor "骨" 选项卡里**看不到 乳奶/首1 等骨**, 报 "导出后没有胸部骨骼"
+  - 实际 PMX 文件里骨 + rigid + mesh 权重都完整 (用 `mmd_tools.core.pmx.load()` 直接 parse 能看到)
+- **根因**:
+  1. `mmd_bone_group` 是手维护的清单, 遗漏后不会报错 (orphan 骨默默归入 'other')
+  2. PMXEditor "骨" tab 按 group 顺序渲染, 'other' 排末尾且默认折叠/不显眼, 容易误判"骨没了"
+  3. 这个坑已经踩过不止一次 — `乳奶.L/R` 是 XPS rename 后才出现的骨, `首1` 是 step 2 补全骨, 它们都比 `mmd_bone_group` 写定时晚, 自然没被列入
+- **检查方法**:
+  ```python
+  # parse PMX file → 找目标骨 → 看在哪个 display group
+  import mmd_tools.core.pmx as pmx_mod
+  m = pmx_mod.load('/path/to.pmx')
+  for i, b in enumerate(m.bones):
+      if 'X' in b.name: print(i, b.name)  # 找索引
+  for gi, d in enumerate(m.display):
+      for t, idx in d.data:
+          if t == 0 and idx == TARGET_IDX:
+              print(f'  in group {gi} ({d.name})')
+  ```
+- **替代/修法**:
+  - 短期: 把新骨加到 `mmd_bone_group` 对应 group (乳奶 → "体(上)", 首1 → "体(上)")
+  - 长期: 加个 sanity check — convert 完成后扫 'other' group, 对**已知应有 group 的骨** (canonical body 系) 报 warning
+- **同类骨需注意**: 任何 step 1-5 创建/rename 出的新骨, 都要回头看 `mmd_bone_group` 是否覆盖。下次新增 canonical 骨 → 同步加到这份清单
+
+---
+
 ## 怎么维护这份文档
 
 - 每次发现新的"做错了"的方案(无论是算法、UI、API 用法),**当场追加到这里**
