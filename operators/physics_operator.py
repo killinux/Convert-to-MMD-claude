@@ -787,9 +787,14 @@ class OBJECT_OT_apply_breast_physics(bpy.types.Operator):
 
 def _pmx_rigid_to_entry(rigid, model, scale):
     """Convert a mmd_tools `pmx.Rigid` to the JSON entry shape that
-    `apply_physics()` already consumes. Coordinate/size conversion mirrors
-    `mmd_tools.core.pmx.importer.PMXImporter.__importRigids` so the output
-    lands in Blender space exactly as mmd_tools would import it.
+    `_apply_cloned_physics()` consumes. Coordinate/size conversion mirrors
+    `mmd_tools.core.pmx.importer.PMXImporter.__importRigids`.
+
+    Stores the rigid in **bone-local** translation (rigid_world_loc -
+    target_bone_world_loc) so apply can re-anchor onto a dst bone whose
+    rest-pose head sits at a different world position. Rotation is kept
+    in world space (PMX bone rest pose has no easily-recoverable rotation
+    matrix; for our XPS→PMX use case both models share Y-up so this is fine).
     """
     bone_idx = rigid.bone
     if bone_idx is None or bone_idx < 0 or bone_idx >= len(model.bones):
@@ -807,15 +812,10 @@ def _pmx_rigid_to_entry(rigid, model, scale):
 
     shape_name = ('SPHERE', 'BOX', 'CAPSULE')[rigid.type]
 
-    # Assemble a matrix we can later compose as db_bone_mat @ local_matrix.
-    # But apply_physics expects local_matrix in dst-arm-bone space, and here
-    # we're working from raw PMX world coords. Simplest: build a world matrix
-    # and have clone_physics_from_pmx call apply_physics_world instead (new
-    # helper below that skips local_matrix re-composition).
-    from mathutils import Euler
-    rigid_world_mat = Matrix.Translation(loc) @ Euler(rot, 'YXZ').to_matrix().to_4x4()
+    # Target bone's world-space head (PMX bone.location is world coord)
+    target_bone_world_loc = Vector(model.bones[bone_idx].location).xzy * scale
+    rigid_local_loc = loc - target_bone_world_loc
 
-    sbl = 1.0  # bone length: unused by clone path (we keep target size verbatim)
     return {
         'name_j': rigid.name,
         'name_e': getattr(rigid, 'name_e', None) or '',
@@ -824,7 +824,9 @@ def _pmx_rigid_to_entry(rigid, model, scale):
         'shape': shape_name,
         'type': rigid.mode,  # 0/1/2 STATIC/DYNAMIC/DYNAMIC_BONE
         'size': list(size),
-        'world_matrix': [list(row) for row in rigid_world_mat],
+        'rigid_local_loc': list(rigid_local_loc),
+        'rigid_world_rot': list(rot),  # YXZ euler in world
+        'target_bone_world_loc': list(target_bone_world_loc),  # for joint delta lookup
         'collision_group_number': rigid.collision_group_number,
         'collision_group_mask': [rigid.collision_group_mask & (1 << i) == 0 for i in range(16)],
         'friction': rigid.friction,
@@ -835,10 +837,14 @@ def _pmx_rigid_to_entry(rigid, model, scale):
     }
 
 
-def _pmx_joint_to_entry(joint, pmx_idx_to_entry_idx, scale):
+def _pmx_joint_to_entry(joint, pmx_idx_to_entry_idx, entries, scale):
     """Convert `pmx.Joint` → JSON joint entry. Mirrors `__importJoints`
     coordinate swaps. `pmx_idx_to_entry_idx` maps original PMX rigid index
     to the index into our entries list (skipping None entries).
+
+    Stores joint position **relative to rigid_a** (translation only). On
+    apply, re-anchored as `new_rigid_a_world_loc + joint_local_to_a`, so the
+    joint follows whatever bone-shift correction we applied to rigid_a.
     """
     ai = pmx_idx_to_entry_idx.get(joint.src_rigid)
     bi = pmx_idx_to_entry_idx.get(joint.dest_rigid)
@@ -853,14 +859,21 @@ def _pmx_joint_to_entry(joint, pmx_idx_to_entry_idx, scale):
     #   minimum_rotation = Vector(joint.maximum_rotation).xzy * -1
     max_rot = Vector(joint.minimum_rotation).xzy * -1
     min_rot = Vector(joint.maximum_rotation).xzy * -1
-    from mathutils import Euler
-    joint_world_mat = Matrix.Translation(loc) @ Euler(rot, 'YXZ').to_matrix().to_4x4()
+
+    # Joint position relative to rigid_a's world location.
+    # Reconstruct rigid_a's world position from entry (target_bone_loc + local_loc).
+    a_entry = entries[ai]
+    a_world_loc = (Vector(a_entry['target_bone_world_loc'])
+                   + Vector(a_entry['rigid_local_loc']))
+    joint_local_to_a = loc - a_world_loc
+
     return {
         'name_j': joint.name,
         'name_e': getattr(joint, 'name_e', None) or '',
         'rigid_a_idx': ai,
         'rigid_b_idx': bi,
-        'world_matrix': [list(row) for row in joint_world_mat],
+        'joint_local_to_a': list(joint_local_to_a),
+        'joint_world_rot': list(rot),  # YXZ euler in world
         'maximum_location': list(max_loc),
         'minimum_location': list(min_loc),
         'maximum_rotation': list(max_rot),
@@ -871,18 +884,24 @@ def _pmx_joint_to_entry(joint, pmx_idx_to_entry_idx, scale):
 
 
 def _apply_cloned_physics(dst_root, data, *, fit_to_mesh=True, fit_pad=1.10):
-    """Apply cloned PMX data (world-space matrices, no src bone rest pose
-    reference). Similar to apply_physics() but skips global_scale and uses
-    world_matrix directly since target PMX and converted model share the
-    same coordinate space (assuming both at scale 0.08).
+    """Apply cloned PMX data, re-anchoring rigids/joints onto dst bones.
+
+    Each rigid entry stores its position **relative to the target PMX bone's
+    rest-pose head**. Apply computes the dst bone's actual rest-pose head and
+    shifts the rigid by the bone's positional delta, so rigids stay glued to
+    the correct anatomy even when target and converted models have different
+    bone segmentation (different shoulder/neck split, hair length, etc.).
+    Joints follow rigid_a's correction automatically.
     """
     from mmd_tools.core.rigid_body import shapeType
+    from mathutils import Euler
 
     dst_model = _get_model(dst_root)
     dst_arm = dst_model.armature()
     dst_bone_names = set(dst_arm.data.bones.keys())
 
     rigid_entry_idx_to_obj = {}
+    rigid_entry_idx_to_world_loc = {}  # ei → final world loc (for joint anchor)
     skipped = []
     for ei, entry in enumerate(data['rigids']):
         if entry is None:
@@ -896,11 +915,14 @@ def _apply_cloned_physics(dst_root, data, *, fit_to_mesh=True, fit_pad=1.10):
             else:
                 skipped.append(entry['bone'])
                 continue
-        world_mat = Matrix(entry['world_matrix'])
+        dst_bone_world_loc = (dst_arm.matrix_world
+                              @ dst_arm.data.bones[bone].matrix_local).to_translation()
+        new_loc = dst_bone_world_loc + Vector(entry['rigid_local_loc'])
+        rot = Euler(entry['rigid_world_rot'], 'YXZ')
         nr = dst_model.createRigidBody(
             shape_type=SHAPE_IDX[entry['shape']],
-            location=world_mat.to_translation(),
-            rotation=world_mat.to_euler('YXZ'),
+            location=new_loc,
+            rotation=rot,
             size=entry['size'],
             dynamics_type=int(entry['type']),
             name=entry['name_j'],
@@ -915,6 +937,7 @@ def _apply_cloned_physics(dst_root, data, *, fit_to_mesh=True, fit_pad=1.10):
             collision_group_mask=entry.get('collision_group_mask'),
         )
         rigid_entry_idx_to_obj[ei] = nr
+        rigid_entry_idx_to_world_loc[ei] = new_loc
 
     n_joints = 0
     for j in data['joints']:
@@ -926,12 +949,14 @@ def _apply_cloned_physics(dst_root, data, *, fit_to_mesh=True, fit_pad=1.10):
             continue
         na = rigid_entry_idx_to_obj[ai]
         nb = rigid_entry_idx_to_obj[bi]
-        world_mat = Matrix(j['world_matrix'])
+        a_world_loc = rigid_entry_idx_to_world_loc[ai]
+        joint_loc = a_world_loc + Vector(j['joint_local_to_a'])
+        joint_rot = Euler(j['joint_world_rot'], 'YXZ')
         dst_model.createJoint(
             name=j['name_j'],
             name_e=j.get('name_e'),
-            location=world_mat.to_translation(),
-            rotation=world_mat.to_euler('YXZ'),
+            location=joint_loc,
+            rotation=joint_rot,
             rigid_a=na,
             rigid_b=nb,
             maximum_location=tuple(j['maximum_location']),
@@ -1158,7 +1183,7 @@ def clone_physics_from_pmx(dst_root, pmx_path, *, fit_to_mesh=True, fit_pad=1.10
 
     joint_entries = []
     for j in model.joints:
-        je = _pmx_joint_to_entry(j, pmx_idx_to_entry_idx, scale)
+        je = _pmx_joint_to_entry(j, pmx_idx_to_entry_idx, entries, scale)
         if je is not None:
             joint_entries.append(je)
 
