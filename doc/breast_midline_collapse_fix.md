@@ -1,9 +1,19 @@
-# 胸部中线塌陷 (cleavage collapse) 修复方法清单
+# 胸部物理问题修复清单
+
+**记录时间:** 2026-04-19, HEAD `5dbcded`
+**适用于:** `amp_breast_physics` op 调档后 (或 preset 默认下) 看到的胸部物理异常
+
+## 目录
+
+- 症状 1 — [中线 (cleavage) 塌陷成 V 字](#症状-1-中线塌陷-cleavage-collapse)
+- 症状 2 — [部分帧胸部凹陷进身体 (STRONG / 大 angle 时)](#症状-2-胸部凹陷进身体)
+
+---
+
+## 症状 1: 中线塌陷 (cleavage collapse)
 
 **症状:** 跑 VMD 过程中, 两乳之间 (胸骨中线/cleavage) 被拉开成 V 字或出现明显
 凹陷, 尤其在 `amp_breast_physics` 调到 STRONG / CUSTOM 大 angle 后。
-
-**记录时间:** 2026-04-19, HEAD `5dbcded`
 
 ---
 
@@ -139,6 +149,117 @@ joint 的 `spring_linear` 设一个中心回弹, rigid 飘出太远时被拉回�
 - 八方来才 VMD 里, **关注**帧 80-160 (大摆动段) 的胸部中线是否出现 V 字。
 - 振幅基准: 摇香 乳奶.L x ≈ 3.8cm, 八方来才 ≈ 7.3cm。如果改动让振幅降到
   < 60% 基准, 说明改得过头了。
+
+---
+
+---
+
+## 症状 2: 胸部凹陷进身体
+
+**症状:** 跑 VMD 过程中, 部分帧胸部 mesh 明显凹陷到身体内部 (像是胸部被身体
+"吞了一下"), 尤其在 `amp_breast_physics` 调到 STRONG / CUSTOM 大 angle 后或
+VMD 含快速动作。RESET / MILD 下通常看不到。
+
+### 根因 (从最可能到最次)
+
+#### R1. Sphere 太小 + 没 body chest anchor rigid → rigid 穿透身体
+`mmd_standard_inase.json` 中乳奶 rigid `size_per_bone_length=0.6`, sphere
+半径 ≈ 骨长 × 0.6 ≈ 3cm。骨长 = 乳奶.L/R 到 tail 的距离, 通常 5cm。
+当 joint ±45° rotate 到朝向身体方向, sphere 中心被带到 body 内部,
+sphere 半径不够大, collision 不足以反推出来 → mesh 跟着陷入。
+
+#### R2. physics substeps 不够, 高速 rigid tunnel body
+Blender `scene.rigidbody_world.substeps_per_frame=10` (Inase setup 默认),
+high-amplitude swing 下, rigid 单帧速度超过 body rigid 厚度 → collision
+检测跳过 → rigid 穿透。
+
+#### R3. Joint 允许 rigid rotate 到"朝内"姿态
+joint `maximum_rotation` 三轴都 ±45° (STRONG), rigid 绕 Z 轴内转时 sphere
+朝向 body 里面, 内转没有物理阻挡 (因为 body 没 PASSIVE rigid 在对应位置)。
+
+#### R4. collision_margin 过小
+Blender default `collision_margin=0.04m`, 对于 2-3cm 大小的 sphere 已经
+够, 但如果 margin 没显式设置可能更小, 接触判断过严。
+
+---
+
+### 修复方法 (从最简单到复杂)
+
+#### S2-A. RESET op (减小摆幅到不足以穿透) — **最低成本, 优先试**
+**做法:** 同症状 1 的 A。`amp_breast_physics(level='RESET')` 回 ±10°,
+摆幅小到 rigid 不会 rotate 到身体内部。
+**代价:** 摆幅保守。
+**状态:** ✅ 已实现 (HEAD `5dbcded`)
+
+#### S2-B. 增大 physics substeps
+**做法:** `bpy.context.scene.rigidbody_world.substeps_per_frame = 20`
+(或 40)。加倍 substeps, tunneling 概率减半。
+**代价:** Bake 慢 2 倍。
+**风险:** 无。
+**状态:** ⬜ 未实施。如果 A 不够, 试这个 (临时运行时改即可, 不用改代码)。
+
+#### S2-C. 增大 breast sphere size
+**做法:** 改 `mmd_standard_inase.json` 中乳奶 rigid 的
+`size_per_bone_length` 从 `0.6` → `0.9` 或 `1.0`。sphere 变大, 即使中心穿
+到 body 内部边缘, 球面还在外侧能被碰撞推回。
+**代价:** sphere 变大后, breast mesh 的 deform 可能被影响 (如果 rigid
+是 physics_mode=1 "bone + physics", bone 的位置跟 rigid 中心绑定)。需要
+实测是否胸部显得"肿"。
+**风险:** 改 preset 影响所有未来 convert。
+**状态:** ⬜ 未实施。S2-A + S2-B 都失败再试。
+
+#### S2-D. 增大 collision_margin
+**做法:** 对每个 breast rigid 设 `o.rigid_body.collision_margin = 0.01`
+(或 0.02)。接触判断提前, 减少穿透窗口。
+**代价:** 接触会看起来"飘起来"一点点。
+**状态:** ⬜ 未实施。
+
+#### S2-E. 给 body chest 加 PASSIVE rigid — **最根本**
+**做法:** `mmd_standard_inase.json` 加一个 body 侧 rigid (比如 `胸体`,
+shape=BOX 或 SPHERE, bone=上半身2, type='0' PASSIVE, 覆盖 body mesh
+chest 区域)。breast rigid 撞到它会被物理反弹, 从 body 一侧挡住。
+**代价:** preset 多 1 rigid, collision group 需要设置 (breast ↔ 胸体
+collide, 但 胸体 ↔ 其他 body rigid 不 collide 避免自撞)。
+**风险:** collision group 配错会导致 body 其他物理全错。
+**状态:** ⬜ 未实施。是最"正确"但工作量最大的方案。
+
+#### S2-F. 减小 joint rotation Z 轴 (朝内方向) 上限
+**做法:** 不对称 joint 限: X/Y 保持 ±45° (左右/前后), 只把 Z (内旋) 限到
+±15°。需要在 amp op 里加 "axis-aware" 模式, 或者直接改 preset 的
+`maximum_rotation=[0.785, 0.785, 0.262]` (Z=15°)。
+**代价:** breast rotate 不对称, 可能动作不自然。
+**风险:** 不同模型 joint 坐标系不同 (local_matrix), 需要确认哪根轴是
+"朝内"。
+**状态:** ⬜ 未实施。
+
+---
+
+### 推荐尝试序列 (症状 2)
+
+```
+[胸部凹进身体]
+   │
+   ▼
+ S2-A (RESET op)           ← 试这个
+   │
+ 解决 ── YES ── 收工
+   │
+   NO
+   ▼
+ S2-B (substeps→20)         ← 临时调, 无需改代码
+   │
+ 解决 ── YES ── 考虑改 preset 默认 substeps
+   │
+   NO
+   ▼
+ S2-C (sphere 0.6→0.9)      ← 改 preset
+   │
+   NO
+   ▼
+ S2-E (加胸体 PASSIVE)       ← 工程量大, 最后上
+```
+
+注: S2-D (collision_margin) 和 S2-F (Z 轴限制) 是可选补充, 不走主线。
 
 ---
 
