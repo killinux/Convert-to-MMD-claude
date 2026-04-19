@@ -1813,20 +1813,42 @@ class OBJECT_OT_extract_physics_template(bpy.types.Operator):
 # their joints in-place. Three preset levels (mild/medium/strong) tuned
 # from real measurements on Reika+rouffe; custom mode for advanced users.
 #
-# Default for the Inase template was bumped to 'medium' on 2026-04-19,
-# so most users won't need to call this — but for fine-tuning per model
-# (different VMD intensity, different chest mass), this op is the knob.
-
 import math as _math
+import json as _json
 
 BREAST_AMP_PRESETS = {
     'MILD':   {'angle_deg': 20.0, 'mass': 1.2, 'damping': 0.4,
-               'desc': '柔和 (默认稍大, 慢动作 VMD 用)'},
+               'desc': '柔和, 慢动作 VMD 用'},
     'MEDIUM': {'angle_deg': 30.0, 'mass': 1.5, 'damping': 0.3,
-               'desc': '中等 (Inase 模板默认值, 常规 VMD 用)'},
+               'desc': '中等, 常规 VMD 用'},
     'STRONG': {'angle_deg': 45.0, 'mass': 2.0, 'damping': 0.2,
-               'desc': '强烈 (大动作舞蹈, 总幅度 ~+30%)'},
+               'desc': '强烈, 大动作舞蹈, 总幅度 ~+30%'},
 }
+
+
+def _load_preset_breast_defaults(template='mmd_standard_inase'):
+    """Read breast rigid + joint defaults from a preset JSON.
+    Returns dict {angle_deg, mass, damping} or None if not found."""
+    path = os.path.join(_presets_physics_dir(), template + '.json')
+    if not os.path.isfile(path):
+        return None
+    with open(path, 'r', encoding='utf-8') as f:
+        d = _json.load(f)
+    mass = damp = angle_rad = None
+    for r in d.get('rigids', []):
+        if '乳' in r.get('name_j', ''):
+            mass = r.get('mass')
+            damp = r.get('angular_damping')
+            break
+    for j in d.get('joints', []):
+        if '乳' in j.get('name_j', ''):
+            mx = j.get('maximum_rotation')
+            if mx:
+                angle_rad = max(mx)  # use the largest of 3 axes
+            break
+    if None in (mass, damp, angle_rad):
+        return None
+    return {'angle_deg': _math.degrees(angle_rad), 'mass': mass, 'damping': damp}
 
 
 def _tune_breast_physics(dst_root, *, angle_deg, mass, damping, rebuild=True):
@@ -1912,6 +1934,7 @@ class OBJECT_OT_amp_breast_physics(bpy.types.Operator):
     level: EnumProperty(
         name="强度",
         items=[
+            ('RESET',  'RESET (preset 默认)', '回读 mmd_standard_inase.json 的乳奶 rigid+joint 原值, 恢复"没调过"的初始状态'),
             ('MILD',   'MILD (柔和 ±20°)',   '保守, 慢动作 VMD 用'),
             ('MEDIUM', 'MEDIUM (中等 ±30°)', '常规 VMD 用, 比 preset 默认摆幅更大'),
             ('STRONG', 'STRONG (强烈 ±45°)', '大动作舞蹈, 幅度 ~+30%'),
@@ -1947,6 +1970,14 @@ class OBJECT_OT_amp_breast_physics(bpy.types.Operator):
             box.prop(self, 'custom_angle_deg')
             box.prop(self, 'custom_mass')
             box.prop(self, 'custom_damping')
+        elif self.level == 'RESET':
+            p = _load_preset_breast_defaults()
+            box = layout.box()
+            if p:
+                box.label(text=f"RESET: angle±{p['angle_deg']:.0f}°, mass={p['mass']}, damp={p['damping']}")
+                box.label(text="回 preset 默认 (未调过的状态)", icon='LOOP_BACK')
+            else:
+                box.label(text="读不到 mmd_standard_inase.json preset", icon='ERROR')
         else:
             preset = BREAST_AMP_PRESETS[self.level]
             box = layout.box()
@@ -1966,6 +1997,12 @@ class OBJECT_OT_amp_breast_physics(bpy.types.Operator):
 
         if self.level == 'CUSTOM':
             ang, m, d = self.custom_angle_deg, self.custom_mass, self.custom_damping
+        elif self.level == 'RESET':
+            p = _load_preset_breast_defaults()
+            if p is None:
+                self.report({'ERROR'}, "读不到 mmd_standard_inase.json preset")
+                return {'CANCELLED'}
+            ang, m, d = p['angle_deg'], p['mass'], p['damping']
         else:
             p = BREAST_AMP_PRESETS[self.level]
             ang, m, d = p['angle_deg'], p['mass'], p['damping']
