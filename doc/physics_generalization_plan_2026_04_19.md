@@ -192,6 +192,9 @@ Reika 场景 (HEAD `891f81a`):
 - [x] HEAD `c700515`: Tier 3 detection 修正 (skip `_shadow_`/`_dummy_`, 扩展 canonical list, 全宽数字 fingers)
 - [x] HEAD `0115fb9`: Tier 3 加 `anchor_bones` 白名单 (默认 `頭` 只做发型)
 - [x] Tier 3 Reika 实测通过: Tier 2 (21) + Tier 3 (58 hair) = **79 rigids, 60 joints**, 接近 target 83/64
+- [x] HEAD `42a1c93` / `4e47808` / `650f232`: Tier 1 自动补 target-only 骨 (dangling 挂饰)
+   — Reika `Bone.L/R/.001.L/.001.R` 自动从 target 读取 head/tail/parent 建 edit bone, 挂在 `乳奶.L/R` 下
+   — Tier 1 最终匹配: **83/83 rigids + 64/64 joints** (100%)
 
 ## 尚未做
 
