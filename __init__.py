@@ -78,7 +78,6 @@ def register():
     _safe_register(physics_operator.OBJECT_OT_apply_breast_physics)
     _safe_register(physics_operator.OBJECT_OT_clone_physics_from_pmx)
     _safe_register(physics_operator.OBJECT_OT_auto_chain_physics)
-    _safe_register(physics_operator.OBJECT_OT_amp_breast_physics)
     _safe_register(face_operator.OBJECT_OT_cleanup_face_bones)
     for cls in morph_synth_operator.CLASSES:
         _safe_register(cls)
@@ -162,7 +161,6 @@ def unregister():
     _safe_unregister(physics_operator.OBJECT_OT_apply_breast_physics)
     _safe_unregister(physics_operator.OBJECT_OT_clone_physics_from_pmx)
     _safe_unregister(physics_operator.OBJECT_OT_auto_chain_physics)
-    _safe_unregister(physics_operator.OBJECT_OT_amp_breast_physics)
     _safe_unregister(face_operator.OBJECT_OT_cleanup_face_bones)
     for cls in reversed(morph_synth_operator.CLASSES):
         _safe_unregister(cls)

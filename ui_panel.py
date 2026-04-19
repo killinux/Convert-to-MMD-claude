@@ -367,9 +367,6 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             breast_box.operator("object.apply_breast_physics", text="应用胸部 rigid (乳奶.L/R)")
             breast_box.label(text="需先跑过 加载物理模板 (获得锚点 上半身2)",
                              icon='INFO')
-            breast_box.operator("object.amp_breast_physics",
-                                text="🎚 调整胸部物理强度 (mild/medium/strong)",
-                                icon='MOD_SOFT')
 
             # 刚体编辑
             rigid_box = layout.box()
