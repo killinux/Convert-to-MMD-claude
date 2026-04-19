@@ -485,8 +485,8 @@ def apply_physics(dst_root, data, *, rescale_by_bone_length=True, fit_to_mesh=Tr
                                            entry['shape'], pad=fit_pad)
             if res is not None:
                 old, new, n = res
-                # Only log if there was a meaningful change
-                if abs(old[0] - new[0]) > 0.005:
+                # Only log if there was a meaningful change (>=2mm)
+                if abs(old[0] - new[0]) > 0.002:
                     fit_stats.append((entry['bone'], round(old[0], 4), round(new[0], 4), n, per_bone_mesh.name))
         if fit_stats:
             print(f"[CTMMD physics] fit_to_mesh adjustments ({len(fit_stats)}):")
