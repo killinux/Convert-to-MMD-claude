@@ -223,6 +223,35 @@ collide, 但 胸体 ↔ 其他 body rigid 不 collide 避免自撞)。
 **风险:** collision group 配错会导致 body 其他物理全错。
 **状态:** ⬜ 未实施。是最"正确"但工作量最大的方案。
 
+### ⚠️ 尝试失败记录: 一次性手写 preset 加 anchor+胸体 (2026-04-19, commit `643c3ba` → reverted `02f5d6c`)
+
+**尝试:** 直接在 `mmd_standard_inase.json` 里加 乳中央 idx=35 + 胸体 idx=36 +
+把 breast joint 的 `rigid_a_idx` 从 19 (上半身2) 改成 35 (乳中央), 打算一次
+性实现 Fix C + S2-E。
+
+**失败原因:**
+- **坐标系错配**。preset 里 rigid `local_matrix` 和 joint `local_matrix_in_a`
+  都**相对原 rigid_a (上半身2 rigid)**, 其 matrix 含非 identity rotation。
+  我给新 rigid 用 identity rotation + translation = breast joint_in_a 的值,
+  结果 anchor 放偏了 20cm。
+- 改 rigid_a_idx 但不改 joint `local_matrix_in_a`, joint 位置也飘掉。
+- 运行时手动 fix anchor world pos 后 rebuild, 物理更不稳 (L-R gap 拉开到
+  原距 2.6 倍, 26cm vs 原 10cm)。
+
+**教训:** preset 里的 matrix 是从 `extract_physics_template` 从**已有 rigid
+topology** 抽取出来的精确值, 手工新增 anchor / 改 rigid_a 必须同步改 matrix
+坐标系, 不是单改一个字段就行。
+
+**下次的正确做法:** 两条路, 选一:
+- **D1** 找一个 TDA 基准 PMX (带乳中央 anchor 的标准模型) → 用
+  `extract_physics_template` 抽成新 preset (如 `mmd_tda_with_anchor.json`)。
+- **D2** 代码层面加 op `OBJECT_OT_add_breast_anchor`: 动态计算 breast bone
+  midpoint, 创建 anchor rigid + 修改现有 joint 的 pivot, 不改 preset。
+  这样坐标系由 Blender 运行时算, 避免手写 matrix 错。
+
+推荐 **D2**, 跟 `amp_breast_physics` 一样是独立 op, 对现有 model 即用即改,
+不影响其他模型。
+
 #### S2-F. 减小 joint rotation Z 轴 (朝内方向) 上限
 **做法:** 不对称 joint 限: X/Y 保持 ±45° (左右/前后), 只把 Z (内旋) 限到
 ±15°。需要在 amp op 里加 "axis-aware" 模式, 或者直接改 preset 的
