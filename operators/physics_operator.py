@@ -1804,3 +1804,177 @@ class OBJECT_OT_extract_physics_template(bpy.types.Operator):
         n_r = sum(1 for r in data['rigids'] if r is not None)
         self.report({'INFO'}, f"Extracted to {out_path}: {n_r} rigids, {len(data['joints'])} joints")
         return {'FINISHED'}
+
+
+# ---------- breast physics amplitude tuner ----------
+#
+# After setup_physics / clone_physics builds breast rigids, user often
+# wants more or less jiggle. This op edits the existing breast rigids +
+# their joints in-place. Three preset levels (mild/medium/strong) tuned
+# from real measurements on Reika+rouffe; custom mode for advanced users.
+#
+# Default for the Inase template was bumped to 'medium' on 2026-04-19,
+# so most users won't need to call this — but for fine-tuning per model
+# (different VMD intensity, different chest mass), this op is the knob.
+
+import math as _math
+
+BREAST_AMP_PRESETS = {
+    'MILD':   {'angle_deg': 20.0, 'mass': 1.2, 'damping': 0.4,
+               'desc': '柔和 (默认稍大, 慢动作 VMD 用)'},
+    'MEDIUM': {'angle_deg': 30.0, 'mass': 1.5, 'damping': 0.3,
+               'desc': '中等 (Inase 模板默认值, 常规 VMD 用)'},
+    'STRONG': {'angle_deg': 45.0, 'mass': 2.0, 'damping': 0.2,
+               'desc': '强烈 (大动作舞蹈, 总幅度 ~+30%)'},
+}
+
+
+def _tune_breast_physics(dst_root, *, angle_deg, mass, damping, rebuild=True):
+    """In-place tune breast rigid + joint params on a built model.
+    Operates on rigids whose mmd_rigid.bone == 乳奶.L/R AND any joint
+    referencing them.
+    """
+    angle_rad = _math.radians(angle_deg)
+    breast_objs = []
+    for o in bpy.data.objects:
+        if getattr(o, 'mmd_type', '') != 'RIGID_BODY':
+            continue
+        # ensure under dst_root subtree
+        cur = o
+        while cur and cur is not dst_root:
+            cur = cur.parent
+        if cur is not dst_root:
+            continue
+        if o.mmd_rigid.bone in ('乳奶.L', '乳奶.R'):
+            breast_objs.append(o)
+
+    for r in breast_objs:
+        if r.rigid_body is None:
+            continue
+        r.rigid_body.mass = mass
+        r.rigid_body.angular_damping = damping
+        r.rigid_body.linear_damping = damping
+
+    n_j = 0
+    breast_set = set(breast_objs)
+    for j in bpy.data.objects:
+        if getattr(j, 'mmd_type', '') != 'JOINT':
+            continue
+        cur = j
+        while cur and cur is not dst_root:
+            cur = cur.parent
+        if cur is not dst_root:
+            continue
+        rbc = j.rigid_body_constraint
+        if rbc is None:
+            continue
+        if rbc.object1 in breast_set or rbc.object2 in breast_set:
+            rbc.limit_ang_x_lower = -angle_rad
+            rbc.limit_ang_x_upper = angle_rad
+            rbc.limit_ang_y_lower = -angle_rad
+            rbc.limit_ang_y_upper = angle_rad
+            rbc.limit_ang_z_lower = -angle_rad
+            rbc.limit_ang_z_upper = angle_rad
+            n_j += 1
+
+    if rebuild:
+        # build_rig must run on mmd_root being active, with object selected
+        prev_active = bpy.context.view_layer.objects.active
+        prev_sel = [o for o in bpy.context.view_layer.objects if o.select_get()]
+        for o in bpy.context.view_layer.objects:
+            o.select_set(False)
+        dst_root.select_set(True)
+        bpy.context.view_layer.objects.active = dst_root
+        try:
+            bpy.ops.mmd_tools.build_rig()
+        finally:
+            for o in bpy.context.view_layer.objects:
+                o.select_set(False)
+            for o in prev_sel:
+                try: o.select_set(True)
+                except: pass
+            if prev_active is not None:
+                bpy.context.view_layer.objects.active = prev_active
+
+    return len(breast_objs), n_j
+
+
+class OBJECT_OT_amp_breast_physics(bpy.types.Operator):
+    """调整胸部物理摆动强度. 选三档 preset 或自定义 angle/mass/damping."""
+
+    bl_idname = "object.amp_breast_physics"
+    bl_label = "🎚 调整胸部物理强度"
+    bl_description = ("一键调整 乳奶 rigid + joint 的摆动强度. "
+                      "三档: MILD(20°) / MEDIUM(30°) / STRONG(45°). "
+                      "或选 CUSTOM 自己拨参数. 调完自动 build_rig.")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    level: EnumProperty(
+        name="强度",
+        items=[
+            ('MILD',   'MILD (柔和 ±20°)',   '保守, 慢动作 VMD 用'),
+            ('MEDIUM', 'MEDIUM (中等 ±30°)', '常规 VMD 用, 比 preset 默认摆幅更大'),
+            ('STRONG', 'STRONG (强烈 ±45°)', '大动作舞蹈, 幅度 ~+30%'),
+            ('CUSTOM', 'CUSTOM (自定义)',     '下方三个滑块自己调'),
+        ],
+        default='MEDIUM',
+    )  # type: ignore
+    custom_angle_deg: bpy.props.FloatProperty(
+        name="Angle (°)", default=30.0, min=5.0, max=90.0,
+        description="joint 三轴角度限制 ±N° (大→宽自由摆)",
+    )  # type: ignore
+    custom_mass: bpy.props.FloatProperty(
+        name="Mass (kg)", default=1.5, min=0.1, max=10.0,
+        description="rigid 质量 (大→惯性大, 摆动滞后但幅度更大)",
+    )  # type: ignore
+    custom_damping: bpy.props.FloatProperty(
+        name="Damping", default=0.3, min=0.01, max=1.0,
+        description="阻尼 (小→摆动持续更久; 太小会摇个不停)",
+    )  # type: ignore
+    rebuild: BoolProperty(
+        name="调完 build_rig", default=True,
+        description="自动重建物理 world, 让改动立即生效",
+    )  # type: ignore
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=360)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, 'level')
+        if self.level == 'CUSTOM':
+            box = layout.box()
+            box.prop(self, 'custom_angle_deg')
+            box.prop(self, 'custom_mass')
+            box.prop(self, 'custom_damping')
+        else:
+            preset = BREAST_AMP_PRESETS[self.level]
+            box = layout.box()
+            box.label(text=f"{self.level}: angle±{preset['angle_deg']}°, mass={preset['mass']}, damp={preset['damping']}")
+            box.label(text=preset['desc'], icon='INFO')
+        layout.prop(self, 'rebuild')
+
+    def execute(self, context):
+        active = context.active_object
+        if active is None:
+            self.report({'ERROR'}, "没有 active object")
+            return {'CANCELLED'}
+        root = _find_mmd_root(active)
+        if root is None:
+            self.report({'ERROR'}, "active 不在 mmd_root 下")
+            return {'CANCELLED'}
+
+        if self.level == 'CUSTOM':
+            ang, m, d = self.custom_angle_deg, self.custom_mass, self.custom_damping
+        else:
+            p = BREAST_AMP_PRESETS[self.level]
+            ang, m, d = p['angle_deg'], p['mass'], p['damping']
+
+        n_r, n_j = _tune_breast_physics(root, angle_deg=ang, mass=m, damping=d,
+                                        rebuild=self.rebuild)
+        if n_r == 0:
+            self.report({'WARNING'}, "没找到 乳奶 rigid (先跑 加载物理模板 / 克隆 PMX)")
+            return {'CANCELLED'}
+        self.report({'INFO'}, f"Tuned {n_r} 乳奶 rigids + {n_j} joints to {self.level} "
+                              f"(angle±{ang}°, mass={m}, damp={d})")
+        return {'FINISHED'}
