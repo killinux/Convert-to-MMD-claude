@@ -195,6 +195,19 @@ Reika 场景 (HEAD `891f81a`):
 
 ## 尚未做
 
-- VMD 播放测试 Tier 3 发型动画 (Tier 1 已隐式验证, Tier 3 参数是经验默认值, 需实际动画确认效果)
 - 裙摆/袖口 anchor 扩展实测 (需要有裙摆骨的 XPS 模型)
 - 其他 XPS 模型验证 (Mixamo / VRoid 等)
+
+## VMD 动画稳定性测试 (Reika, Tier 2+3, frame 1→200)
+
+| 骨 | 帧间位移 | 评价 |
+|-|-|-|
+| Hair-04.l/r (发梢) | ~50mm | 正常摆幅 |
+| Hair-03.l/r (中段) | ~36mm | 根-梢梯度正确 |
+| Hair-Back 顶段 | 26-29mm | 对称 L/R |
+| Hair-Back-02.x (根) | 6.8mm | 根部小摆 |
+| Hair-Front-2-02 (刘海) | 3.66mm | 贴脸, 合理 |
+| 乳奶.L/R | ~32mm | 胸部物理 |
+| **teleports (>1m)** | **0** | **稳定, 无爆炸** |
+
+47 dynamic rigids 全部正常模拟, 根-梢梯度符合 PMXEditor 经验公式预期。
