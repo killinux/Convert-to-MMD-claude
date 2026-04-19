@@ -4,9 +4,9 @@
 
 **完成**: Tier 1 (target PMX 克隆) + Tier 3 (PMXEditor-style 自动生成发型) 都实现并测过, Reika 83/83 rigids + 64/64 joints 从 target 克隆到位。
 
-**⚠ 未解决**: 用户肉眼看出 "**刚体和身体没对齐**" (just before handoff). 视觉截图显示 rigid + joint 都朝头右上方偏, 不贴合实际 body/hair 位置。**下次 session 第一件事: 验证对齐并修位置换算**。
+**✅ 对齐 bug 已修 (2026-04-19 续, HEAD `000cebf`)**: 用户报"刚体和身体没对齐" — 根因是 `_pmx_rigid_to_entry` 直接存 PMX world 坐标, apply 时没考虑 target/converted 模型的骨头位置差异。修法: entry 改存 `rigid_local_loc = rigid_world - target_bone_world` 这种 bone-local 偏移, joint 改存 `joint_local_to_a`, apply 时用 `dst_bone_world + local_loc` 重新锚定。验证 (Reika None.pmx 重克隆 83/83 + 64/64): local_loc 偏差 0/83, 视觉刚体完全贴合身体, avg 中点偏差 9.8cm → 0.9cm (剩 6 个 >5cm 是 bone 长度不同导致 midpoint 算出位置不一样, 但相对 head 的偏移 100% 保留 target 数据)。
 
-**HEAD**: `34ddbf7` (已 push + Mac pull)
+**HEAD**: `000cebf` (本地 push 完, Mac 已 pull)
 
 **Plan 原档**: `/root/.claude/plans/mmd-tools-pmxeditor-radiant-sky.md`
 
