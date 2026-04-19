@@ -307,6 +307,9 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             weight_box.label(text="② 清理+权重", icon='MOD_VERTEX_WEIGHT')
             weight_box.operator("object.cleanup_face_bones", text="7. 清理面部细骨", icon='MESH_MONKEY')
             weight_box.operator("object.assign_weights", text="8. 分配权重 (一键)")
+            weight_box.operator("object.snap_misaligned_bones",
+                                text="8b. Snap 错位骨 (vg 中心)",
+                                icon='ARMATURE_DATA')
 
             # 阶段 ③: IK + 属性
             attr_box = layout.box()

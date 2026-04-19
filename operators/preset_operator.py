@@ -501,6 +501,11 @@ class OBJECT_OT_one_click_convert(bpy.types.Operator):
             pipeline += [
                 ('cleanup_face_bones', False),  # may CANCEL for DAZ (no XPS face bones)
                 ('assign_weights', True),
+                # snap soft-tissue bones (default: 乳奶.L/R) onto vg center —
+                # XPS sources often place breast bone behind ribcage while
+                # the verts it controls sit in front; this realigns the
+                # pose pivot before IK / physics layers anchor on it.
+                ('snap_misaligned_bones', False),
                 ('add_mmd_ik', True),
                 ('create_bone_group', True),
                 ('setup_pmx_attributes', True),

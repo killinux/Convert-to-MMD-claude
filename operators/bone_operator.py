@@ -601,3 +601,202 @@ class OBJECT_OT_convert_names_to_jp(bpy.types.Operator):
 
         self.report({'INFO'}, f"Converted {count} bones to 左/右 format")
         return {'FINISHED'}
+
+
+# ---------- snap misaligned bones to vertex-group center ----------
+#
+# Some XPS source rigs place "soft tissue" bones (chest, butt, hair-root,
+# accessory anchors) at anatomically wrong positions — e.g. Reika's
+# `boob left 1` ends up behind the ribcage at +Y while the breast mesh
+# verts it controls sit at -Y, leaving a 22cm bone-vs-mesh offset. The
+# bone still drives the right verts (because vertex weights are bone-id
+# based, not position-based), but pose rotations pivot from the wrong
+# point and any rigid body or follow-bone constraint anchored on bone
+# head ends up in the wrong place too.
+#
+# This step detects such bones by computing the weighted center of the
+# vg the bone owns, and (if the bone head is more than `threshold_m`
+# away) snaps the bone — head + tail together — onto that center, so
+# pose pivots and physics anchors land on the actual mesh.
+#
+# Default snap list = breast bones (the case most commonly broken in
+# XPS sources); add to `EXTRA_BONES` to handle butt/hair-root/etc on
+# new model families as they come up.
+
+DEFAULT_SNAP_BONES = ('乳奶.L', '乳奶.R')
+
+
+def _vg_weighted_center(arm_obj, bone_name, vg_name=None,
+                        weight_floor=0.5, top_n=80):
+    """Find the weighted center of `vg_name` across all meshes parented
+    to (or sharing armature with) `arm_obj`.
+
+    Picks the top-N highest-weight vertices above `weight_floor` and
+    averages their world position. Returns (center_world, num_verts) or
+    (None, 0) if the vg doesn't exist or has no qualifying verts.
+    """
+    vg_name = vg_name or bone_name
+    candidates = []
+    for me in bpy.data.objects:
+        if me.type != 'MESH':
+            continue
+        # mesh must use this armature (modifier or parent)
+        uses_arm = False
+        for mod in me.modifiers:
+            if mod.type == 'ARMATURE' and mod.object is arm_obj:
+                uses_arm = True
+                break
+        if not uses_arm and me.parent is not arm_obj:
+            continue
+        if vg_name not in me.vertex_groups:
+            continue
+        vg_idx = me.vertex_groups[vg_name].index
+        for v in me.data.vertices:
+            for g in v.groups:
+                if g.group == vg_idx and g.weight >= weight_floor:
+                    candidates.append((g.weight, me.matrix_world @ v.co))
+                    break
+    if not candidates:
+        return None, 0
+    candidates.sort(key=lambda x: -x[0])
+    top = candidates[:top_n]
+    center = sum((p for _, p in top), Vector((0, 0, 0))) / len(top)
+    return center, len(top)
+
+
+def _snap_bone_to_vg_center(arm_obj, bone_name, threshold_m=0.05,
+                            vg_name=None, dry_run=False):
+    """Snap `bone_name`'s head to the weighted center of its vg if the
+    head is more than `threshold_m` away. Tail is translated by the
+    same delta so the bone direction (deform pivot axis) is preserved.
+
+    Returns dict {bone, status, head_old, head_new, delta_m, n_verts}.
+    Status = 'snapped' | 'aligned' | 'no-vg' | 'no-bone'.
+    Caller manages mode transitions (must already be in OBJECT mode at
+    entry; we flip to EDIT internally and return to OBJECT on exit).
+    """
+    if bone_name not in arm_obj.data.bones:
+        return {'bone': bone_name, 'status': 'no-bone'}
+    center, n = _vg_weighted_center(arm_obj, bone_name, vg_name)
+    if center is None:
+        return {'bone': bone_name, 'status': 'no-vg'}
+    head_world = arm_obj.matrix_world @ arm_obj.data.bones[bone_name].head_local
+    delta = (center - head_world).length
+    info = {
+        'bone': bone_name,
+        'head_old': tuple(round(v, 4) for v in head_world),
+        'vg_center': tuple(round(v, 4) for v in center),
+        'delta_m': round(delta, 4),
+        'n_verts': n,
+    }
+    if delta < threshold_m:
+        info['status'] = 'aligned'
+        return info
+    if dry_run:
+        info['status'] = 'would-snap'
+        return info
+
+    # Convert center back to armature-local space, translate head + tail
+    arm_inv = arm_obj.matrix_world.inverted()
+    center_local = arm_inv @ center
+    head_local_old = arm_obj.data.bones[bone_name].head_local
+    delta_local = center_local - head_local_old
+
+    # EDIT mode required to mutate bone head/tail
+    prev_active = bpy.context.view_layer.objects.active
+    prev_hide = arm_obj.hide_viewport
+    arm_obj.hide_viewport = False
+    prev_selected = [o for o in bpy.context.view_layer.objects if o.select_get()]
+    for o in bpy.context.view_layer.objects:
+        o.select_set(False)
+    arm_obj.select_set(True)
+    bpy.context.view_layer.objects.active = arm_obj
+    bpy.ops.object.mode_set(mode='EDIT')
+    try:
+        eb = arm_obj.data.edit_bones[bone_name]
+        eb.head = eb.head + delta_local
+        eb.tail = eb.tail + delta_local
+    finally:
+        bpy.ops.object.mode_set(mode='OBJECT')
+        arm_obj.hide_viewport = prev_hide
+        for o in bpy.context.view_layer.objects:
+            o.select_set(False)
+        for o in prev_selected:
+            try: o.select_set(True)
+            except Exception: pass
+        if prev_active is not None:
+            bpy.context.view_layer.objects.active = prev_active
+
+    head_new = arm_obj.matrix_world @ arm_obj.data.bones[bone_name].head_local
+    info['head_new'] = tuple(round(v, 4) for v in head_new)
+    info['status'] = 'snapped'
+    return info
+
+
+class OBJECT_OT_snap_misaligned_bones(bpy.types.Operator):
+    """检测并修正"骨 head 位置远离它控制的 mesh"的问题骨。
+
+    XPS 源的某些"软组织"骨 (乳奶/臀/发根/挂饰锚点) 经常被原作者放在解剖学
+    错误位置 — Reika `boob left 1` 在背后, 控制的乳房 mesh 在前胸,
+    bone vs mesh 偏 22cm。骨 deform 还能用 (按 vg ID 关联), 但 pose 旋转
+    支点错位, rigid body / follow-bone 锚点也跟着偏。
+
+    本 op 对每个候选骨, 找它 vg 的加权中心, 偏差 > 阈值就把 head + tail
+    一起平移到中心 (骨方向不变, 只挪位置)。"""
+
+    bl_idname = "object.snap_misaligned_bones"
+    bl_label = "Snap Misaligned Bones (vg center)"
+    bl_description = "把位置错位的软组织骨 (默认乳奶) snap 到 vg 加权中心"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    bones_csv: bpy.props.StringProperty(
+        name="Bones (csv)",
+        description="逗号分隔的骨名清单, 留空走默认 (乳奶.L,乳奶.R)",
+        default="",
+    )
+    threshold_cm: bpy.props.FloatProperty(
+        name="Threshold (cm)",
+        description="偏差小于这个不动",
+        default=5.0, min=0.5, max=50.0,
+    )
+    dry_run: bpy.props.BoolProperty(
+        name="Dry-run",
+        description="只报告, 不修改",
+        default=False,
+    )
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=380)
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'ARMATURE':
+            self.report({'ERROR'}, "请先选中 armature")
+            return {'CANCELLED'}
+        if context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+        bones = [b.strip() for b in self.bones_csv.split(',') if b.strip()] \
+                if self.bones_csv else list(DEFAULT_SNAP_BONES)
+        threshold_m = self.threshold_cm / 100.0
+
+        snapped = []
+        skipped = []
+        for bn in bones:
+            res = _snap_bone_to_vg_center(obj, bn, threshold_m=threshold_m,
+                                          dry_run=self.dry_run)
+            tag = res.get('status', '?')
+            if tag in ('snapped', 'would-snap'):
+                snapped.append(res)
+                print(f"[CTMMD snap] {bn}: {tag}  delta={res.get('delta_m')}m  "
+                      f"head {res.get('head_old')} → {res.get('head_new', res.get('vg_center'))}  "
+                      f"({res.get('n_verts')} verts)")
+            else:
+                skipped.append(res)
+                print(f"[CTMMD snap] {bn}: {tag}  delta={res.get('delta_m', '-')}m")
+
+        msg = f"snap: {len(snapped)} 修正, {len(skipped)} 跳过 (aligned/missing)"
+        if self.dry_run:
+            msg = "[DRY-RUN] " + msg
+        self.report({'INFO'}, msg)
+        return {'FINISHED'}
