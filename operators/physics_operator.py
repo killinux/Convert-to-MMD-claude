@@ -968,14 +968,154 @@ def _apply_cloned_physics(dst_root, data, *, fit_to_mesh=True, fit_pad=1.10):
     return len(rigid_entry_idx_to_obj), n_joints, skipped
 
 
+def _create_missing_target_bones(dst_arm, model, scale=0.08):
+    """For every rigid in `model.rigids` whose bone isn't on `dst_arm`,
+    create it as an Edit bone with target's head/tail/parent chain.
+
+    Purpose: target-authored dangling accessory bones (pendants, chains,
+    straps) never exist in XPS source — PMX authors add them by hand in
+    PMXEditor to anchor rigid bodies on accessory meshes. Without this,
+    Tier 1 clone silently drops those rigids.
+
+    Process:
+      1) scan rigids → needed target bone indices (normalized vs raw)
+      2) walk parent chain from each needed bone, accumulate all missing
+         bones (including parents-of-parents)
+      3) topological order (parents before children)
+      4) flip to EDIT mode on dst_arm, add bones with head/tail derived
+         from target coords (.xzy * scale, mmd_tools' PMXImporter rule)
+      5) parent either to a fellow new bone or to the existing converted
+         armature bone (via name normalize)
+
+    Bones added this way are anchors only — they carry no skin weights
+    and won't affect mesh deform. They exist purely so the target rigid
+    can attach via `mmd_rigid.bone`.
+
+    Returns list of (raw_name, resolved_name) tuples for added bones.
+    """
+    from mathutils import Vector
+    existing = set(dst_arm.data.bones.keys())
+
+    def resolve(bone_idx):
+        """Map a target bone index to the name it would have on dst_arm,
+        handling the `左X ↔ X.L` normalization + raw-name fallback."""
+        if bone_idx is None or bone_idx < 0 or bone_idx >= len(model.bones):
+            return None
+        raw = model.bones[bone_idx].name
+        norm, _ = _normalize_pmx_bone_name(raw)
+        if norm in existing:
+            return norm
+        if raw in existing:
+            return raw
+        return None  # missing
+
+    needed = set()
+    for r in model.rigids:
+        bidx = r.bone
+        if bidx is None or bidx < 0 or bidx >= len(model.bones):
+            continue
+        if resolve(bidx) is None:
+            needed.add(bidx)
+    if not needed:
+        return []
+
+    # Walk parent chain, accumulate every missing bone along the way.
+    to_add = set()
+
+    def walk(bidx):
+        if bidx in to_add or bidx is None or bidx < 0:
+            return
+        b = model.bones[bidx]
+        raw = b.name
+        norm, _ = _normalize_pmx_bone_name(raw)
+        if norm in existing or raw in existing:
+            return  # already exists, stop walking
+        to_add.add(bidx)
+        walk(b.parent)
+
+    for bidx in needed:
+        walk(bidx)
+    if not to_add:
+        return []
+
+    # Parent-first topological ordering — edit bones require parent to be
+    # added first before setting `eb.parent`.
+    ordered = []
+    visited = set()
+
+    def emit(bidx):
+        if bidx in visited or bidx not in to_add:
+            return
+        visited.add(bidx)
+        p = model.bones[bidx].parent
+        if p in to_add:
+            emit(p)
+        ordered.append(bidx)
+
+    for bidx in to_add:
+        emit(bidx)
+
+    # Edit-mode add. Save & restore active + mode so callers aren't
+    # surprised.
+    import bpy
+    prev_active = bpy.context.view_layer.objects.active
+    prev_mode = bpy.context.mode
+    bpy.context.view_layer.objects.active = dst_arm
+    bpy.ops.object.mode_set(mode='EDIT')
+    try:
+        ebones = dst_arm.data.edit_bones
+        added = []
+        for bidx in ordered:
+            b = model.bones[bidx]
+            name = b.name  # preserve target naming (e.g. Bone.L stays Bone.L)
+            if name in ebones:
+                continue
+            # Head: target PMX coords → Blender via .xzy * scale
+            head = Vector(b.location).xzy * scale
+            # Tail: displayConnection is either offset tuple or tail bone idx
+            dc = getattr(b, 'displayConnection', None)
+            tail = None
+            if isinstance(dc, (tuple, list)) and len(dc) == 3:
+                tail = head + Vector(dc).xzy * scale
+            elif isinstance(dc, int) and 0 <= dc < len(model.bones):
+                tail = Vector(model.bones[dc].location).xzy * scale
+            if tail is None or (tail - head).length < 1e-6:
+                # Fall back to 1cm downward — Blender refuses zero-length
+                tail = head + Vector((0.0, 0.0, -0.01))
+            eb = ebones.new(name)
+            eb.head = head
+            eb.tail = tail
+            # Resolve parent
+            parent_idx = b.parent
+            if parent_idx is not None and 0 <= parent_idx < len(model.bones):
+                parent_raw = model.bones[parent_idx].name
+                parent_norm, _ = _normalize_pmx_bone_name(parent_raw)
+                if parent_norm in ebones:
+                    eb.parent = ebones[parent_norm]
+                elif parent_raw in ebones:
+                    eb.parent = ebones[parent_raw]
+            added.append((name, name))
+    finally:
+        bpy.ops.object.mode_set(mode='OBJECT')
+        if prev_active is not None:
+            bpy.context.view_layer.objects.active = prev_active
+
+    print(f"[CTMMD clone] auto-added {len(added)} target-only bone(s): "
+          f"{[n for n, _ in added[:8]]}" + (" …" if len(added) > 8 else ''))
+    return added
+
+
 def clone_physics_from_pmx(dst_root, pmx_path, *, fit_to_mesh=True, fit_pad=1.10,
-                           scale=0.08):
+                           scale=0.08, add_missing_bones=True):
     """Load a target PMX file and clone its rigid bodies + joints onto dst_root.
 
     - Bone names are normalized `左X` → `X.L`, `右X` → `X.R`; raw name used
       as fallback. Bones not found on dst_root are skipped and reported.
     - No global scale (target and converted model share scale=0.08 space).
     - Optional fit_to_mesh (shrink-only) reuses the Tier-2 helper.
+    - `add_missing_bones` (default True): for rigids referencing bones
+      that don't exist on dst_arm, auto-create the bone chain from
+      target data. Anchors for dangling accessory rigids (pendants etc).
 
     Returns (n_rigids, n_joints, skipped_bones, total_target_rigids).
     """
@@ -984,6 +1124,11 @@ def clone_physics_from_pmx(dst_root, pmx_path, *, fit_to_mesh=True, fit_pad=1.10
         model = pmx_mod.load(pmx_path)
     except Exception as e:
         raise RuntimeError(f"读取 PMX 失败: {e}")
+
+    if add_missing_bones:
+        dst_model = _get_model(dst_root)
+        dst_arm = dst_model.armature()
+        _create_missing_target_bones(dst_arm, model, scale=scale)
 
     entries = []
     pmx_idx_to_entry_idx = {}
@@ -1035,6 +1180,11 @@ class OBJECT_OT_clone_physics_from_pmx(bpy.types.Operator):
         description="克隆后根据骨骼权重的顶点分布, 自动收紧半径",
         default=True,
     )  # type: ignore
+    add_missing_bones: BoolProperty(
+        name="自动补 target 里缺失的骨",
+        description="target PMX 里的刚体若绑的骨 converted 模型没有 (例如作者手加的挂饰骨), 自动从 target 读 head/tail/parent 创建. 关掉则这些刚体被 skip.",
+        default=True,
+    )  # type: ignore
 
     def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
@@ -1064,7 +1214,8 @@ class OBJECT_OT_clone_physics_from_pmx(bpy.types.Operator):
 
         try:
             n_r, n_j, skipped, n_total = clone_physics_from_pmx(
-                root, self.filepath, fit_to_mesh=self.fit_to_mesh)
+                root, self.filepath, fit_to_mesh=self.fit_to_mesh,
+                add_missing_bones=self.add_missing_bones)
         except Exception as e:
             import traceback
             traceback.print_exc()
