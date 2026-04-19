@@ -45,31 +45,43 @@ def _normalize_pmx_bone_name(name):
 # by the Inase-style template, or by target-clone). Anything outside this
 # set that forms a bone chain anchored on a body bone is a candidate for
 # auto-generated physics (hair, skirt, tails, accessories).
+#
+# Fingers use BOTH half-width (0-3) and full-width (０-３) digits — different
+# XPS converters produce different versions, so include both.
+_FINGER_ROOTS = ('親指', '人指', '中指', '薬指', '小指')
+_FINGER_HALF = tuple(f'{root}{i}{side}' for root in _FINGER_ROOTS
+                     for i in '0123' for side in ('.L', '.R'))
+_FINGER_FULL = tuple(f'{root}{i}{side}' for root in _FINGER_ROOTS
+                     for i in '０１２３' for side in ('.L', '.R'))
+
 CANONICAL_BODY_BONES = frozenset([
-    '全ての親', 'センター', 'グルーブ', '腰',
+    '全ての親', '操作中心', 'センター', 'グルーブ', '腰',
     '上半身', '上半身1', '上半身2', '上半身3',
     '下半身',
-    '首', '首1', '頭',
-    '肩.L', '肩.R', '肩C.L', '肩C.R',
+    '首', '首1', '頭', '両目', '目.L', '目.R',
+    '肩.L', '肩.R', '肩C.L', '肩C.R', '肩P.L', '肩P.R',
     '腕.L', '腕.R', 'ひじ.L', 'ひじ.R', '手首.L', '手首.R',
+    'ダミー.L', 'ダミー.R',
     '腕捩.L', '腕捩.R', '手捩.L', '手捩.R',
     '腕捩1.L', '腕捩1.R', '腕捩2.L', '腕捩2.R', '腕捩3.L', '腕捩3.R',
     '手捩1.L', '手捩1.R', '手捩2.L', '手捩2.R', '手捩3.L', '手捩3.R',
     '足.L', '足.R', 'ひざ.L', 'ひざ.R', '足首.L', '足首.R',
     '足D.L', '足D.R', 'ひざD.L', 'ひざD.R', '足首D.L', '足首D.R',
+    '足先EX.L', '足先EX.R',
     '足IK.L', '足IK.R', 'つま先IK.L', 'つま先IK.R',
     '足ＩＫ.L', '足ＩＫ.R', 'つま先ＩＫ.L', 'つま先ＩＫ.R',
+    '足IK親.L', '足IK親.R', '足ＩＫ親.L', '足ＩＫ親.R',
     'つま先.L', 'つま先.R',
-    '親指.L', '親指.R',  # thumbs
     '乳奶.L', '乳奶.R',
     '腰キャンセル.L', '腰キャンセル.R',
-    # Finger bones — skip entire finger chains (手首 subtree)
-    '親指0.L', '親指0.R', '親指1.L', '親指1.R', '親指2.L', '親指2.R',
-    '人指1.L', '人指1.R', '人指2.L', '人指2.R', '人指3.L', '人指3.R',
-    '中指1.L', '中指1.R', '中指2.L', '中指2.R', '中指3.L', '中指3.R',
-    '薬指1.L', '薬指1.R', '薬指2.L', '薬指2.R', '薬指3.L', '薬指3.R',
-    '小指1.L', '小指1.R', '小指2.L', '小指2.R', '小指3.L', '小指3.R',
+    *_FINGER_HALF, *_FINGER_FULL,
 ])
+
+
+def _is_internal_helper_bone(name):
+    """mmd_tools creates `_dummy_*` and `_shadow_*` helper bones for
+    additional_transform constraint plumbing. They shouldn't get physics."""
+    return name.startswith('_dummy_') or name.startswith('_shadow_')
 
 
 def _presets_physics_dir():
@@ -1114,46 +1126,40 @@ def _bone_weighted_vert_count(bone_name, meshes):
     return n
 
 
-def _detect_dynamic_chains(dst_root, arm, *,
-                            skin_weight_limit=30,
-                            min_chain_length=1):
+def _detect_dynamic_chains(dst_root, arm, *, min_chain_length=2):
     """Walk armature, find bone subtrees that qualify as dynamic chains:
-      1) root bone NOT in CANONICAL_BODY_BONES
-      2) parent IS in CANONICAL_BODY_BONES (anchored on body)
-      3) root carries less than `skin_weight_limit` heavily-weighted verts
-         across non-rigid-body meshes (excludes clothing main bones)
-      4) chain depth >= min_chain_length
+
+      1) root bone NOT in CANONICAL_BODY_BONES (includes MMD standard
+         body + finger bones, both half-width and full-width digits)
+      2) root name not `_dummy_*` / `_shadow_*` (mmd_tools internal helpers)
+      3) parent IS in CANONICAL_BODY_BONES (anchored on body)
+      4) subtree size >= min_chain_length (default 2 — filters single-leaf
+         bones like DAZ genitals that happen to parent on 下半身)
 
     Returns list of dicts:
-      { 'root': Bone, 'chain': [Bone, Bone, ...] (all bones in subtree),
+      { 'root': Bone, 'chain': [Bone, ...] (all bones in subtree),
         'parent_body_bone': str, 'depth_by_name': {name: int} }
-    Chains from the same subtree can branch — each fork is not split into
-    separate entries; every bone in the subtree goes in one `chain` list,
-    and depth indicates link count from root.
     """
-    meshes = [m for m in dst_root.children_recursive
-              if m.type == 'MESH' and getattr(m, 'mmd_type', '') != 'RIGID_BODY']
     chains = []
     for b in arm.data.bones:
         if b.name in CANONICAL_BODY_BONES:
             continue
+        if _is_internal_helper_bone(b.name):
+            continue
         parent = b.parent
         if parent is None or parent.name not in CANONICAL_BODY_BONES:
             continue
-        # Weight test: main clothing/body bones have many verts; dynamic
-        # helpers (hair, frills) are typically sparse or zero-weight.
-        if _bone_weighted_vert_count(b.name, meshes) > skin_weight_limit:
-            continue
 
         # BFS collect subtree, skipping any descendant that lands back on a
-        # canonical body bone (shouldn't happen in well-formed rigs, but
-        # defensive).
+        # canonical body bone or is an mmd_tools helper.
         subtree = []
         depth_by_name = {}
         stack = [(b, 0)]
         while stack:
             cur, d = stack.pop()
             if cur.name in CANONICAL_BODY_BONES:
+                continue
+            if _is_internal_helper_bone(cur.name):
                 continue
             subtree.append(cur)
             depth_by_name[cur.name] = d
