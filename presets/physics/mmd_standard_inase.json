@@ -2290,7 +2290,7 @@
           1.0
         ]
       ],
-      "collision_group_number": 15,
+      "collision_group_number": 8,
       "collision_group_mask": [
         true,
         true,
@@ -2300,7 +2300,7 @@
         true,
         true,
         true,
-        true,
+        false,
         true,
         true,
         true,
@@ -2358,7 +2358,7 @@
           1.0
         ]
       ],
-      "collision_group_number": 15,
+      "collision_group_number": 8,
       "collision_group_mask": [
         true,
         true,
@@ -2368,7 +2368,7 @@
         true,
         true,
         true,
-        true,
+        false,
         true,
         true,
         true,
@@ -2376,6 +2376,142 @@
         true,
         true,
         true
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 35,
+      "name_j": "乳中央",
+      "name_e": "",
+      "bone": "上半身2",
+      "shape": "SPHERE",
+      "type": "0",
+      "size": [
+        0.03,
+        0.0,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.3,
+        0.0,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.037974923849105835
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          -0.033515721559524536
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          -7.247552275657654e-06
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 9,
+      "collision_group_mask": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "friction": 0.5,
+      "mass": 1.0,
+      "angular_damping": 0.5,
+      "linear_damping": 0.5,
+      "bounce": 0.0
+    },
+    {
+      "idx": 36,
+      "name_j": "胸体",
+      "name_e": "",
+      "bone": "上半身2",
+      "shape": "SPHERE",
+      "type": "0",
+      "size": [
+        0.05,
+        0.0,
+        0.0
+      ],
+      "size_per_bone_length": [
+        0.5,
+        0.0,
+        0.0
+      ],
+      "local_matrix": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.037974923849105835
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          -0.033515721559524536
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          -7.247552275657654e-06
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "collision_group_number": 9,
+      "collision_group_mask": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
       ],
       "friction": 0.5,
       "mass": 1.0,
@@ -3256,7 +3392,7 @@
     {
       "name_j": "左乳奶",
       "name_e": "",
-      "rigid_a_idx": 19,
+      "rigid_a_idx": 35,
       "rigid_b_idx": 33,
       "local_matrix_in_a": [
         [
@@ -3318,7 +3454,7 @@
     {
       "name_j": "右乳奶",
       "name_e": "",
-      "rigid_a_idx": 19,
+      "rigid_a_idx": 35,
       "rigid_b_idx": 34,
       "local_matrix_in_a": [
         [
