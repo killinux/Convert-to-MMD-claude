@@ -257,6 +257,25 @@ def _body_height(arm):
                   - _bone_world_rest(arm, '足首.L').to_translation()).z)
 
 
+# Some bones have their skin weights redirected to alias bones after the
+# convert pipeline (D-bones for legs, twist bones for arms). When fitting
+# a rigid's radius we need to include those aliases so the vertex samples
+# actually represent the body part. Defined before _find_body_mesh +
+# _mesh_bone_coverage because they use it as a default argument value.
+_BONE_WEIGHT_ALIASES = {
+    '足.L':   ['足.L', '足D.L'],
+    '足.R':   ['足.R', '足D.R'],
+    'ひざ.L': ['ひざ.L', 'ひざD.L'],
+    'ひざ.R': ['ひざ.R', 'ひざD.R'],
+    '足首.L': ['足首.L', '足首D.L'],
+    '足首.R': ['足首.R', '足首D.R'],
+    '腕.L':   ['腕.L', '腕捩.L', '腕捩1.L', '腕捩2.L', '腕捩3.L'],
+    '腕.R':   ['腕.R', '腕捩.R', '腕捩1.R', '腕捩2.R', '腕捩3.R'],
+    'ひじ.L': ['ひじ.L', '手捩.L', '手捩1.L', '手捩2.L', '手捩3.L'],
+    'ひじ.R': ['ひじ.R', '手捩.R', '手捩1.R', '手捩2.R', '手捩3.R'],
+}
+
+
 def _find_body_mesh(mmd_root):
     """Pick the mesh that best represents the body surface for physics fitting.
 
@@ -360,24 +379,6 @@ def _find_best_mesh_for_bone(mmd_root, bone_name):
         best_n = n
         best = c
     return best if best_n >= 20 else _find_body_mesh(mmd_root)
-
-
-# Some bones have their skin weights redirected to alias bones after the
-# convert pipeline (D-bones for legs, twist bones for arms).  When fitting
-# a rigid's radius we need to include those aliases so the vertex samples
-# actually represent the body part.
-_BONE_WEIGHT_ALIASES = {
-    '足.L':   ['足.L', '足D.L'],
-    '足.R':   ['足.R', '足D.R'],
-    'ひざ.L': ['ひざ.L', 'ひざD.L'],
-    'ひざ.R': ['ひざ.R', 'ひざD.R'],
-    '足首.L': ['足首.L', '足首D.L'],
-    '足首.R': ['足首.R', '足首D.R'],
-    '腕.L':   ['腕.L', '腕捩.L', '腕捩1.L', '腕捩2.L', '腕捩3.L'],
-    '腕.R':   ['腕.R', '腕捩.R', '腕捩1.R', '腕捩2.R', '腕捩3.R'],
-    'ひじ.L': ['ひじ.L', '手捩.L', '手捩1.L', '手捩2.L', '手捩3.L'],
-    'ひじ.R': ['ひじ.R', '手捩.R', '手捩1.R', '手捩2.R', '手捩3.R'],
-}
 
 
 def _fit_rigid_to_bone_verts(rigid_obj, arm, mesh, bone_name, shape, *, pad=1.0,
