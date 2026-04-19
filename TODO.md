@@ -145,8 +145,49 @@
   - 3 层 fallback: Tier 1 从 target PMX 克隆, Tier 2 Inase 模板 (已有),
     Tier 3 PMXEditor 经验公式自动生成动态骨链 (发型/裙摆/尾巴)
   - Reika 实测: 当前 21 rigid, target PMX 有 83, 缺口全部发型
-  - HEAD `891f81a`: fit_to_mesh 已修 (per-bone mesh pick + strand 过滤 + log 2mm 阈值)
+  - HEAD `891f81a`: fit_to_mesh 已修 (per-bone mesh pick + strand 过滤 + log 2mm 阿值)
   - 下一步: 实现 `clone_physics_from_pmx` (Tier 1), 再补 `auto_chain_physics` (Tier 3)
+
+- **N 式胸部物理 (preset 补充, 2026-04-19 设计, 未实施)**
+  - **背景**: 本 session 试过加 `amp_breast_physics` op (mass/damp/angle 调节) + 一次性 TDA 化 preset,
+    都失败。根因: Blender Bullet 的 kinematic-dynamic sync order bug + 6DOF linear limit drift,
+    **光调参数不能解决胸部中线塌陷**。社区标准做法是 N 式/AH 式结构化 (加 bone + 分段 rigid + 重分 weight)。
+    完整复盘见 [`doc/session_postmortem_2026_04_19.md`](./doc/session_postmortem_2026_04_19.md)。
+    症状清单见 [`doc/breast_midline_collapse_fix.md`](./doc/breast_midline_collapse_fix.md)。
+
+  - **设计定位**: 作为 preset 的**补充选项**, 不替换 default `mmd_standard_inase`。
+    用户 opt-in 使用, 默认流程不变。
+
+  - **⚠️ 违反"不轻易切权重"原则**: N 式本质上要 gradient 分 weight。需要用户明确授权才能实施。
+
+  - **P0 (MVP) 结构** — 每侧:
+    - 原 `乳奶.L/R` bone 保留, 加 child bone `乳奶先.L/R` (沿骨 tail 方向, 靠近乳头)
+    - 2 rigid (上胸 挂 `乳奶`, 下胸 挂 `乳奶先`), mass=0.999, damp=0.05 (社区 N 式标准)
+    - 2 joint 链: `上半身2 rigid → 上胸 rigid → 下胸 rigid`
+    - weight gradient: `t = (vert - bone.head).dot(bone_Y) / bone.length`;
+      `乳奶 weight = (1-t) * orig_weight`, `乳奶先 weight = t * orig_weight`
+
+  - **P1 (扩展)**: 加 L 形根 bone (`乳奶根.L/R`, 纵向, 让胸根据 body 角度前后位移),
+    共 3 bone/side。社区"基本结构"的完整形态。
+
+  - **实施组件**:
+    1. 新 preset `presets/physics/mmd_n_style_inase.json` (2 breast rigid + joint 链)
+    2. 新 op `OBJECT_OT_setup_n_style_breast`: 一键加 bone + 分 weight +
+       `setup_physics(template='mmd_n_style_inase')`
+    3. UI 按钮 "🌊 N 式胸部 (加 bone+重分 weight)" 在 "胸部物理" box, 跟
+       "加载物理模板" 并列, 不覆盖 default
+
+  - **验证标准**:
+    - Inase + 摇香 全帧 bake → 视觉无中线 V 字
+    - Inase + 八方来才 全帧 bake → L-R gap max/rest < 1.5x (baseline 2.00x)
+    - export PMX + reimport → 新 bone + rigid 结构完整
+    - 旧 `setup_physics(template='mmd_standard_inase')` 流程零回归
+
+  - **待决策 (实施前要定)**:
+    1. weight gradient 公式是否合理? 是否需要 smooth 曲线 (不是 linear t)?
+    2. 新 bone 命名: `乳奶先.L` / `乳奶.L1` / 别的?
+    3. 是否预先 P0 → 验证后 → 再 P1? (推荐)
+    4. rouffe / Reika 等其他 rig 是否也要支持, 还是先只 Inase?
 
 ## P5 — 代码 / 工具
 
