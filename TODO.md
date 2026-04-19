@@ -123,6 +123,18 @@
 
 ## P4 — 物理
 
+- **衣服 deform 生硬** (2026-04-19, rouffe 实测) — 装备 mesh 跟随骨变形时形状不自然, 在弯曲/扭转处看起来"硬质"
+  - **现象**: 用户报 "衣服有一些生硬", 在 VMD 动作 (八方来才) 下装备 (jacket / shoulders / hair_back accessory) 跟随身体动作时缺少柔软感
+  - **可能原因**:
+    1. 装备 mesh 没自己的 cloth/物理 (只是 STATIC rigid 跟骨, 没 dynamic 形变)
+    2. weight 在装备/身体边界过渡太硬 (没 weight 梯度)
+    3. mesh subdiv 不够, 弯曲处出锐角
+    4. 装备骨链不够细 (只有 `jacket back left/right 1/2`, swing 时段间过渡硬)
+  - **可选方案**:
+    1. **简单**: 给装备主要骨 (jacket/skirt 类) 也跑 `auto_chain_physics`, anchor `下半身,上半身2` 加链
+    2. **中等**: weight 梯度平滑 (类似 `_split_chain_weights`)
+    3. **难**: 给装备 mesh 加 cloth modifier (Blender soft body), export 时烘焙到顶点动画 — 工作量大, 跨工具兼容性差
+
 - **通用物理模板**:
   - 当前只有 Inase 模板
   - 需要从更多 target PMX 提取模板
