@@ -128,6 +128,14 @@
   - 需要从更多 target PMX 提取模板
   - 可能需要体型参数化（身高/胸围/腰围缩放）
 
+- **刚体通用化分层方案 (进行中, 2026-04-19)** — 详细设计见
+  [`doc/physics_generalization_plan_2026_04_19.md`](./doc/physics_generalization_plan_2026_04_19.md)
+  - 3 层 fallback: Tier 1 从 target PMX 克隆, Tier 2 Inase 模板 (已有),
+    Tier 3 PMXEditor 经验公式自动生成动态骨链 (发型/裙摆/尾巴)
+  - Reika 实测: 当前 21 rigid, target PMX 有 83, 缺口全部发型
+  - HEAD `891f81a`: fit_to_mesh 已修 (per-bone mesh pick + strand 过滤 + log 2mm 阈值)
+  - 下一步: 实现 `clone_physics_from_pmx` (Tier 1), 再补 `auto_chain_physics` (Tier 3)
+
 ## P5 — 代码 / 工具
 
 - **operators/ 拆分**: 当前 `bone_operator.py` 里塞了 rename + complete

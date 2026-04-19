@@ -11,9 +11,34 @@ import bpy
 import json
 import os
 from bpy.props import StringProperty, EnumProperty, BoolProperty
-from mathutils import Matrix
+from mathutils import Matrix, Vector
 
 SHAPE_IDX = {'SPHERE': 0, 'BOX': 1, 'CAPSULE': 2}
+
+
+# Standard PMX author convention: `左X` / `右X` bone name prefixes.
+# Our converted models use `X.L` / `X.R`. Target PMXes authored with the
+# canonical Japanese prefix won't line up unless we normalize first.
+# Callers should try the normalized name first, fall back to the raw name.
+JP_SIDE_PREFIX_MAP = {
+    '左': '.L',
+    '右': '.R',
+}
+
+
+def _normalize_pmx_bone_name(name):
+    """Map `左肩` → `肩.L`, `右腕` → `腕.R`, etc. Returns (normalized, original).
+
+    If the first char isn't a side prefix, returns (name, name) — caller can
+    still try it verbatim.
+    """
+    if not name:
+        return name, name
+    prefix = name[:1]
+    suffix = JP_SIDE_PREFIX_MAP.get(prefix)
+    if suffix is None:
+        return name, name
+    return name[1:] + suffix, name
 
 
 def _presets_physics_dir():
@@ -712,6 +737,319 @@ class OBJECT_OT_apply_breast_physics(bpy.types.Operator):
             except Exception as e:
                 self.report({'WARNING'}, f"build_rig 失败: {e}")
         return {'FINISHED'}
+
+
+# ---------- Tier 1: clone rigids + joints from a target PMX file ----------
+
+def _pmx_rigid_to_entry(rigid, model, scale):
+    """Convert a mmd_tools `pmx.Rigid` to the JSON entry shape that
+    `apply_physics()` already consumes. Coordinate/size conversion mirrors
+    `mmd_tools.core.pmx.importer.PMXImporter.__importRigids` so the output
+    lands in Blender space exactly as mmd_tools would import it.
+    """
+    bone_idx = rigid.bone
+    if bone_idx is None or bone_idx < 0 or bone_idx >= len(model.bones):
+        return None
+    raw_bone = model.bones[bone_idx].name
+    norm_bone, _ = _normalize_pmx_bone_name(raw_bone)
+
+    # importer path: loc .xzy * scale, rot .xzy * -1, size .xzy (BOX only) * scale
+    loc = Vector(rigid.location).xzy * scale
+    rot = Vector(rigid.rotation).xzy * -1
+    if rigid.type == SHAPE_IDX['BOX']:
+        size = (Vector(rigid.size).xzy) * scale
+    else:
+        size = Vector(rigid.size) * scale
+
+    shape_name = ('SPHERE', 'BOX', 'CAPSULE')[rigid.type]
+
+    # Assemble a matrix we can later compose as db_bone_mat @ local_matrix.
+    # But apply_physics expects local_matrix in dst-arm-bone space, and here
+    # we're working from raw PMX world coords. Simplest: build a world matrix
+    # and have clone_physics_from_pmx call apply_physics_world instead (new
+    # helper below that skips local_matrix re-composition).
+    from mathutils import Euler
+    rigid_world_mat = Matrix.Translation(loc) @ Euler(rot, 'YXZ').to_matrix().to_4x4()
+
+    sbl = 1.0  # bone length: unused by clone path (we keep target size verbatim)
+    return {
+        'name_j': rigid.name,
+        'name_e': getattr(rigid, 'name_e', None) or '',
+        'bone': norm_bone,
+        'bone_raw': raw_bone,
+        'shape': shape_name,
+        'type': rigid.mode,  # 0/1/2 STATIC/DYNAMIC/DYNAMIC_BONE
+        'size': list(size),
+        'world_matrix': [list(row) for row in rigid_world_mat],
+        'collision_group_number': rigid.collision_group_number,
+        'collision_group_mask': [rigid.collision_group_mask & (1 << i) == 0 for i in range(16)],
+        'friction': rigid.friction,
+        'mass': rigid.mass,
+        'angular_damping': rigid.rotation_attenuation,
+        'linear_damping': rigid.velocity_attenuation,
+        'bounce': rigid.bounce,
+    }
+
+
+def _pmx_joint_to_entry(joint, pmx_idx_to_entry_idx, scale):
+    """Convert `pmx.Joint` → JSON joint entry. Mirrors `__importJoints`
+    coordinate swaps. `pmx_idx_to_entry_idx` maps original PMX rigid index
+    to the index into our entries list (skipping None entries).
+    """
+    ai = pmx_idx_to_entry_idx.get(joint.src_rigid)
+    bi = pmx_idx_to_entry_idx.get(joint.dest_rigid)
+    if ai is None or bi is None:
+        return None
+    loc = Vector(joint.location).xzy * scale
+    rot = Vector(joint.rotation).xzy * -1
+    max_loc = Vector(joint.maximum_location).xzy * scale
+    min_loc = Vector(joint.minimum_location).xzy * scale
+    # importer swaps min/max rotation (see __importJoints):
+    #   maximum_rotation = Vector(joint.minimum_rotation).xzy * -1
+    #   minimum_rotation = Vector(joint.maximum_rotation).xzy * -1
+    max_rot = Vector(joint.minimum_rotation).xzy * -1
+    min_rot = Vector(joint.maximum_rotation).xzy * -1
+    from mathutils import Euler
+    joint_world_mat = Matrix.Translation(loc) @ Euler(rot, 'YXZ').to_matrix().to_4x4()
+    return {
+        'name_j': joint.name,
+        'name_e': getattr(joint, 'name_e', None) or '',
+        'rigid_a_idx': ai,
+        'rigid_b_idx': bi,
+        'world_matrix': [list(row) for row in joint_world_mat],
+        'maximum_location': list(max_loc),
+        'minimum_location': list(min_loc),
+        'maximum_rotation': list(max_rot),
+        'minimum_rotation': list(min_rot),
+        'spring_linear': list(Vector(joint.spring_constant).xzy),
+        'spring_angular': list(Vector(joint.spring_rotation_constant).xzy),
+    }
+
+
+def _apply_cloned_physics(dst_root, data, *, fit_to_mesh=True, fit_pad=1.10):
+    """Apply cloned PMX data (world-space matrices, no src bone rest pose
+    reference). Similar to apply_physics() but skips global_scale and uses
+    world_matrix directly since target PMX and converted model share the
+    same coordinate space (assuming both at scale 0.08).
+    """
+    from mmd_tools.core.rigid_body import shapeType
+
+    dst_model = _get_model(dst_root)
+    dst_arm = dst_model.armature()
+    dst_bone_names = set(dst_arm.data.bones.keys())
+
+    rigid_entry_idx_to_obj = {}
+    skipped = []
+    for ei, entry in enumerate(data['rigids']):
+        if entry is None:
+            continue
+        bone = entry['bone']
+        if bone not in dst_bone_names:
+            # try raw (original) name as fallback
+            raw = entry.get('bone_raw')
+            if raw and raw in dst_bone_names:
+                bone = raw
+            else:
+                skipped.append(entry['bone'])
+                continue
+        world_mat = Matrix(entry['world_matrix'])
+        nr = dst_model.createRigidBody(
+            shape_type=SHAPE_IDX[entry['shape']],
+            location=world_mat.to_translation(),
+            rotation=world_mat.to_euler('YXZ'),
+            size=entry['size'],
+            dynamics_type=int(entry['type']),
+            name=entry['name_j'],
+            name_e=entry.get('name_e'),
+            bone=bone,
+            friction=entry.get('friction'),
+            mass=entry.get('mass'),
+            angular_damping=entry.get('angular_damping'),
+            linear_damping=entry.get('linear_damping'),
+            bounce=entry.get('bounce'),
+            collision_group_number=entry.get('collision_group_number'),
+            collision_group_mask=entry.get('collision_group_mask'),
+        )
+        rigid_entry_idx_to_obj[ei] = nr
+
+    n_joints = 0
+    for j in data['joints']:
+        if j is None:
+            continue
+        ai = j['rigid_a_idx']
+        bi = j['rigid_b_idx']
+        if ai not in rigid_entry_idx_to_obj or bi not in rigid_entry_idx_to_obj:
+            continue
+        na = rigid_entry_idx_to_obj[ai]
+        nb = rigid_entry_idx_to_obj[bi]
+        world_mat = Matrix(j['world_matrix'])
+        dst_model.createJoint(
+            name=j['name_j'],
+            name_e=j.get('name_e'),
+            location=world_mat.to_translation(),
+            rotation=world_mat.to_euler('YXZ'),
+            rigid_a=na,
+            rigid_b=nb,
+            maximum_location=tuple(j['maximum_location']),
+            minimum_location=tuple(j['minimum_location']),
+            maximum_rotation=tuple(j['maximum_rotation']),
+            minimum_rotation=tuple(j['minimum_rotation']),
+            spring_angular=tuple(j['spring_angular']),
+            spring_linear=tuple(j['spring_linear']),
+        )
+        n_joints += 1
+
+    fit_stats = []
+    if fit_to_mesh:
+        fallback_mesh = _find_body_mesh(dst_root)
+        if fallback_mesh is not None:
+            print(f"[CTMMD clone] fit_to_mesh fallback mesh: {fallback_mesh.name}")
+            for ei, entry in enumerate(data['rigids']):
+                if entry is None or ei not in rigid_entry_idx_to_obj:
+                    continue
+                nr = rigid_entry_idx_to_obj[ei]
+                bone = nr.mmd_rigid.bone
+                per_bone_mesh = _find_best_mesh_for_bone(dst_root, bone) or fallback_mesh
+                res = _fit_rigid_to_bone_verts(nr, dst_arm, per_bone_mesh, bone,
+                                               entry['shape'], pad=fit_pad)
+                if res is not None:
+                    old, new, n = res
+                    if abs(old[0] - new[0]) > 0.002:
+                        fit_stats.append((bone, round(old[0], 4), round(new[0], 4), n, per_bone_mesh.name))
+            if fit_stats:
+                print(f"[CTMMD clone] fit_to_mesh adjustments ({len(fit_stats)}):")
+                for b, o, nw, n, mn in fit_stats:
+                    arrow = '↓' if nw < o else '↑'
+                    print(f"  {b:12} {o:.4f} {arrow} {nw:.4f}  ({n} verts from {mn})")
+
+    return len(rigid_entry_idx_to_obj), n_joints, skipped
+
+
+def clone_physics_from_pmx(dst_root, pmx_path, *, fit_to_mesh=True, fit_pad=1.10,
+                           scale=0.08):
+    """Load a target PMX file and clone its rigid bodies + joints onto dst_root.
+
+    - Bone names are normalized `左X` → `X.L`, `右X` → `X.R`; raw name used
+      as fallback. Bones not found on dst_root are skipped and reported.
+    - No global scale (target and converted model share scale=0.08 space).
+    - Optional fit_to_mesh (shrink-only) reuses the Tier-2 helper.
+
+    Returns (n_rigids, n_joints, skipped_bones, total_target_rigids).
+    """
+    import mmd_tools.core.pmx as pmx_mod
+    try:
+        model = pmx_mod.load(pmx_path)
+    except Exception as e:
+        raise RuntimeError(f"读取 PMX 失败: {e}")
+
+    entries = []
+    pmx_idx_to_entry_idx = {}
+    for i, r in enumerate(model.rigids):
+        entry = _pmx_rigid_to_entry(r, model, scale)
+        if entry is None:
+            continue
+        pmx_idx_to_entry_idx[i] = len(entries)
+        entries.append(entry)
+
+    joint_entries = []
+    for j in model.joints:
+        je = _pmx_joint_to_entry(j, pmx_idx_to_entry_idx, scale)
+        if je is not None:
+            joint_entries.append(je)
+
+    data = {'rigids': entries, 'joints': joint_entries}
+    n_r, n_j, skipped = _apply_cloned_physics(dst_root, data,
+                                              fit_to_mesh=fit_to_mesh,
+                                              fit_pad=fit_pad)
+    print(f"[CTMMD clone] target '{os.path.basename(pmx_path)}': "
+          f"{n_r}/{len(model.rigids)} rigids, {n_j}/{len(model.joints)} joints, "
+          f"{len(skipped)} bone(s) missing on target")
+    return n_r, n_j, skipped, len(model.rigids)
+
+
+class OBJECT_OT_clone_physics_from_pmx(bpy.types.Operator):
+    """Clone rigid bodies and joints from a target .pmx file onto this model."""
+    bl_idname = "object.clone_physics_from_pmx"
+    bl_label = "🎯 从目标 PMX 克隆刚体"
+    bl_description = ("读取 target PMX 文件, 把里面的 rigid body + joint 1:1 克隆到当前 MMD 模型. "
+                      "骨名自动归一化 (左X ↔ X.L). 最适合给 Reika/DAZ 类模型补发型物理.")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: StringProperty(subtype='FILE_PATH')  # type: ignore
+    filter_glob: StringProperty(default='*.pmx;*.pmd', options={'HIDDEN'})  # type: ignore
+    build_rig: BoolProperty(
+        name="应用后 build_rig",
+        description="生成物理后立即运行 mmd_tools.build_rig 激活模拟",
+        default=True,
+    )  # type: ignore
+    clear_existing: BoolProperty(
+        name="先清空已有物理",
+        description="克隆前删除模型上已有的 rigid body 和 joint",
+        default=True,
+    )  # type: ignore
+    fit_to_mesh: BoolProperty(
+        name="贴合 mesh 实际粗细",
+        description="克隆后根据骨骼权重的顶点分布, 自动收紧半径",
+        default=True,
+    )  # type: ignore
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        active = context.active_object
+        if active is None:
+            self.report({'ERROR'}, "没有 active object")
+            return {'CANCELLED'}
+        root = _find_mmd_root(active)
+        if root is None:
+            self.report({'ERROR'}, "active 不在任何 mmd_root 下 (先跑 use_mmd_tools_convert)")
+            return {'CANCELLED'}
+        if not self.filepath or not os.path.isfile(self.filepath):
+            self.report({'ERROR'}, f"PMX 文件不存在: {self.filepath}")
+            return {'CANCELLED'}
+        if not self.filepath.lower().endswith(('.pmx', '.pmd')):
+            self.report({'ERROR'}, "只支持 .pmx / .pmd")
+            return {'CANCELLED'}
+
+        if self.clear_existing:
+            model = _get_model(root)
+            stale = list(model.rigidBodies()) + list(model.joints())
+            for o in stale:
+                bpy.data.objects.remove(o, do_unlink=True)
+
+        try:
+            n_r, n_j, skipped, n_total = clone_physics_from_pmx(
+                root, self.filepath, fit_to_mesh=self.fit_to_mesh)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.report({'ERROR'}, f"克隆失败: {e}")
+            return {'CANCELLED'}
+
+        if skipped:
+            # Show up to first 5 skipped names
+            preview = ', '.join(skipped[:5])
+            more = f" +{len(skipped)-5} more" if len(skipped) > 5 else ''
+            print(f"[CTMMD clone] skipped bones: {preview}{more}")
+
+        msg = (f"克隆完成: {n_r}/{n_total} rigids, {n_j} joints"
+               + (f", skipped {len(skipped)} 骨" if skipped else ''))
+        self.report({'INFO'}, msg)
+
+        if self.build_rig:
+            for o in bpy.data.objects: o.select_set(False)
+            root.select_set(True)
+            context.view_layer.objects.active = root
+            try:
+                bpy.ops.mmd_tools.build_rig()
+            except Exception as e:
+                self.report({'WARNING'}, f"build_rig 失败: {e}")
+        return {'FINISHED'}
+
+
+# ---------- /Tier 1 ----------
 
 
 class OBJECT_OT_setup_physics(bpy.types.Operator):
