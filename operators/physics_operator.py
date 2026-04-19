@@ -230,12 +230,43 @@ def _find_body_mesh(mmd_root):
     return best
 
 
+_STRAND_BODY_BONES = ('上半身', '上半身2', '下半身', '腕.L', '腕.R',
+                       '足.L', '足.R', '頭', '首')
+
+
+def _mesh_bone_coverage(mesh, bone_aliases_dict=_BONE_WEIGHT_ALIASES):
+    """Count how many canonical body bones the mesh carries weights on
+    (≥20 verts at weight>0.3). Strand meshes (pubes, single hair patch)
+    score 0-1; real body/outfit meshes score 5+. Used to reject strand
+    meshes from being used as thickness reference for bones they happen
+    to all weight to."""
+    covered = 0
+    for bname in _STRAND_BODY_BONES:
+        for an in bone_aliases_dict.get(bname, (bname,)):
+            vg = mesh.vertex_groups.get(an)
+            if vg is None:
+                continue
+            n = 0
+            for v in mesh.data.vertices:
+                for g in v.groups:
+                    if g.group == vg.index and g.weight > 0.3:
+                        n += 1
+                        if n >= 20:
+                            break
+                if n >= 20:
+                    break
+            if n >= 20:
+                covered += 1
+                break
+    return covered
+
+
 def _find_best_mesh_for_bone(mmd_root, bone_name):
     """Pick the mesh with the most verts weighted (>0.3) to bone_name or its
-    twist/D-bone aliases. Falls back to _find_body_mesh if no mesh weights
-    this bone. Used by _fit_rigid_to_bone_verts so each rigid is fitted
-    against the mesh that actually skins to that bone (outfit layer vs body
-    mesh vs hand mesh etc)."""
+    twist/D-bone aliases. Rejects strand-like meshes (coverage<2 body bones)
+    so a pubic/hair patch entirely weighted to 下半身 doesn't become the
+    thickness reference for the hip rigid. Falls back to _find_body_mesh
+    if no eligible mesh weights this bone."""
     alias_names = _BONE_WEIGHT_ALIASES.get(bone_name, [bone_name])
     best = None
     best_n = 0
@@ -252,9 +283,14 @@ def _find_best_mesh_for_bone(mmd_root, bone_name):
                     if g.group == vg.index and g.weight > 0.3:
                         n += 1
                         break
-        if n > best_n:
-            best_n = n
-            best = c
+        if n <= best_n:
+            continue
+        # Reject strand-like meshes: a mesh entirely weighted to 1 bone is
+        # typically hair/pubes and measures a narrow region, not the body.
+        if _mesh_bone_coverage(c) < 2:
+            continue
+        best_n = n
+        best = c
     return best if best_n >= 20 else _find_body_mesh(mmd_root)
 
 
