@@ -190,15 +190,72 @@ def _body_height(arm):
 
 
 def _find_body_mesh(mmd_root):
+    """Pick the mesh that best represents the body surface for physics fitting.
+
+    Raw-vert-count ranking breaks on DAZ models whose strand meshes (hair,
+    pubes) have tens of thousands of verts covering a tiny region. Score by
+    how many canonical body bones each mesh carries non-trivial weights on,
+    then break ties by total weighted vert count. A mesh rigged to 上半身 +
+    下半身 + 腕 + 足 + 頭 is obviously the body, regardless of absolute size.
+    """
+    body_bones = ('上半身', '上半身2', '下半身', '腕.L', '腕.R',
+                  'ひじ.L', 'ひじ.R', '足.L', '足.R', 'ひざ.L', 'ひざ.R',
+                  '頭', '首')
+    best = None
+    best_score = (-1, -1)  # (bones_covered, weighted_verts)
+    for c in mmd_root.children_recursive:
+        if c.type != 'MESH' or getattr(c, 'mmd_type', '') == 'RIGID_BODY':
+            continue
+        bones_covered = 0
+        weighted = 0
+        for bname in body_bones:
+            for an in _BONE_WEIGHT_ALIASES.get(bname, (bname,)):
+                vg = c.vertex_groups.get(an)
+                if vg is None:
+                    continue
+                nv = 0
+                for v in c.data.vertices:
+                    for g in v.groups:
+                        if g.group == vg.index and g.weight > 0.3:
+                            nv += 1
+                            break
+                if nv > 20:
+                    bones_covered += 1
+                    weighted += nv
+                    break
+        score = (bones_covered, weighted)
+        if score > best_score:
+            best_score = score
+            best = c
+    return best
+
+
+def _find_best_mesh_for_bone(mmd_root, bone_name):
+    """Pick the mesh with the most verts weighted (>0.3) to bone_name or its
+    twist/D-bone aliases. Falls back to _find_body_mesh if no mesh weights
+    this bone. Used by _fit_rigid_to_bone_verts so each rigid is fitted
+    against the mesh that actually skins to that bone (outfit layer vs body
+    mesh vs hand mesh etc)."""
+    alias_names = _BONE_WEIGHT_ALIASES.get(bone_name, [bone_name])
     best = None
     best_n = 0
     for c in mmd_root.children_recursive:
-        if c.type == 'MESH' and getattr(c, 'mmd_type', '') != 'RIGID_BODY':
-            n = len(c.data.vertices)
-            if n > best_n:
-                best_n = n
-                best = c
-    return best
+        if c.type != 'MESH' or getattr(c, 'mmd_type', '') == 'RIGID_BODY':
+            continue
+        n = 0
+        for an in alias_names:
+            vg = c.vertex_groups.get(an)
+            if vg is None:
+                continue
+            for v in c.data.vertices:
+                for g in v.groups:
+                    if g.group == vg.index and g.weight > 0.3:
+                        n += 1
+                        break
+        if n > best_n:
+            best_n = n
+            best = c
+    return best if best_n >= 20 else _find_body_mesh(mmd_root)
 
 
 # Some bones have their skin weights redirected to alias bones after the
@@ -374,28 +431,32 @@ def apply_physics(dst_root, data, *, rescale_by_bone_length=True, fit_to_mesh=Tr
         n_joints += 1
 
     # Post-process: fit radii to actual mesh thickness using vertex group weights.
+    # Pick a mesh per-bone — DAZ outfit layers may carry skin weights on
+    # different bones (Suit.Body for torso, Suit.Legs for legs, etc.), and
+    # strand meshes (pubes, hair) would dominate a single-mesh pick.
     fit_stats = []
-    if fit_to_mesh:
-        body_mesh = _find_body_mesh(dst_root)
-        if body_mesh is not None:
-            for entry in data['rigids']:
-                if entry is None:
-                    continue
-                if entry['idx'] not in rigid_idx_to_obj:
-                    continue
-                nr = rigid_idx_to_obj[entry['idx']]
-                res = _fit_rigid_to_bone_verts(nr, dst_arm, body_mesh, entry['bone'],
-                                               entry['shape'], pad=fit_pad)
-                if res is not None:
-                    old, new, n = res
-                    # Only log if there was a meaningful change
-                    if abs(old[0] - new[0]) > 0.005:
-                        fit_stats.append((entry['bone'], round(old[0], 4), round(new[0], 4), n))
-            if fit_stats:
-                print(f"[CTMMD physics] fit_to_mesh adjustments ({len(fit_stats)}):")
-                for b, o, nw, n in fit_stats:
-                    arrow = '↓' if nw < o else '↑'
-                    print(f"  {b:12} {o:.4f} {arrow} {nw:.4f}  ({n} verts)")
+    fallback_mesh = _find_body_mesh(dst_root) if fit_to_mesh else None
+    if fit_to_mesh and fallback_mesh is not None:
+        print(f"[CTMMD physics] fit_to_mesh fallback mesh: {fallback_mesh.name}")
+        for entry in data['rigids']:
+            if entry is None:
+                continue
+            if entry['idx'] not in rigid_idx_to_obj:
+                continue
+            nr = rigid_idx_to_obj[entry['idx']]
+            per_bone_mesh = _find_best_mesh_for_bone(dst_root, entry['bone']) or fallback_mesh
+            res = _fit_rigid_to_bone_verts(nr, dst_arm, per_bone_mesh, entry['bone'],
+                                           entry['shape'], pad=fit_pad)
+            if res is not None:
+                old, new, n = res
+                # Only log if there was a meaningful change
+                if abs(old[0] - new[0]) > 0.005:
+                    fit_stats.append((entry['bone'], round(old[0], 4), round(new[0], 4), n, per_bone_mesh.name))
+        if fit_stats:
+            print(f"[CTMMD physics] fit_to_mesh adjustments ({len(fit_stats)}):")
+            for b, o, nw, n, mn in fit_stats:
+                arrow = '↓' if nw < o else '↑'
+                print(f"  {b:12} {o:.4f} {arrow} {nw:.4f}  ({n} verts from {mn})")
 
     return len(rigid_idx_to_obj), n_joints, skipped
 
@@ -517,19 +578,21 @@ def apply_breast_physics(dst_root, data, *, rescale_by_bone_length=True,
 
     # fit_to_mesh for newly created breast rigids
     if fit_to_mesh:
-        body_mesh = _find_body_mesh(dst_root)
-        if body_mesh is not None:
-            for entry in data['rigids']:
-                if entry is None or not _is_breast(entry['bone']):
-                    continue
-                if entry['idx'] not in rigid_idx_to_obj:
-                    continue
-                nr = rigid_idx_to_obj[entry['idx']]
-                # skip if it's a reused existing rigid (don't mutate user's rigid)
-                if existing_by_bone.get(entry['bone']) is nr:
-                    continue
-                _fit_rigid_to_bone_verts(nr, dst_arm, body_mesh, entry['bone'],
-                                         entry['shape'], pad=fit_pad)
+        fallback_mesh = _find_body_mesh(dst_root)
+        for entry in data['rigids']:
+            if entry is None or not _is_breast(entry['bone']):
+                continue
+            if entry['idx'] not in rigid_idx_to_obj:
+                continue
+            nr = rigid_idx_to_obj[entry['idx']]
+            # skip if it's a reused existing rigid (don't mutate user's rigid)
+            if existing_by_bone.get(entry['bone']) is nr:
+                continue
+            per_bone_mesh = _find_best_mesh_for_bone(dst_root, entry['bone']) or fallback_mesh
+            if per_bone_mesh is None:
+                continue
+            _fit_rigid_to_bone_verts(nr, dst_arm, per_bone_mesh, entry['bone'],
+                                     entry['shape'], pad=fit_pad)
 
     return len(rigid_idx_to_obj), n_joints, skipped, missing_anchors
 
