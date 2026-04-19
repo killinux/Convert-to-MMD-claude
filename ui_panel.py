@@ -328,6 +328,8 @@ class OBJECT_PT_skeleton_hierarchy(bpy.types.Panel):
             row.operator("object.extract_physics_template", text="提取模板", icon='EXPORT')
             phys_box.operator("object.clone_physics_from_pmx",
                               text="🎯 从目标 PMX 克隆刚体", icon='IMPORT')
+            phys_box.operator("object.auto_chain_physics",
+                              text="💇 自动生成动态骨链刚体", icon='HAIR_DATA')
 
             # 高级 / 调试 (折叠, 默认收起)
             adv_box = layout.box()

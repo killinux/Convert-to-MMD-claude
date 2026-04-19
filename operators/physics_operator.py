@@ -41,6 +41,37 @@ def _normalize_pmx_bone_name(name):
     return name[1:] + suffix, name
 
 
+# Canonical MMD body bones — Tier 3 skips these subtrees (they're handled
+# by the Inase-style template, or by target-clone). Anything outside this
+# set that forms a bone chain anchored on a body bone is a candidate for
+# auto-generated physics (hair, skirt, tails, accessories).
+CANONICAL_BODY_BONES = frozenset([
+    '全ての親', 'センター', 'グルーブ', '腰',
+    '上半身', '上半身1', '上半身2', '上半身3',
+    '下半身',
+    '首', '首1', '頭',
+    '肩.L', '肩.R', '肩C.L', '肩C.R',
+    '腕.L', '腕.R', 'ひじ.L', 'ひじ.R', '手首.L', '手首.R',
+    '腕捩.L', '腕捩.R', '手捩.L', '手捩.R',
+    '腕捩1.L', '腕捩1.R', '腕捩2.L', '腕捩2.R', '腕捩3.L', '腕捩3.R',
+    '手捩1.L', '手捩1.R', '手捩2.L', '手捩2.R', '手捩3.L', '手捩3.R',
+    '足.L', '足.R', 'ひざ.L', 'ひざ.R', '足首.L', '足首.R',
+    '足D.L', '足D.R', 'ひざD.L', 'ひざD.R', '足首D.L', '足首D.R',
+    '足IK.L', '足IK.R', 'つま先IK.L', 'つま先IK.R',
+    '足ＩＫ.L', '足ＩＫ.R', 'つま先ＩＫ.L', 'つま先ＩＫ.R',
+    'つま先.L', 'つま先.R',
+    '親指.L', '親指.R',  # thumbs
+    '乳奶.L', '乳奶.R',
+    '腰キャンセル.L', '腰キャンセル.R',
+    # Finger bones — skip entire finger chains (手首 subtree)
+    '親指0.L', '親指0.R', '親指1.L', '親指1.R', '親指2.L', '親指2.R',
+    '人指1.L', '人指1.R', '人指2.L', '人指2.R', '人指3.L', '人指3.R',
+    '中指1.L', '中指1.R', '中指2.L', '中指2.R', '中指3.L', '中指3.R',
+    '薬指1.L', '薬指1.R', '薬指2.L', '薬指2.R', '薬指3.L', '薬指3.R',
+    '小指1.L', '小指1.R', '小指2.L', '小指2.R', '小指3.L', '小指3.R',
+])
+
+
 def _presets_physics_dir():
     return os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
                         'presets', 'physics')
@@ -1050,6 +1081,347 @@ class OBJECT_OT_clone_physics_from_pmx(bpy.types.Operator):
 
 
 # ---------- /Tier 1 ----------
+
+
+# ---------- Tier 3: auto-generate physics for dynamic bone chains ----------
+
+def _bone_world_midpoint(arm, bone):
+    """World-space midpoint of a bone (head + tail) / 2."""
+    mw = arm.matrix_world
+    head = mw @ bone.head_local
+    tail = mw @ bone.tail_local
+    return (head + tail) * 0.5
+
+
+def _bone_world_rotation_yxz(arm, bone):
+    """Bone's world-space rotation as YXZ Euler."""
+    world_mat = arm.matrix_world @ bone.matrix_local
+    return world_mat.to_euler('YXZ')
+
+
+def _bone_weighted_vert_count(bone_name, meshes):
+    """Sum of verts (across given meshes) with weight > 0.3 on this bone."""
+    n = 0
+    for m in meshes:
+        vg = m.vertex_groups.get(bone_name)
+        if vg is None:
+            continue
+        for v in m.data.vertices:
+            for g in v.groups:
+                if g.group == vg.index and g.weight > 0.3:
+                    n += 1
+                    break
+    return n
+
+
+def _detect_dynamic_chains(dst_root, arm, *,
+                            skin_weight_limit=30,
+                            min_chain_length=1):
+    """Walk armature, find bone subtrees that qualify as dynamic chains:
+      1) root bone NOT in CANONICAL_BODY_BONES
+      2) parent IS in CANONICAL_BODY_BONES (anchored on body)
+      3) root carries less than `skin_weight_limit` heavily-weighted verts
+         across non-rigid-body meshes (excludes clothing main bones)
+      4) chain depth >= min_chain_length
+
+    Returns list of dicts:
+      { 'root': Bone, 'chain': [Bone, Bone, ...] (all bones in subtree),
+        'parent_body_bone': str, 'depth_by_name': {name: int} }
+    Chains from the same subtree can branch — each fork is not split into
+    separate entries; every bone in the subtree goes in one `chain` list,
+    and depth indicates link count from root.
+    """
+    meshes = [m for m in dst_root.children_recursive
+              if m.type == 'MESH' and getattr(m, 'mmd_type', '') != 'RIGID_BODY']
+    chains = []
+    for b in arm.data.bones:
+        if b.name in CANONICAL_BODY_BONES:
+            continue
+        parent = b.parent
+        if parent is None or parent.name not in CANONICAL_BODY_BONES:
+            continue
+        # Weight test: main clothing/body bones have many verts; dynamic
+        # helpers (hair, frills) are typically sparse or zero-weight.
+        if _bone_weighted_vert_count(b.name, meshes) > skin_weight_limit:
+            continue
+
+        # BFS collect subtree, skipping any descendant that lands back on a
+        # canonical body bone (shouldn't happen in well-formed rigs, but
+        # defensive).
+        subtree = []
+        depth_by_name = {}
+        stack = [(b, 0)]
+        while stack:
+            cur, d = stack.pop()
+            if cur.name in CANONICAL_BODY_BONES:
+                continue
+            subtree.append(cur)
+            depth_by_name[cur.name] = d
+            for ch in cur.children:
+                stack.append((ch, d + 1))
+        if len(subtree) < min_chain_length:
+            continue
+        chains.append({
+            'root': b,
+            'chain': subtree,
+            'parent_body_bone': parent.name,
+            'depth_by_name': depth_by_name,
+        })
+    return chains
+
+
+_HEAD_BONE_NAME = '頭'
+
+
+def _is_hair_chain(chain_entry):
+    """Chain anchored on 頭 → treat as hair for collision-group purposes."""
+    return chain_entry.get('parent_body_bone') == _HEAD_BONE_NAME
+
+
+def auto_generate_chain_physics(dst_root, *,
+                                 radius_ratio=0.15,
+                                 root_angle_deg=10.0,
+                                 leaf_angle_deg=30.0,
+                                 hair_group=2,
+                                 other_group=3,
+                                 skip_if_exists=True,
+                                 fit_to_mesh=True,
+                                 fit_pad=1.10):
+    """Generate rigid bodies + joints for every detected dynamic chain.
+
+    PMXEditor-style heuristic (see doc/physics_generalization_plan_2026_04_19.md):
+      - Bone has children → CAPSULE (len = bone.length, r = bone.length * radius_ratio)
+      - Leaf bone → SPHERE (r = bone.length * radius_ratio, or 0.01m floor)
+      - Position: bone midpoint (world head+tail)/2
+      - Rotation: bone world matrix YXZ
+      - dynamics_type: chain root = STATIC(0), everything else = DYNAMIC(1)
+      - mass = 0.5 * 0.8^depth (decays along chain)
+      - friction=0.5, damping=0.5, bounce=0
+      - Hair (under 頭) → collision group `hair_group`, mask excludes body
+        group 1; other chains (skirts, sleeves) → `other_group`.
+      - Joints between parent-child rigids; angle limit eases from
+        `root_angle_deg` at root to `leaf_angle_deg` at leaves.
+
+    skip_if_exists: don't create a rigid body if one already exists for
+        that bone (lets this operator run after setup_physics / target
+        clone without duplicating body rigids).
+
+    Returns (n_rigids, n_joints, chain_count).
+    """
+    import math
+    from mmd_tools.core.rigid_body import MODE_STATIC, MODE_DYNAMIC
+
+    dst_model = _get_model(dst_root)
+    dst_arm = dst_model.armature()
+
+    existing_by_bone = {}
+    for o in bpy.data.objects:
+        try:
+            if o.mmd_type == 'RIGID_BODY':
+                bn = o.mmd_rigid.bone
+                if bn:
+                    existing_by_bone[bn] = o
+        except Exception:
+            pass
+
+    chains = _detect_dynamic_chains(dst_root, dst_arm)
+    print(f"[CTMMD auto-chain] detected {len(chains)} dynamic chain(s)")
+
+    total_rigids = 0
+    total_joints = 0
+    bone_to_rigid_obj = dict(existing_by_bone)
+
+    for entry in chains:
+        is_hair = _is_hair_chain(entry)
+        group = hair_group if is_hair else other_group
+        # Collision mask: 16 bools, True = will NOT collide with that group.
+        # We want: chain does NOT collide with body group (1), and does not
+        # collide with itself (own group). All others collidable.
+        mask = [False] * 16
+        mask[0] = True           # body rigid group (1-indexed in UI, 0 here)
+        mask[group - 1] = True   # own group
+
+        for bone in entry['chain']:
+            if skip_if_exists and bone.name in existing_by_bone:
+                continue
+            depth = entry['depth_by_name'].get(bone.name, 0)
+            is_root = (bone == entry['root'])
+            has_children = len(bone.children) > 0
+            bone_length = max(bone.length, 0.01)
+            radius = max(bone_length * radius_ratio, 0.005)
+
+            if has_children:
+                shape_name = 'CAPSULE'
+                size = (radius, bone_length, 0.0)
+            else:
+                shape_name = 'SPHERE'
+                size = (radius, 0.0, 0.0)
+
+            loc = _bone_world_midpoint(dst_arm, bone)
+            rot = _bone_world_rotation_yxz(dst_arm, bone)
+            mass = 0.5 * (0.8 ** depth)
+
+            nr = dst_model.createRigidBody(
+                shape_type=SHAPE_IDX[shape_name],
+                location=loc,
+                rotation=rot,
+                size=size,
+                dynamics_type=MODE_STATIC if is_root else MODE_DYNAMIC,
+                name=bone.name,
+                name_e=bone.name,
+                bone=bone.name,
+                friction=0.5,
+                mass=mass,
+                angular_damping=0.5,
+                linear_damping=0.5,
+                bounce=0.0,
+                collision_group_number=group,
+                collision_group_mask=mask,
+            )
+            bone_to_rigid_obj[bone.name] = nr
+            total_rigids += 1
+
+        # Joints: one per (child-parent) edge within the chain subtree
+        # (including chain_root ↔ chain_root.child).
+        # max chain depth:
+        max_d = max(entry['depth_by_name'].values()) if entry['depth_by_name'] else 0
+        for bone in entry['chain']:
+            parent = bone.parent
+            if parent is None:
+                continue
+            # Only connect within this subtree OR to parent_body_bone
+            pa_name = parent.name
+            na = bone_to_rigid_obj.get(pa_name)
+            nb = bone_to_rigid_obj.get(bone.name)
+            if na is None or nb is None:
+                continue
+            # Joint location = bone head world (= parent tail)
+            loc = dst_arm.matrix_world @ bone.head_local
+            rot = _bone_world_rotation_yxz(dst_arm, bone)
+
+            # Angle limit eases from root_angle at depth 0 to leaf_angle at max_d
+            depth = entry['depth_by_name'].get(bone.name, 0)
+            if max_d > 0:
+                t = depth / max_d
+            else:
+                t = 1.0
+            ang_deg = root_angle_deg + (leaf_angle_deg - root_angle_deg) * t
+            ang_rad = math.radians(ang_deg)
+
+            dst_model.createJoint(
+                name=bone.name,
+                name_e=bone.name,
+                location=loc,
+                rotation=rot,
+                rigid_a=na,
+                rigid_b=nb,
+                maximum_location=(0.0, 0.0, 0.0),
+                minimum_location=(0.0, 0.0, 0.0),
+                maximum_rotation=(ang_rad, ang_rad, ang_rad),
+                minimum_rotation=(-ang_rad, -ang_rad, -ang_rad),
+                spring_angular=(0.0, 0.0, 0.0),
+                spring_linear=(0.0, 0.0, 0.0),
+            )
+            total_joints += 1
+
+    if fit_to_mesh and total_rigids > 0:
+        fallback_mesh = _find_body_mesh(dst_root)
+        if fallback_mesh is not None:
+            for entry in chains:
+                for bone in entry['chain']:
+                    nr = bone_to_rigid_obj.get(bone.name)
+                    if nr is None:
+                        continue
+                    # Don't touch pre-existing rigids (user/template authored)
+                    if existing_by_bone.get(bone.name) is nr:
+                        continue
+                    shape = nr.mmd_rigid.shape
+                    per_bone_mesh = _find_best_mesh_for_bone(dst_root, bone.name) or fallback_mesh
+                    _fit_rigid_to_bone_verts(nr, dst_arm, per_bone_mesh, bone.name,
+                                             shape, pad=fit_pad)
+
+    return total_rigids, total_joints, len(chains)
+
+
+class OBJECT_OT_auto_chain_physics(bpy.types.Operator):
+    """Auto-generate rigid bodies + joints for dynamic bone chains (hair, skirt, etc.)."""
+    bl_idname = "object.auto_chain_physics"
+    bl_label = "💇 自动生成动态骨链刚体"
+    bl_description = ("扫描 armature 找出非标准 body 骨的骨链 (发型/裙摆/尾巴等), "
+                      "按 PMXEditor 经验公式 (CAPSULE r=骨长×0.15, 根 STATIC 其余 DYNAMIC, "
+                      "angle limit 按深度从 ±10° 到 ±30°) 自动生成 rigid+joint. "
+                      "可在 Tier 1 克隆 / Tier 2 模板之后追加, 已存在的 rigid 会跳过.")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    radius_ratio: bpy.props.FloatProperty(
+        name="半径/骨长比",
+        description="CAPSULE/SPHERE 半径 = 骨长 × 该比例 (PMXEditor 经验值 0.1-0.2)",
+        default=0.15, min=0.05, max=0.5,
+    )  # type: ignore
+    root_angle_deg: bpy.props.FloatProperty(
+        name="根 joint 角度限制 (°)",
+        description="链根关节的每轴角度限制 (紧贴根骨)",
+        default=10.0, min=0.0, max=90.0,
+    )  # type: ignore
+    leaf_angle_deg: bpy.props.FloatProperty(
+        name="梢 joint 角度限制 (°)",
+        description="链梢关节的每轴角度限制 (越大越柔软)",
+        default=30.0, min=0.0, max=180.0,
+    )  # type: ignore
+    skip_if_exists: BoolProperty(
+        name="跳过已有 rigid 的骨",
+        description="已有 rigid body 的骨不重复创建 — 允许在模板/克隆之后补骨链",
+        default=True,
+    )  # type: ignore
+    fit_to_mesh: BoolProperty(
+        name="贴合 mesh 实际粗细",
+        default=True,
+    )  # type: ignore
+    build_rig: BoolProperty(
+        name="应用后 build_rig",
+        default=True,
+    )  # type: ignore
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=320)
+
+    def execute(self, context):
+        active = context.active_object
+        if active is None:
+            self.report({'ERROR'}, "没有 active object")
+            return {'CANCELLED'}
+        root = _find_mmd_root(active)
+        if root is None:
+            self.report({'ERROR'}, "active 不在任何 mmd_root 下")
+            return {'CANCELLED'}
+        try:
+            n_r, n_j, n_c = auto_generate_chain_physics(
+                root,
+                radius_ratio=self.radius_ratio,
+                root_angle_deg=self.root_angle_deg,
+                leaf_angle_deg=self.leaf_angle_deg,
+                skip_if_exists=self.skip_if_exists,
+                fit_to_mesh=self.fit_to_mesh,
+            )
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.report({'ERROR'}, f"自动生成失败: {e}")
+            return {'CANCELLED'}
+        self.report({'INFO'}, f"生成 {n_r} rigids, {n_j} joints, {n_c} 条骨链")
+
+        if self.build_rig:
+            for o in bpy.data.objects: o.select_set(False)
+            root.select_set(True)
+            context.view_layer.objects.active = root
+            try:
+                bpy.ops.mmd_tools.build_rig()
+            except Exception as e:
+                self.report({'WARNING'}, f"build_rig 失败: {e}")
+        return {'FINISHED'}
+
+
+# ---------- /Tier 3 ----------
 
 
 class OBJECT_OT_setup_physics(bpy.types.Operator):
